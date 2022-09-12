@@ -1,0 +1,16 @@
+{
+  "name": "decrel",
+  "version": "1.0.0",
+  "description": "Documentation for Decrel",
+  "main": "index.js",
+  "repository": "https://github.com/yoohaemin/decrel",
+  "author": "Haemin Yoo",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "vuepress": "^2.0.0-beta.53"
+  },
+  "scripts": {
+    "docs:dev": "vuepress dev docs",
+    "docs:build": "vuepress build docs"
+  }
+}
