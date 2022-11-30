@@ -5,8 +5,8 @@
 [![Release Artifacts][Badge-SonatypeReleases]][Link-SonatypeReleases]
 [![Snapshot Artifacts][Badge-SonatypeSnapshots]][Link-SonatypeSnapshots]
 
-[Link-SonatypeReleases]: https://oss.sonatype.org/content/repositories/releases/com/yoohaemin/decrel-core_3/ "Sonatype Releases"
-[Badge-SonatypeReleases]: https://img.shields.io/nexus/r/https/oss.sonatype.org/com.yoohaemin/decrel-core_3.svg "Sonatype Releases"
+[Link-SonatypeReleases]: https://s01.oss.sonatype.org/content/repositories/releases/com/yoohaemin/decrel-core_3/ "Sonatype Releases"
+[Badge-SonatypeReleases]: https://img.shields.io/nexus/r/https/s01.oss.sonatype.org/com.yoohaemin/decrel-core_3.svg "Sonatype Releases"
 [Link-SonatypeSnapshots]: https://s01.oss.sonatype.org/content/repositories/snapshots/com/yoohaemin/decrel-core_3/ "Sonatype Snapshots"
 [Badge-SonatypeSnapshots]: https://img.shields.io/nexus/s/https/s01.oss.sonatype.org/com.yoohaemin/decrel-core_3.svg "Sonatype Snapshots"
 
@@ -118,10 +118,6 @@ The benefit of using decrel to compose generators is twofold:
 - less boilerplate compared to specifying generators one-by-one (especially when options/lists are involved)
 - values generated are more consistent compared to generating values independently
   - In this case, all books will have the `authorId` fields set to the generated author.
-
-Sounds interesting? Let's dive in!
-
-**>>> Head on to the documentation >>>**
 
 # adding decrel to your sbt build
 
