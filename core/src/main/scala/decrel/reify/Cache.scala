@@ -11,8 +11,10 @@ case class Cache private (
 
   // Because Scala 3 dropped support for existential type,
   // consistency of key and value can only be enforced here.
-  def add[Rel, A, B](key: Cache.Key[Rel, A, B], value: B) =
-    new Cache(entries + (key -> Cache.Entry(key, value)))
+  def add[Rel, A, B](relation: Rel & Relation[A, B], key: A, value: B): Cache = {
+    val k = Cache.Key(relation, key)
+    new Cache(entries + (k -> Cache.Entry(k, value)))
+  }
 
 }
 
