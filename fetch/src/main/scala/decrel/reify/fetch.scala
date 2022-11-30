@@ -11,7 +11,7 @@ package decrel.reify
 import cats.*
 import cats.implicits.*
 import cats.data.NonEmptyList
-import cats.effect.{ Clock, Concurrent }
+import cats.effect.{ Clock, Concurrent, Ref }
 import decrel.Relation
 import fetch.*
 
@@ -457,6 +457,13 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
       in: Coll[In]
     ): Fetch[F, Coll[Out]] =
       rel.applyMultiple(in)
+  }
+
+  implicit class RefCacheOps(private val refCache: Ref[F, Cache]) {
+
+    def add[Rel, A, B](relation: Rel & Relation[A, B], key: A, value: B): F[Unit] =
+      refCache.update(_.add(relation, key, value))
+
   }
 
 }

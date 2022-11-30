@@ -395,6 +395,13 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
     ): ZQuery[R, E, Coll[Out]] =
       rel.applyMultiple(in)
   }
+
+  implicit class RefCacheOps(private val refCache: Ref[Cache]) {
+
+    def add[Rel, A, B](relation: Rel & Relation[A, B], key: A, value: B): UIO[Unit] =
+      refCache.update(_.add(relation, key, value))
+
+  }
 }
 
 object zquery extends zquery[Any]
