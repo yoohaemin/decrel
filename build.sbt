@@ -97,7 +97,9 @@ lazy val zquery = crossProject(JSPlatform, JVMPlatform)
   )
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-query" % V.zioQuery
+      "dev.zio" %%% "zio-query"    % V.zioQuery,
+      "dev.zio" %%% "zio-test"     % V.zio,
+      "dev.zio" %%% "zio-test-sbt" % V.zio % Test
     )
   )
   .dependsOn(core)
@@ -268,7 +270,7 @@ lazy val V = new {
 
   val cats         = "2.9.0"
   val zio          = "2.0.2"
-  val zioQuery     = "0.3.2"
+  val zioQuery     = "0.3.1"
   val fetch        = "3.1.0"
   val izumiReflect = "2.2.2"
   val scalacheck   = "1.17.0"
