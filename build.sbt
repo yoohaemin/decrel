@@ -222,7 +222,7 @@ lazy val docs = project
     scalacOptions -= "-Xfatal-warnings",
     libraryDependencies ++= Seq()
   )
-  .dependsOn(coreJVM, zqueryJVM, fetchJVM)
+  .dependsOn(coreJVM, zqueryJVM, fetchJVM, ziotestJVM, scalacheckJVM)
   .enablePlugins(NoPublishPlugin)
 
 lazy val commonSettings = Def.settings(
