@@ -122,7 +122,7 @@ The benefit of using decrel to compose generators is twofold:
 - values generated are more consistent compared to generating values independently
   - In this case, all books will have the `authorId` fields set to the generated author.
 
-# adding decrel to your sbt build
+# Adding decrel to your sbt build
 
 decrel is published for Scala 2.13 and 3, for JVM and JS platforms.
 
@@ -142,6 +142,12 @@ scala-native support will come once a ZIO version is released against scala-nati
 "com.yoohaemin" %% "decrel-ziotest"    % decrelVersion // Integration with ZIO-Test Gen 
 "com.yoohaemin" %% "decrel-cats"       % decrelVersion // Integration with F[_]: Monad
 ```
+
+# Notice to all Scala 3 users
+
+Any method that requires an implicit (given) instance of `Proof` needs to be called against a `val` value.
+
+See [this commit](https://github.com/yoohaemin/decrel/commit/8b836b5c41b58a77d791c36e8b81e4f6e979e297) for examples.
 
 # Acknowledgements
 
