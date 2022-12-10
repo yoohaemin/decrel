@@ -104,7 +104,6 @@ lazy val zquery = crossProject(JSPlatform, JVMPlatform)
   )
   .dependsOn(core)
 
-
 lazy val zqueryJVM = zquery.jvm.settings(crossScalaVersions := V.scalaAll)
 lazy val zqueryJS  = zquery.js.settings(crossScalaVersions := List(V.scala213))
 
@@ -124,7 +123,8 @@ lazy val fetch = crossProject(JSPlatform, JVMPlatform)
   )
   .settings(
     libraryDependencies ++= Seq(
-      "com.47deg" %%% "fetch" % V.fetch
+      "com.47deg" %%% "fetch"         % V.fetch,
+      "dev.zio"   %%% "izumi-reflect" % V.izumiReflect
     )
   )
   .dependsOn(cats)

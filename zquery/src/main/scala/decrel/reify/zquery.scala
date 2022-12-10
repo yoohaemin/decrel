@@ -46,13 +46,13 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
     id: Id
   ) extends zio.query.Request[E, Result]
 
-  private def buildDatasource[Rel, In, E, Out](
+  private def buildDatasource[Rel: Tag, In, E, Out](
     rel: Rel
   )(
     batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, Out)]]
   ): DataSource[R, RelationRequest[Rel, In, E, Out]] =
     new DataSource.Batched[R, RelationRequest[Rel, In, E, Out]] {
-      override val identifier: String = rel.toString
+      override val identifier: String = "RelationDatasource:" + Tag[Rel].tag.repr
 
       override def run(
         requests: Chunk[RelationRequest[Rel, In, E, Out]]
@@ -86,7 +86,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
   // batchExecute should return a list of results that contains all of the identifiers of the provided list
   // Failing to do so will result in fiber death
   // order does not matter
-  def implementSingleDatasource[Rel, In, E, Out](
+  def implementSingleDatasource[Rel: Tag, In, E, Out](
     relation: Rel & Relation.Single[In, Out]
   )(
     // Also should allow exception per request, so when failing we can give back what we fetched so far
@@ -114,7 +114,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
         }
     }
 
-  def implementOptionalDatasource[Rel, In, E, Out](
+  def implementOptionalDatasource[Rel: Tag, In, E, Out](
     relation: Rel & Relation.Optional[In, Out]
   )(
     // Also should allow exception per request, so when failing we can give back what we fetched so far
@@ -143,7 +143,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
     }
 
   def implementManyDatasource[
-    Rel,
+    Rel: Tag,
     In,
     E,
     CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]],
@@ -187,7 +187,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
     // Also should allow exception per request, so when failing we can give back what we fetched so far
     batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, Out)]]
   )(implicit
-    tag: Tag[Out]
+    tag: Tag[Relation.Custom[Tree, In, Out]]
   ): Proof[Relation.Custom[Tree, In, Out], In, E, Out] =
     new Proof[Relation.Custom[Tree, In, Out], In, E, Out] {
       private val ds = buildDatasource(relation)(batchExecute)

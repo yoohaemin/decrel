@@ -14,6 +14,7 @@ import cats.data.NonEmptyList
 import cats.effect.{ Clock, Concurrent, Ref }
 import decrel.Relation
 import fetch.*
+import izumi.reflect.Tag
 
 import scala.collection.immutable.HashMap
 import scala.collection.{ mutable, BuildFrom, IterableOps }
@@ -47,18 +48,17 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     id: Id
   )
 
-  private case class RelationRequestData[Rel, In, Out](rel: Rel)
-      extends Data[RelationRequest[Rel, In, Out], Out] {
-    override val name: String =
-      s"Decrel Datasource: ${rel.toString}" // TODO improve toString for rel
-  }
+  private abstract class RelationRequestData[Rel, In, Out](val rel: Rel)
+      extends Data[RelationRequest[Rel, In, Out], Out]
 
-  private class FetchDataSourceImpl[Rel, In, Out](
+  private class FetchDataSourceImpl[Rel: Tag, In, Out](
     rel: Rel,
     batchExecute: List[In] => F[List[(In, Out)]]
   ) extends DataSource[F, RelationRequest[Rel, In, Out], Out] {
     override def data: Data[RelationRequest[Rel, In, Out], Out] =
-      new RelationRequestData[Rel, In, Out](rel)
+      new RelationRequestData[Rel, In, Out](rel) {
+        override val name: String = "RelationDatasource:" + Tag[Rel].tag.repr
+      }
 
     override implicit def CF: Concurrent[F] = self.CF
 
@@ -137,12 +137,12 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   }
 
   // batchExecute is expected to return a List of the same size
-  private def buildDatasource[Rel, In, Out](rel: Rel)(
+  private def buildDatasource[Rel: Tag, In, Out](rel: Rel)(
     batchExecute: List[In] => F[List[(In, Out)]]
   ): DataSource[F, RelationRequest[Rel, In, Out], Out] =
     new FetchDataSourceImpl[Rel, In, Out](rel, batchExecute)
 
-  def implementSingleDatasource[Rel, In, Out](
+  def implementSingleDatasource[Rel: Tag, In, Out](
     relation: Rel & Relation.Single[In, Out]
   )(
     // Also should allow exception per request, so when failing we can give back what we fetched so far
@@ -170,7 +170,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
         }
     }
 
-  def implementOptionalDatasource[Rel, In, Out](
+  def implementOptionalDatasource[Rel: Tag, In, Out](
     relation: Rel & Relation.Optional[In, Out]
   )(
     // Also should allow exception per request, so when failing we can give back what we fetched so far
@@ -201,7 +201,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     }
 
   def implementManyDatasource[
-    Rel,
+    Rel: Tag,
     In,
     CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]],
     Out
@@ -242,6 +242,8 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   )(
     // Also should allow exception per request, so when failing we can give back what we fetched so far
     batchExecute: List[In] => F[List[(In, Out)]]
+  )(implicit
+    tag: Tag[Relation.Custom[Tree, In, Out]]
   ): Proof[Relation.Custom[Tree, In, Out], In, Out] =
     new Proof[Relation.Custom[Tree, In, Out], In, Out] {
       private val ds = buildDatasource(relation)(batchExecute)
@@ -359,7 +361,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
         acc.insert[RelationRequest[k.R, k.Input, k.Result], k.Result](
           RelationRequest(relation, key),
           value,
-          RelationRequestData(relation)
+          new RelationRequestData(relation)
         )
     }
 
