@@ -389,7 +389,8 @@ object zqueryProofSpec extends ZIOSpecDefault {
               proofs.flatMap { proofs =>
                 import proofs.*
 
-                val relation = Rental.book >>: Book.currentRental >>: Rental.book >>: Book.currentRental
+                val relation =
+                  Rental.book >>: Book.currentRental >>: Rental.book >>: Book.currentRental
                 val result = relation.toZIO(rental1)
 
                 assertZIO(result)(isSome(isSome(equalTo(rental1)))) &&
@@ -424,7 +425,24 @@ object zqueryProofSpec extends ZIOSpecDefault {
               )
             }
           )
+        ),
+        suite("Unique datasource names")(
+          test("Two relations with the same name") {
+            proofs.flatMap { proofs =>
+              import proofs.*
+
+              val fetchUser = User.fetch
+              val user      = fetchUser.toQuery(user1.id)
+
+              val fetchBook = Book.fetch
+              val book      = fetchBook.toQuery(book1.id)
+
+              assertZIO((user <*> book).run)(equalTo((user1, book1)))
+            }
+          }
         )
       )
     )
+
+  override val bootstrap: ZLayer[Any, Any, TestEnvironment] = testEnvironment
 }

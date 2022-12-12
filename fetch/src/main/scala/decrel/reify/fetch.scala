@@ -48,17 +48,21 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     id: Id
   )
 
-  private abstract class RelationRequestData[Rel, In, Out](val rel: Rel)
-      extends Data[RelationRequest[Rel, In, Out], Out]
+  private class RelationRequestData[Rel, In, Out](
+    val rel: Rel,
+    override val name: String
+  ) extends Data[RelationRequest[Rel, In, Out], Out] {
+
+    def this(rel: Rel, tag: Tag[Rel]) =
+      this(rel, "RelationDatasource:" + tag.tag.longNameWithPrefix)
+  }
 
   private class FetchDataSourceImpl[Rel: Tag, In, Out](
     rel: Rel,
     batchExecute: List[In] => F[List[(In, Out)]]
   ) extends DataSource[F, RelationRequest[Rel, In, Out], Out] {
     override def data: Data[RelationRequest[Rel, In, Out], Out] =
-      new RelationRequestData[Rel, In, Out](rel) {
-        override val name: String = "RelationDatasource:" + Tag[Rel].tag.repr
-      }
+      new RelationRequestData[Rel, In, Out](rel, Tag[Rel])
 
     override implicit def CF: Concurrent[F] = self.CF
 
@@ -354,6 +358,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     cache.entries.toList.foldLeftM[F, fetch.DataCache[F]](fetch.InMemoryCache.empty[F]) {
       case (acc, (_, v)) =>
         val k: v.key.type                               = v.key
+        val tag: Tag[k.R]                               = k.tag
         val relation: k.R & Relation[k.Input, k.Result] = k.relationEv(k._relation)
         val key: k.Input                                = k._key
         val value: k.Result                             = v.valueEv(v._value)
@@ -361,7 +366,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
         acc.insert[RelationRequest[k.R, k.Input, k.Result], k.Result](
           RelationRequest(relation, key),
           value,
-          new RelationRequestData(relation)
+          new RelationRequestData(relation, tag)
         )
     }
 
@@ -463,8 +468,10 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
   implicit class RefCacheOps(private val refCache: Ref[F, Cache]) {
 
-    def add[Rel, A, B](relation: Rel & Relation[A, B], key: A, value: B): F[Unit] =
-      refCache.update(_.add(relation, key, value))
+    def add[Rel, A, B](relation: Rel & Relation[A, B], key: A, value: B)(implicit
+      tag: Tag[Rel]
+    ): F[Unit] =
+      refCache.update(_.add[Rel, A, B](relation, key, value))
 
   }
 

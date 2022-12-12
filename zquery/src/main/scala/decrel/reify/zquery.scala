@@ -52,7 +52,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
     batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, Out)]]
   ): DataSource[R, RelationRequest[Rel, In, E, Out]] =
     new DataSource.Batched[R, RelationRequest[Rel, In, E, Out]] {
-      override val identifier: String = "RelationDatasource:" + Tag[Rel].tag.repr
+      override val identifier: String = "RelationDatasource:" + Tag[Rel].tag.longNameInternalSymbol
 
       override def run(
         requests: Chunk[RelationRequest[Rel, In, E, Out]]
@@ -398,8 +398,10 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
 
   implicit class RefCacheOps(private val refCache: Ref[Cache]) {
 
-    def add[Rel, A, B](relation: Rel & Relation[A, B], key: A, value: B): UIO[Unit] =
-      refCache.update(_.add(relation, key, value))
+    def add[Rel, A, B](relation: Rel & Relation[A, B], key: A, value: B)(implicit
+      tag: Tag[Rel]
+    ): UIO[Unit] =
+      refCache.update(_.add[Rel, A, B](relation, key, value))
 
   }
 }
