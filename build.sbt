@@ -71,8 +71,9 @@ lazy val core = crossProject(JSPlatform, JVMPlatform)
   .settings(
     libraryDependencies ++=
       Seq(
-        "dev.zio" %%% "zio-test"     % V.zio % Test,
-        "dev.zio" %%% "zio-test-sbt" % V.zio % Test
+        "dev.zio" %%% "izumi-reflect" % V.izumiReflect,
+        "dev.zio" %%% "zio-test"      % V.zio % Test,
+        "dev.zio" %%% "zio-test-sbt"  % V.zio % Test
       )
   )
 
@@ -104,9 +105,8 @@ lazy val zquery = crossProject(JSPlatform, JVMPlatform)
   )
   .dependsOn(core)
 
-
-lazy val zqueryJVM = zquery.jvm.settings(crossScalaVersions := V.scalaAll)
-lazy val zqueryJS  = zquery.js.settings(crossScalaVersions := List(V.scala213))
+lazy val zqueryJVM = zquery.jvm
+lazy val zqueryJS  = zquery.js
 
 lazy val fetch = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
@@ -270,8 +270,8 @@ lazy val V = new {
   val scalaAll = scala213 :: scala3 :: Nil
 
   val cats         = "2.9.0"
-  val zio          = "2.0.2"
-  val zioQuery     = "0.3.1"
+  val zio          = "2.0.5"
+  val zioQuery     = "0.3.4"
   val fetch        = "3.1.0"
   val izumiReflect = "2.2.2"
   val scalacheck   = "1.17.0"
@@ -296,7 +296,7 @@ lazy val ciSettings = List(
     )
   ),
   githubWorkflowGeneratedUploadSteps := {
-    val projectsWithoutFullJSVersions = List("fetch", "zquery")
+    val projectsWithoutFullJSVersions = List("fetch")
 
     githubWorkflowGeneratedUploadSteps.value match {
       case (run: WorkflowStep.Run) :: t if run.commands.head.startsWith("tar cf") =>
