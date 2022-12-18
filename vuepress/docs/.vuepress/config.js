@@ -47,5 +47,10 @@ export default defineUserConfig({
 			//	selectLanguageName: '한국어',
 			//},
 		},
-	})
+	}),
+	markdown: {
+		code: {
+			lineNumbers: false
+		}
+	}
 })
