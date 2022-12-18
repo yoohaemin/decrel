@@ -17,6 +17,7 @@ project/metals.sbt
 vuepress/node_modules/*
 *.lock
 vuepress/package-lock.json
+vuepress/docs/.vuepress/dist/*
 **/.temp/
 **/.cache/
 
