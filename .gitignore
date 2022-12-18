@@ -18,7 +18,7 @@ vuepress/node_modules/*
 *.lock
 vuepress/package-lock.json
 vuepress/docs/.vuepress/dist/*
-vuepress/**.md
+vuepress/**/*.md
 **/.temp/
 **/.cache/
 
