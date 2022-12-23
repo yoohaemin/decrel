@@ -307,7 +307,7 @@ lazy val ciSettings = List(
     )
   ),
   githubWorkflowGeneratedUploadSteps := {
-    val projectsWithoutFullJSVersions = List("fetch", "jsdocs")
+    val projectsWithoutFullJSVersions = List("fetch/.js", "jsdocs")
 
     githubWorkflowGeneratedUploadSteps.value match {
       case (run: WorkflowStep.Run) :: t if run.commands.head.startsWith("tar cf") =>
@@ -315,7 +315,7 @@ lazy val ciSettings = List(
         run.copy(
           commands = List(
             projectsWithoutFullJSVersions.foldLeft(run.commands.head) { (acc, v) =>
-              acc.replace(s"$v/.js/target", "")
+              acc.replace(s"$v/target", "")
             }
           )
         ) :: t
