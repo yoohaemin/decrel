@@ -211,19 +211,30 @@ lazy val catsJS  = cats.js
 
 ///////////////////////// docs
 
+lazy val jsdocs = project
+  .settings(
+    libraryDependencies += "org.scala-js" %%% "scalajs-dom" % V.scalajsDom,
+    crossScalaVersions                     := List(V.scala213)
+  )
+  .dependsOn(coreJS, zqueryJS, fetchJS, ziotestJS, scalacheckJS)
+  .enablePlugins(ScalaJSPlugin)
+  .enablePlugins(NoPublishPlugin)
+
 lazy val docs = project
   .in(file("mdoc"))
-  .enablePlugins(MdocPlugin, DocusaurusPlugin)
+  .enablePlugins(MdocPlugin)
   .settings(commonSettings)
   .settings(
     name       := "decrel-docs",
     moduleName := name.value,
-    mdocIn     := (ThisBuild / baseDirectory).value / "vuepress" / "docs",
-    run / fork := true,
+    mdocIn     := (ThisBuild / baseDirectory).value / "mdoc" / "docs",
+    mdocOut    := (ThisBuild / baseDirectory).value / "vuepress" / "docs",
+    run / fork := false,
     scalacOptions -= "-Xfatal-warnings",
-    libraryDependencies ++= Seq()
+    mdocJS             := Some(jsdocs),
+    crossScalaVersions := List(V.scala213)
   )
-  .dependsOn(coreJVM, zqueryJVM, fetchJVM)
+  .dependsOn(coreJVM, zqueryJVM, fetchJVM, ziotestJVM, scalacheckJVM)
   .enablePlugins(NoPublishPlugin)
 
 lazy val commonSettings = Def.settings(
@@ -253,7 +264,6 @@ lazy val commonSettings = Def.settings(
       )
     case _ => Nil
   }),
-  testFrameworks ++= List(new TestFramework("zio.test.sbt.ZTestFramework")),
   Test / fork := false,
   run / fork  := true,
   libraryDependencies ++= {
@@ -275,6 +285,7 @@ lazy val V = new {
   val fetch        = "3.1.0"
   val izumiReflect = "2.2.2"
   val scalacheck   = "1.17.0"
+  val scalajsDom   = "2.3.0"
 }
 
 lazy val ciSettings = List(
@@ -296,15 +307,15 @@ lazy val ciSettings = List(
     )
   ),
   githubWorkflowGeneratedUploadSteps := {
-    val projectsWithoutFullJSVersions = List("fetch")
+    val skipCache = List("fetch/.js", "jsdocs", "mdoc")
 
     githubWorkflowGeneratedUploadSteps.value match {
       case (run: WorkflowStep.Run) :: t if run.commands.head.startsWith("tar cf") =>
         assert(run.commands.length == 1)
         run.copy(
           commands = List(
-            projectsWithoutFullJSVersions.foldLeft(run.commands.head) { (acc, v) =>
-              acc.replace(s"$v/.js/target", "")
+            skipCache.foldLeft(run.commands.head) { (acc, v) =>
+              acc.replace(s"$v/target", "")
             }
           )
         ) :: t
