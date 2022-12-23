@@ -213,7 +213,8 @@ lazy val catsJS  = cats.js
 
 lazy val jsdocs = project
   .settings(
-    libraryDependencies += "org.scala-js" %%% "scalajs-dom" % V.scalajsDom
+    libraryDependencies += "org.scala-js" %%% "scalajs-dom" % V.scalajsDom,
+    crossScalaVersions                     := List(V.scala213)
   )
   .dependsOn(coreJS, zqueryJS, fetchJS, ziotestJS, scalacheckJS)
   .enablePlugins(ScalaJSPlugin)
@@ -230,7 +231,8 @@ lazy val docs = project
     mdocOut    := (ThisBuild / baseDirectory).value / "vuepress" / "docs",
     run / fork := false,
     scalacOptions -= "-Xfatal-warnings",
-    mdocJS       := Some(jsdocs)
+    mdocJS             := Some(jsdocs),
+    crossScalaVersions := List(V.scala213)
   )
   .dependsOn(coreJVM, zqueryJVM, fetchJVM, ziotestJVM, scalacheckJVM)
   .enablePlugins(NoPublishPlugin)
@@ -305,7 +307,7 @@ lazy val ciSettings = List(
     )
   ),
   githubWorkflowGeneratedUploadSteps := {
-    val projectsWithoutFullJSVersions = List("fetch")
+    val projectsWithoutFullJSVersions = List("fetch", "jsdocs")
 
     githubWorkflowGeneratedUploadSteps.value match {
       case (run: WorkflowStep.Run) :: t if run.commands.head.startsWith("tar cf") =>
