@@ -32,6 +32,7 @@ jobs:
         with:
           node-version: 16.x
           cache: yarn
+          cache-dependency-path: ./vuepress/yarn.lock
 
       - run: yarn add -D vuepress@next
 
