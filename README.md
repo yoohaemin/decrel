@@ -13,8 +13,6 @@
 
 Decrel is a library for **dec**larative data access using **rel**ations between your data.
 
-Warning: Although the basic concepts and most of the usecases I aimed for seems to work as intended, this project is in its early stages. There is no good test coverage, and the API will change a lot in the future. That said, please ask any questions in the discussions tab, I will be happy to reply.
-
 # Usecases
 
 For a given domain:
