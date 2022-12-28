@@ -232,7 +232,11 @@ lazy val docs = project
     run / fork := false,
     scalacOptions -= "-Xfatal-warnings",
     mdocJS             := Some(jsdocs),
-    crossScalaVersions := List(V.scala213)
+    crossScalaVersions := List(V.scala213),
+    mdocVariables := Map(
+      "SNAPSHOTVERSION" -> version.value,
+      "RELEASEVERSION" -> version.value.takeWhile(_ != '+'),
+    )
   )
   .dependsOn(coreJVM, zqueryJVM, fetchJVM, ziotestJVM, scalacheckJVM)
   .enablePlugins(NoPublishPlugin)
