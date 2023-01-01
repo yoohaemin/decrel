@@ -5,7 +5,7 @@ title: Showcase
 
 Decrel lets you define data relations, and use them to fetch data using a simple DSL.
 
-In this page, I will showcase what it can do.
+This page demonstrates different 
 
 ## Business logic (simple)
 

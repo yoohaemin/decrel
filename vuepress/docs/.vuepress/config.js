@@ -29,7 +29,8 @@ export default defineUserConfig({
 						text: 'Guide',
 						children: [
 							'/guide/README.md',
-							'/guide/getting-started.md'
+							'/guide/getting-started.md',
+							'/guide/defining-relations.md'
 						],
 					}],
 					//'/reference/': [

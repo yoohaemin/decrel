@@ -1,3 +1,7 @@
+---
+lang: en-US
+title: Getting Started
+---
 
 # Adding decrel to your build
 
