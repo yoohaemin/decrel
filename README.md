@@ -13,6 +13,14 @@
 
 Decrel is a library for **dec**larative programming using **rel**ations between your data.
 
+## Motivation
+
+We commonly use abstractions from optics libraries to zoom into data that is in memory.
+
+For a moment, let's free ourselves of the in-memory limitation, and try imagining an applications' entire datasource as a giant case class.
+
+In such a structure, abstract _relations_ between data will correspond to concrete lenses in optics.
+
 ## Usecases
 
 For a given domain:
