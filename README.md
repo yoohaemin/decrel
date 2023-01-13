@@ -21,6 +21,10 @@ For a moment, let's free ourselves of the in-memory limitation, and try imaginin
 
 In such a structure, abstract _relations_ between data will correspond to concrete lenses in optics.
 
+## Documentation
+
+Please visit the [documentation](https://decrel.yoohaemin.com) for more details.
+
 ## Usecases
 
 For a given domain:
