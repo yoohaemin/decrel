@@ -120,13 +120,13 @@ The benefit of using decrel to compose generators is twofold:
 - values generated are more consistent compared to generating values independently
   - In this case, all books will have the `authorId` fields set to the generated author.
 
-# Notice to all Scala 3 users
+## Notice to all Scala 3 users
 
 Any method that requires an implicit (given) instance of `Proof` needs to be called against a `val` value.
 
 See [this commit](https://github.com/yoohaemin/decrel/commit/8b836b5c41b58a77d791c36e8b81e4f6e979e297) for examples.
 
-# Acknowledgements
+## Acknowledgements
 
 Thanks to [@ghostdogpr](https://github.com/ghostdogpr) for critical piece of insight regarding the design of the api and the initial feedback.
 
@@ -136,7 +136,7 @@ Thanks to [@benetis](https://github.com/benetis) for pointing out there was a pr
 
 Thanks to all of my friends and colleagues who provided valuable initial feedback.
 
-# License
+## License
 
 decrel is copyright Haemin Yoo, and is licensed under Mozilla Public License v2.0
 
