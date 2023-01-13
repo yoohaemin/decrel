@@ -1,7 +1,7 @@
 import { defineUserConfig, defaultTheme } from 'vuepress'
 
 export default defineUserConfig({
-	base: '/decrel/',
+	base: '/',
 	locales: {
 		'/': {
 			lang: 'en-US',
