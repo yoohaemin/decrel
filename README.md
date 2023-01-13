@@ -1,4 +1,4 @@
-# Decrel
+## Decrel
 
 [![Continuous Integration](https://github.com/yoohaemin/decrel/actions/workflows/ci.yml/badge.svg)](https://github.com/yoohaemin/decrel/actions/workflows/ci.yml)
 [![Project stage: Experimental][project-stage-badge: Experimental]](#) 
@@ -11,9 +11,17 @@
 [Link-SonatypeSnapshots]: https://s01.oss.sonatype.org/content/repositories/snapshots/com/yoohaemin/decrel-core_3/ "Sonatype Snapshots"
 [Badge-SonatypeSnapshots]: https://img.shields.io/nexus/s/https/s01.oss.sonatype.org/com.yoohaemin/decrel-core_3.svg "Sonatype Snapshots"
 
-Decrel is a library for **dec**larative data access using **rel**ations between your data.
+Decrel is a library for **dec**larative programming using **rel**ations between your data.
 
-# Usecases
+## Motivation
+
+We commonly use abstractions from optics libraries to zoom into data that is in memory.
+
+For a moment, let's free ourselves of the in-memory limitation, and try imagining an applications' entire datasource as a giant case class.
+
+In such a structure, abstract _relations_ between data will correspond to concrete lenses in optics.
+
+## Usecases
 
 For a given domain:
 ```scala
@@ -56,7 +64,7 @@ object Author {
 }
 ```
 
-## Accessing your data source
+### Accessing your data source
 
 To express "given a book, get the author && all the books written by them", looks like this:
 ```scala
@@ -97,7 +105,7 @@ data types which are based on [Haxl](https://github.com/facebook/Haxl).
 [^1]: You are not required to interact with ZQuery or Fetch datatypes in your application -- simply use the APIs that exposes `ZIO` or `F[_]`.
 
 
-## Generating mock data
+### Generating mock data
 
 You can combine generators defined using scalacheck or zio-test. [^2]
 
@@ -120,34 +128,13 @@ The benefit of using decrel to compose generators is twofold:
 - values generated are more consistent compared to generating values independently
   - In this case, all books will have the `authorId` fields set to the generated author.
 
-# Adding decrel to your sbt build
-
-decrel is published for Scala 2.13 and 3, for JVM and JS platforms.
-
-`decrel-fetch` is NOT published for Scala 3 on JS platform, because `fetch` is not published for that platform.
-
-Scala 2.12- support may come if there are enough interests.
-
-scala-native support will come once a ZIO version is released against scala-native v0.4.8+
-
-[![Release Artifacts][Badge-SonatypeReleases]][Link-SonatypeReleases]
-
-```scala
-"com.yoohaemin" %% "decrel-core"       % decrelVersion // Defines Relation and derivations
-"com.yoohaemin" %% "decrel-zquery"     % decrelVersion // Integration with ZQuery
-"com.yoohaemin" %% "decrel-fetch"      % decrelVersion // Integration with Fetch
-"com.yoohaemin" %% "decrel-scalacheck" % decrelVersion // Integration with ScalaCheck
-"com.yoohaemin" %% "decrel-ziotest"    % decrelVersion // Integration with ZIO-Test Gen 
-"com.yoohaemin" %% "decrel-cats"       % decrelVersion // Integration with F[_]: Monad
-```
-
-# Notice to all Scala 3 users
+## Notice to all Scala 3 users
 
 Any method that requires an implicit (given) instance of `Proof` needs to be called against a `val` value.
 
 See [this commit](https://github.com/yoohaemin/decrel/commit/8b836b5c41b58a77d791c36e8b81e4f6e979e297) for examples.
 
-# Acknowledgements
+## Acknowledgements
 
 Thanks to [@ghostdogpr](https://github.com/ghostdogpr) for critical piece of insight regarding the design of the api and the initial feedback.
 
@@ -157,15 +144,9 @@ Thanks to [@benetis](https://github.com/benetis) for pointing out there was a pr
 
 Thanks to all of my friends and colleagues who provided valuable initial feedback.
 
-# License
+## License
 
 decrel is copyright Haemin Yoo, and is licensed under Mozilla Public License v2.0
 
 `modules/core/src/main/scala/decrel/Zippable.scala` is based on https://github.com/zio/zio/blob/v2.0.2/core/shared/src/main/scala/zio/Zippable.scala , 
 licensed under the Apache License v2.0
-
-# Changelog
-
-## `0.1.0-M1`
-
-Initial non-snapshot release.
