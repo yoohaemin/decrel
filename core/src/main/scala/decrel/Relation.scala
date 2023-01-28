@@ -1,96 +1,39 @@
 package decrel
 
 sealed trait X
-
 object X {
-
-  trait Single extends X
-
-  case class Composed[
-    LeftTree,
-    RightTree,
-  ](
-    left: LeftTree,
-    right: RightTree
-  ) extends X
-}
-
-trait module {
+  case class Plus[L, R](left: L, right: R) extends X
 
   class Z[Rel, In]
-
   object Z {
-
-    trait Single[Rel <: X.Single, In] extends Z[Rel, In]
-
-    def summon[Rel, In](
-      rel: Rel & X
-    )(implicit
-      ev: Z[Rel, In]
-    ): Z[Rel, In] = ev
-
-    implicit def x[
-      LeftTree <: X.Single,
-      LeftIn,
-      LeftOut,
-      RightTree,
-      RightIn,
-      RightOut
-    ](implicit
-      leftProof: Z.Single[LeftTree, LeftIn],
-      rightProof: Z[RightTree, RightIn],
-      ev: LeftOut <:< RightIn
-    ): Z[
-      X.Composed[
-        LeftTree,
-        RightTree,
-      ],
-      LeftIn,
-    ] = new Z
-
+    implicit def plus[L <: X, LeftIn, R]: Z[X.Plus[L, R], LeftIn] = ???
   }
 
+  object a extends X
+  object b extends X
+
+  implicit def aa: Z[a.type, Int] = ???
+  implicit def bb: Z[b.type, Int] = ???
+
+  def summon[Rel, In](rel: Rel)(implicit ev: Z[Rel, In]): Z[Rel, In] = ev
+
+  inline def ok = a + b
+  summon(ok) // ok
+  summon(X.Plus(a, b)) // ok
+  summon {
+    inline def ok = a + b
+    ok
+  } // ok
+  summon(a + b) // fails
 }
 
-class DoesntCompile {
-
-  trait Foo
-  trait Bar
-
-  object a extends X.Single
-  object b extends X.Single
-
-  trait Proofs extends module {
-
-    implicit def aProof: Z.Single[a.type, Foo]
-    implicit def bProof: Z.Single[b.type, Bar]
-
-  }
-
-  def problem(x: Proofs) = {
-    import x.*
-
-    val ok = (a >>: b)
-    Z.summon(ok)
-
-    Z.summon(X.Composed(a, b))
-
-    // Doesn't compile
-     Z.summon(a >>: b)
-  }
-
+implicit class syntax[L](val left: L) {
+  def +[R](right: R & X): X.Plus[L, R & X] =
+    X.Plus(left, right)
 }
 
-implicit class RelationComposeSyntax[RightTree, RightIn, RightOut](
-  private val right: RightTree & X
-) {
-
-  def >>:[LeftTree, LeftOut](
-    left: LeftTree & X.Single
-  )(implicit
-    ev: LeftOut <:< RightIn
-  ): X.Composed[
-    LeftTree & X.Single,
-    RightTree,
-  ] = X.Composed(left, right)
-}
+// This compiles
+//implicit class syntax[L](val left: L) {
+//  def +[R](right: R): X.Plus[L, R] =
+//    X.Plus(left, right)
+//}
