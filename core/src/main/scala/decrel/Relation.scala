@@ -8,11 +8,11 @@
 
 package decrel
 
-sealed trait Relation[-In, +Out]
+sealed trait X[In, Out]
 
-object Relation {
+object X {
 
-  trait Single[-In, +Out] extends Relation[In, Out]
+  trait Y[In, Out] extends X[In, Out]
 
   case class ComposedSingle[
     LeftTree,
@@ -24,36 +24,36 @@ object Relation {
   ](
     left: LeftTree,
     right: RightTree
-  ) extends Relation[LeftIn, RightOut]
+  ) extends X[LeftIn, RightOut]
 }
 
 trait module {
 
-  class Proof[Rel, -In, Out]
+  class Z[Rel, -In, Out]
 
-  object Proof {
+  object Z {
 
-    trait Single[Rel <: Relation.Single[In, Out], -In, Out] extends Proof[Rel, In, Out]
+    trait Y[Rel <: X.Y[In, Out], In, Out] extends Z[Rel, In, Out]
 
     def summon[Rel, In, Out](
-      rel: Rel & Relation[In, Out]
+      rel: Rel & X[In, Out]
     )(implicit
-      ev: Proof[Rel, In, Out]
-    ): Proof[Rel, In, Out] = ev
+      ev: Z[Rel, In, Out]
+    ): Z[Rel, In, Out] = ev
 
-    implicit def composedSingleProof[
-      LeftTree <: Relation.Single[LeftIn, LeftOut],
+    implicit def x[
+      LeftTree <: X.Y[LeftIn, LeftOut],
       LeftIn,
       LeftOut,
       RightTree,
       RightIn,
       RightOut
     ](implicit
-      leftProof: Proof.Single[LeftTree, LeftIn, LeftOut],
-      rightProof: Proof[RightTree, RightIn, RightOut],
+      leftProof: Z.Y[LeftTree, LeftIn, LeftOut],
+      rightProof: Z[RightTree, RightIn, RightOut],
       ev: LeftOut <:< RightIn
-    ): Proof[
-      Relation.ComposedSingle[
+    ): Z[
+      X.ComposedSingle[
         LeftTree,
         LeftIn,
         LeftOut,
@@ -63,7 +63,7 @@ trait module {
       ],
       LeftIn,
       RightOut,
-    ] = new Proof
+    ] = new Z
 
   }
 
@@ -75,13 +75,13 @@ class DoesntCompile {
   trait Bar
   trait Baz
 
-  object a extends Relation.Single[Foo, Bar]
-  object b extends Relation.Single[Bar, Baz]
+  object a extends X.Y[Foo, Bar]
+  object b extends X.Y[Bar, Baz]
 
   trait Proofs[F[*]] extends module {
 
-    implicit def aProof: Proof.Single[a.type, Foo, Bar]
-    implicit def bProof: Proof.Single[b.type, Bar, Baz]
+    implicit def aProof: Z.Y[a.type, Foo, Bar]
+    implicit def bProof: Z.Y[b.type, Bar, Baz]
 
   }
 
@@ -89,30 +89,30 @@ class DoesntCompile {
     import x.*
 
     val ok = (a >>: b)
-    Proof.summon(ok)
+    Z.summon(ok)
 
-    Proof.summon(Relation.ComposedSingle(a, b))
+    Z.summon(X.ComposedSingle(a, b))
 
     // Doesn't compile
-     Proof.summon(a >>: b)
+     Z.summon(a >>: b)
   }
 
 }
 
 implicit class RelationComposeSyntax[RightTree, RightIn, RightOut](
-  private val right: RightTree & Relation[RightIn, RightOut]
+  private val right: RightTree & X[RightIn, RightOut]
 ) {
 
   def >>:[LeftTree, LeftIn, LeftOut](
-    left: LeftTree & Relation.Single[LeftIn, LeftOut]
+    left: LeftTree & X.Y[LeftIn, LeftOut]
   )(implicit
     ev: LeftOut <:< RightIn
-  ): Relation.ComposedSingle[
-    LeftTree & Relation.Single[LeftIn, LeftOut],
+  ): X.ComposedSingle[
+    LeftTree & X.Y[LeftIn, LeftOut],
     LeftIn,
     LeftOut,
-    RightTree & Relation[RightIn, RightOut],
+    RightTree & X[RightIn, RightOut],
     RightIn,
     RightOut
-  ] = Relation.ComposedSingle(left, right)
+  ] = X.ComposedSingle(left, right)
 }
