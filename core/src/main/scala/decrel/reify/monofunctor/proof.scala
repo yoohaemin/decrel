@@ -12,7 +12,8 @@ import decrel.*
 
 import scala.collection.{ BuildFrom, IterableOps }
 
-trait proof { this: access =>
+trait proof {
+  this: access =>
 
   abstract class ReifiedRelation[-In, Out] {
 
@@ -29,7 +30,7 @@ trait proof { this: access =>
     def reify: ReifiedRelation[In, Out]
   }
 
-  object Proof {
+  object Proof extends ProofInstances {
 
     trait Single[Rel <: Relation.Single[In, Out], -In, Out] extends Proof[Rel, In, Out] {
       def reify: ReifiedRelation[In, Out]
@@ -66,6 +67,7 @@ trait proof { this: access =>
       override val reify: ReifiedRelation[A, A] =
         new ReifiedRelation[A, A] {
           override def apply(in: A): Access[A] = succeed(in)
+
           override def applyMultiple[Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]](
             in: Coll[A]
           ): Access[Coll[A]] = succeed(in)
@@ -78,6 +80,10 @@ trait proof { this: access =>
     implicit def selfProof[Rel <: Relation.Self[A], A]: Proof.Single[Rel, A, A] =
       _selfProof.asInstanceOf[Proof.Single[Rel, A, A]]
 
+  }
+
+  trait ProofInstances extends ProofInstances2 {
+
     implicit def composedSingleProof[
       LeftTree <: Relation.Single[LeftIn, LeftOut],
       LeftIn,
@@ -86,7 +92,7 @@ trait proof { this: access =>
       RightIn,
       RightOut
     ](implicit
-      leftProof: Proof.Single[LeftTree, LeftIn, LeftOut],
+      leftProof: Proof[LeftTree, LeftIn, LeftOut],
       rightProof: Proof[RightTree, RightIn, RightOut],
       ev: LeftOut <:< RightIn
     ): Proof[
@@ -129,6 +135,9 @@ trait proof { this: access =>
               }
         }
     }
+  }
+
+  trait ProofInstances2 extends ProofInstances3 {
 
     implicit def composedOptionalProof[
       LeftTree <: Relation.Optional[LeftIn, LeftOut],
@@ -138,7 +147,7 @@ trait proof { this: access =>
       RightIn,
       RightOut
     ](implicit
-      leftProof: Proof.Optional[LeftTree, LeftIn, LeftOut],
+      leftProof: Proof[LeftTree, LeftIn, Option[LeftOut]],
       rightProof: Proof[RightTree, RightIn, RightOut],
       ev: LeftOut <:< RightIn
     ): Proof[
@@ -197,7 +206,9 @@ trait proof { this: access =>
               }
         }
     }
+  }
 
+  trait ProofInstances3 extends ProofInstances4 {
     implicit def composedManyProof[
       LeftTree <: Relation.Many[LeftIn, CC, LeftOut],
       LeftIn,
@@ -207,7 +218,7 @@ trait proof { this: access =>
       RightOut,
       CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]
     ](implicit
-      leftProof: Proof.Many[LeftTree, LeftIn, LeftOut, CC],
+      leftProof: Proof[LeftTree, LeftIn, CC[LeftOut]],
       rightProof: Proof[RightTree, RightIn, RightOut],
       ev: LeftOut <:< RightIn,
       bf: BuildFrom[CC[RightIn], RightOut, CC[RightOut]]
@@ -259,6 +270,9 @@ trait proof { this: access =>
               }
         }
     }
+  }
+
+  trait ProofInstances4 {
 
     implicit def composedZippedProof[
       LeftTree,
@@ -309,7 +323,8 @@ trait proof { this: access =>
       ZOR,
     ] {
       override def reify: ReifiedRelation[LeftIn, ZOR] =
-        new ReifiedRelation[LeftIn, ZOR] { self =>
+        new ReifiedRelation[LeftIn, ZOR] {
+          self =>
           override def apply(in: LeftIn): Access[ZOR] =
             leftProof.reify
               .apply(in)
