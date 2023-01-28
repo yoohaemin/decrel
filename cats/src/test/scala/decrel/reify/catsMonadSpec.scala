@@ -8,6 +8,7 @@
 
 package decrel.reify
 
+import cats.Monad
 import decrel.*
 
 object proofSpec {
@@ -40,7 +41,7 @@ object proofSpec {
     case object bar  extends Relation.Optional[Baz, Bar]
   }
 
-  trait X[F[_]] extends catsMonad[F] {
+  trait X extends catsMonad[_root_.cats.Id] {
 
     implicit def fooBarReify: Proof.Single[Foo.bar.type, Foo, Bar]
 
@@ -50,12 +51,32 @@ object proofSpec {
 
   }
 
-  def test[F[_]](x: X[F]): Unit = {
-    import x._
+  def test[F[_]](x: X): Unit = {
+    val xProxy: X = x
+    import xProxy._
 
     val test0 = Foo.bar.reify
-//    val test1 = (Foo.bar >>: Bar.baz).reify
-//    val test2 = (Foo.bar :>: Bar.baz).reify
-//    val test3 = (Foo.bar & Foo.baz).reify
+    val test1 = (Foo.bar >>: Bar.baz).reify
+    val test2 = (Foo.bar :>: Bar.baz).reify
+    val test3 = (Foo.bar & Foo.baz).reify
   }
+}
+
+trait Foo[F[_]] {
+  trait Bar[A]
+
+  trait Baz[A] extends Bar[A]
+}
+
+object Test {
+  trait Foo2 extends Foo[_root_.cats.Id] {
+    implicit def barInt: Baz[Int]
+    implicit def barString: Baz[String]
+  }
+
+  def test(x: Foo2): Unit = {
+    import x._
+    implicitly[Bar[Int]]
+  }
+
 }
