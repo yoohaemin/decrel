@@ -12,39 +12,22 @@ sealed trait Relation[-In, +Out]
 
 object Relation {
 
-  sealed trait Declared[-In, +Out] extends Relation[In, Out]
+  trait Single[-In, +Out] extends Relation[In, Out]
 
-  trait Single[-In, +Out] extends Relation.Declared[In, Out]
-
-  sealed trait Composed[
+  case class ComposedSingle[
     LeftTree,
     LeftIn,
     LeftOut,
     RightTree,
     RightIn,
-    RightOut,
-    Out
-  ] extends Relation[LeftIn, Out]
-
-  object Composed {
-
-    case class Single[
-      LeftTree,
-      LeftIn,
-      LeftOut,
-      RightTree,
-      RightIn,
-      RightOut
-    ](
-      left: LeftTree,
-      right: RightTree
-    ) extends Composed[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut, RightOut]
-  }
+    RightOut
+  ](
+    left: LeftTree,
+    right: RightTree
+  ) extends Relation[LeftIn, RightOut]
 }
 
-trait module[F[_]] {
-
-  type Access[A] = F[A]
+trait module {
 
   class Proof[Rel, -In, Out]
 
@@ -70,7 +53,7 @@ trait module[F[_]] {
       rightProof: Proof[RightTree, RightIn, RightOut],
       ev: LeftOut <:< RightIn
     ): Proof[
-      Relation.Composed.Single[
+      Relation.ComposedSingle[
         LeftTree,
         LeftIn,
         LeftOut,
@@ -95,7 +78,7 @@ class DoesntCompile {
   object a extends Relation.Single[Foo, Bar]
   object b extends Relation.Single[Bar, Baz]
 
-  trait Proofs[F[*]] extends module[F] {
+  trait Proofs[F[*]] extends module {
 
     implicit def aProof: Proof.Single[a.type, Foo, Bar]
     implicit def bProof: Proof.Single[b.type, Bar, Baz]
@@ -108,8 +91,10 @@ class DoesntCompile {
     val ok = (a >>: b)
     Proof.summon(ok)
 
+    Proof.summon(Relation.ComposedSingle(a, b))
+
     // Doesn't compile
-    Proof.summon(a >>: b)
+     Proof.summon(a >>: b)
   }
 
 }
@@ -122,12 +107,12 @@ implicit class RelationComposeSyntax[RightTree, RightIn, RightOut](
     left: LeftTree & Relation.Single[LeftIn, LeftOut]
   )(implicit
     ev: LeftOut <:< RightIn
-  ): Relation.Composed.Single[
+  ): Relation.ComposedSingle[
     LeftTree & Relation.Single[LeftIn, LeftOut],
     LeftIn,
     LeftOut,
     RightTree & Relation[RightIn, RightOut],
     RightIn,
     RightOut
-  ] = Relation.Composed.Single(left, right)
+  ] = Relation.ComposedSingle(left, right)
 }
