@@ -1,6 +1,6 @@
 inThisBuild(
   List(
-    scalaVersion := V.scala3
+    scalaVersion := "3.3.0-RC2"
   )
 )
 
@@ -38,7 +38,8 @@ lazy val commonSettings = Def.settings(
   scalacOptions ++= Seq(
     "-no-indent",
     "-old-syntax",
-    "-Ykind-projector"
+    "-Ykind-projector",
+    "-Xprint:typer"
   )
 )
 

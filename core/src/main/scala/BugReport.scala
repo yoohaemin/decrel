@@ -1,31 +1,48 @@
 
-sealed trait X
-object X {
-  case class Plus[L, R](left: L, right: R) extends X
-}
+trait X[A, B]
+class Y[A](a: A)
 
-sealed trait Y[X2, A]
-object Y {
-  given [L, R, A]: Y[X.Plus[L, R], A] = ???
-}
+trait Test {
+  implicit def xy[A, B]: X[Y[A], B]
 
-object Test {
-  def plus[L, R](left: L, right: R & X): X.Plus[L, R & X]  =
-    X.Plus(left, right)
+  def summon[A, B](a: A)(implicit ev: X[A, B]): X[A, B] = ev
 
-  def summon[X2, A](rel: X2)(implicit ev: Y[X2, A]): Y[X2, A] = ev
-
+  // Doesn't have to be AnyRef
+  def y[A](a: A & AnyRef): Y[A & AnyRef] = Y(a)
   object a
-  object b extends X
 
-  inline def ok = plus(a, b)
-  summon(ok) // ok
-  summon(X.Plus(a, b)) // ok
-  summon {
-    inline def ok = plus(a, b)
-    ok
-  } // ok
-  summon(X.Plus(a, b): X.Plus[a.type, b.type & X]) // ok
-  summon(plus(a, b): X.Plus[a.type, b.type & X]) // ok
-  summon(plus(a, b)) // fails
+  val ok = y(a)
+  summon(ok)   // ok
+  summon(y(a)) // fails
 }
+
+/*
+  summon(y(a)) // fails
+              ^
+No given instance of type X[Y[A & AnyRef], B] was found for parameter ev of method summon in object Test
+
+where:    A is a type variable with constraint >: Test.a.type
+          B is a type variable
+.
+I found:
+
+    Test.xy[A, B]
+
+But method xy in object Test does not match type X[Y[A & AnyRef], B].
+
+ */
+/*
+16 |  summon(y(a)) // fails
+   |              ^
+   |No given instance of type X[Y[A & AnyRef], B] was found for parameter ev of method summon in trait Test
+   |
+   |where:    A is a type variable with constraint >: Test.this.a.type
+   |          B is a type variable
+   |.
+   |I found:
+   |
+   |    this.xy[A, B]
+   |
+   |But method xy in trait Test does not match type X[Y[A & AnyRef], B].
+
+ */
