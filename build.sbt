@@ -235,7 +235,7 @@ lazy val docs = project
     crossScalaVersions := List(V.scala213),
     mdocVariables := Map(
       "SNAPSHOTVERSION" -> version.value,
-      "RELEASEVERSION" -> version.value.takeWhile(_ != '+'),
+      "RELEASEVERSION"  -> version.value.takeWhile(_ != '+')
     )
   )
   .dependsOn(coreJVM, zqueryJVM, fetchJVM, ziotestJVM, scalacheckJVM)
@@ -287,7 +287,7 @@ lazy val V = new {
   val zio          = "2.0.5"
   val zioQuery     = "0.3.4"
   val fetch        = "3.1.0"
-  val izumiReflect = "2.2.2"
+  val izumiReflect = "2.2.4"
   val scalacheck   = "1.17.0"
   val scalajsDom   = "2.3.0"
 }
