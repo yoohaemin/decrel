@@ -104,7 +104,7 @@ trait proof { this: access =>
       ],
       LeftIn,
       RightE,
-      RightOut,
+      RightOut
     ] = new Proof[
       Relation.Composed.Single[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut],
       LeftIn,
@@ -160,7 +160,7 @@ trait proof { this: access =>
       ],
       LeftIn,
       RightE,
-      Option[RightOut],
+      Option[RightOut]
     ] = new Proof[
       Relation.Composed.Optional[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut],
       LeftIn,
@@ -235,7 +235,7 @@ trait proof { this: access =>
       ],
       LeftIn,
       RightE,
-      CC[RightOut],
+      CC[RightOut]
     ] = new Proof[
       Relation.Composed.Many[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut, CC],
       LeftIn,
@@ -313,7 +313,7 @@ trait proof { this: access =>
       ],
       LeftIn,
       RightE,
-      ZOR,
+      ZOR
     ] = new Proof[
       Relation.Composed.Zipped[
         LeftTree,
@@ -326,7 +326,7 @@ trait proof { this: access =>
       ],
       LeftIn,
       RightE,
-      ZOR,
+      ZOR
     ] {
       override def reify: ReifiedRelation[LeftIn, RightE, ZOR] =
         new ReifiedRelation[LeftIn, RightE, ZOR] { self =>
