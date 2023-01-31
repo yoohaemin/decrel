@@ -45,6 +45,8 @@ object RelationSpec extends ZIOSpecDefault {
     suite("relation")(
       suite("composition")(
         test("one to one") {
+          val isJS = 1.0.toString == "1"
+          println("isJS " + isJS)
           val composed: Relation.Composed.Single[
             Foo.bar.type & Relation.Single[Foo, Bar],
             Foo, // Input
