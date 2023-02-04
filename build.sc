@@ -1,13 +1,65 @@
-import scala.collection.immutable._
-import mill._, scalalib._
-import D._
+import mill._, scalalib._, scalafmt._
 
 ////// Modules //////////////////////////////////////////////////////
 
 object core extends PureCrossModule {
 
   override def ivyDeps = Agg(
-    izumiReflect
+    D.izumiReflect
+  )
+
+}
+
+object zquery extends PureCrossModule {
+
+  override def moduleDeps = Seq(core)
+
+  override def ivyDeps = Agg(
+    D.zioQuery
+  )
+
+}
+
+object fetch extends PureCrossModule {
+
+  override def crossScalaVersionsJS: Seq[String] =
+    List(V.scala213)
+
+  override def moduleDeps = Seq(cats)
+
+  override def ivyDeps = Agg(
+    D.fetch
+  )
+
+}
+
+object scalacheck extends PureCrossModule {
+
+  override def moduleDeps = Seq(core)
+
+  override def ivyDeps = Agg(
+    D.scalacheck
+  )
+
+  override def testFramework = "org.scalacheck.ScalaCheckFramework"
+}
+
+object ziotest extends PureCrossModule {
+
+  override def moduleDeps = Seq(core)
+
+  override def ivyDeps = Agg(
+    D.zioTest
+  )
+
+}
+
+object cats extends PureCrossModule {
+
+  override def moduleDeps = Seq(core)
+
+  override def ivyDeps = Agg(
+    D.cats
   )
 
 }
@@ -19,7 +71,12 @@ object D {
   def zio(m: String) = ivy"dev.zio::zio-$m::${V.zio}"
   def zioTest        = zio("test")
   def zioTestSbt     = zio("test-sbt")
-  def kindProjector  = ivy"org.typelevel:::kind-projector:${V.kindProjector}"
+  def zioQuery       = ivy"dev.zio::zio-query::${V.zioQuery}"
+  def fetch          = ivy"com.47deg::fetch::${V.fetch}"
+  def scalacheck     = ivy"org.scalacheck::scalacheck::${V.scalacheck}"
+  def cats           = ivy"org.typelevel::cats-core::${V.cats}"
+
+  def kindProjector = ivy"org.typelevel:::kind-projector:${V.kindProjector}"
 }
 
 object V {
@@ -45,30 +102,58 @@ trait PureCrossModule extends Module { outer =>
 
   def ivyDeps: T[Agg[Dep]]
 
-  object jvm extends Cross[JvmModule](V.scalaAll: _*)
+  def moduleDeps: Seq[PureCrossModule] = Nil
+
+  def testIvyDeps: T[Agg[Dep]] = Agg[Dep]()
+
+  def crossScalaVersionsJVM: Seq[String] = V.scalaAll
+
+  def crossScalaVersionsJS: Seq[String] = V.scalaAll
+
+  def testFramework: String = "zio.test.sbt.ZTestFramework"
+
+  object jvm extends Cross[JvmModule](crossScalaVersionsJVM: _*)
   class JvmModule(val crossScalaVersion: String) extends DecrelModuleBase {
     override def millSourcePath = outer.millSourcePath
     override def ivyDeps        = outer.ivyDeps
 
-    object test extends Tests
+    override def moduleDeps: Seq[JavaModule] =
+      outer.moduleDeps.map(_.jvm(crossScalaVersion))
+
+    object test extends Tests {
+      override def ivyDeps: T[Agg[Dep]] =
+        T(Agg(D.zioTest, D.zioTestSbt) ++ testIvyDeps())
+
+      override def allScalacOptions =
+        T(super.allScalacOptions().distinct)
+      override def testFramework: T[String] = outer.testFramework
+    }
   }
 
   import scalajslib._, scalajslib.api._
 
-  object js extends Cross[JsModule](V.scalaAll: _*)
-  class JsModule(val crossScalaVersion: String) extends ScalaJSModule with DecrelModuleBase {
+  object js extends Cross[JsModule](crossScalaVersionsJS: _*)
+  class JsModule(val crossScalaVersion: String) extends DecrelModuleBase with ScalaJSModule {
     override def millSourcePath = outer.millSourcePath
     override def ivyDeps        = outer.ivyDeps
     override def scalaJSVersion = V.scalaJS
     override def moduleKind     = T(ModuleKind.CommonJSModule)
 
+    override def moduleDeps: Seq[JavaModule] =
+      outer.moduleDeps.map(_.js(crossScalaVersion))
+
     object test extends Tests with ScalaJSModuleTests {
-      override def allScalacOptions = T(super.allScalacOptions().distinct)
+      override def ivyDeps: T[Agg[Dep]] =
+        T(Agg(D.zioTest, D.zioTestSbt) ++ testIvyDeps())
+
+      override def allScalacOptions =
+        T(super.allScalacOptions().distinct)
+      override def testFramework: T[String] = outer.testFramework
     }
   }
 }
 
-trait DecrelModuleBase extends CrossSbtModule {
+trait DecrelModuleBase extends ScalafmtModule with CrossScalaModule {
 
   def crossScalaVersion: String
 
@@ -113,12 +198,6 @@ trait DecrelModuleBase extends CrossSbtModule {
   override def scalacPluginIvyDeps: T[Agg[Dep]] =
     crossScalaVersion match {
       case V.scala3   => Agg[Dep]()
-      case V.scala213 => Agg(kindProjector)
+      case V.scala213 => Agg(D.kindProjector)
     }
-
-  trait Tests extends super.Tests {
-    override def ivyDeps       = Agg(zioTest, zioTestSbt)
-    override def testFramework = "zio.test.sbt.ZTestFramework"
-  }
-
 }
