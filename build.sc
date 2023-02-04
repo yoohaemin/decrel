@@ -70,6 +70,15 @@ trait PureCrossModule extends Module { outer =>
 
 trait DecrelModuleBase extends CrossSbtModule {
 
+  def crossScalaVersion: String
+
+  override def skipIdea: Boolean = {
+    val isJs     = this.isInstanceOf[scalajslib.ScalaJSModule]
+    val isNot213 = crossScalaVersion != V.scala213
+
+    isJs || isNot213
+  }
+
   private val scalacOptionsCommon = Vector(
     "-deprecation",
     "-encoding",
