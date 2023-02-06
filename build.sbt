@@ -275,7 +275,8 @@ lazy val commonSettings = Def.settings(
       List(compilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full))
     else
       Nil
-  }
+  },
+  headerLicense := Some(HeaderLicense.MPLv2("2022-2023", "Haemin Yoo"))
 )
 
 lazy val V = new {
