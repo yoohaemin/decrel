@@ -40,7 +40,7 @@ becomes
 
 ```scala
 for {
-  (rental, book, user) <- (Rental.fetch :>: (Rental.book & Rental.user)).toZIO(rentalId)
+  (rental, book, user) <- (Rental.fetch <>: (Rental.book & Rental.user)).toZIO(rentalId)
 
   // ... do something with 3 objets
 ```
@@ -49,7 +49,7 @@ for {
 
 ```scala
 for {
-  (rental, book, user) <- (Rental.fetch :>: (Rental.book & Rental.user)).toF(rentalId)
+  (rental, book, user) <- (Rental.fetch <>: (Rental.book & Rental.user)).toF(rentalId)
 
   // ... do something with 3 objets
 ```

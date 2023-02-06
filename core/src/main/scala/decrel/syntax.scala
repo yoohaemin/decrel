@@ -29,7 +29,7 @@ trait syntax {
       RightOut
     ] = Relation.Composed.Single(left, right)
 
-    def :>:[LeftTree, LeftIn, LeftOut, ZippedOut](
+    def <>:[LeftTree, LeftIn, LeftOut, ZippedOut](
       left: LeftTree & Relation.Single[LeftIn, LeftOut]
     )(implicit
       ev: LeftOut <:< RightIn,
@@ -65,7 +65,7 @@ trait syntax {
       RightOut
     ] = Relation.Composed.Optional(left, right)
 
-    def :>:[LeftTree, LeftIn, LeftOut, ZippedOut](
+    def <>:[LeftTree, LeftIn, LeftOut, ZippedOut](
       left: LeftTree & Relation.Optional[LeftIn, LeftOut]
     )(implicit
       ev: LeftOut <:< RightIn,
@@ -102,7 +102,7 @@ trait syntax {
       CC
     ] = Relation.Composed.Many(left, right)
 
-    def :>:[LeftTree, LeftIn, LeftOutO, ZippedOut, CC[+A]](
+    def <>:[LeftTree, LeftIn, LeftOutO, ZippedOut, CC[+A]](
       left: LeftTree & Relation.Many[LeftIn, CC, LeftOutO]
     )(implicit
       ev: LeftOutO <:< RightIn,

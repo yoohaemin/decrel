@@ -72,7 +72,7 @@ object Author {
 
 To express "given a book, get the author && all the books written by them", looks like this:
 ```scala
-val getAuthorAndTheirBooks = Book.author :>: Author.books
+val getAuthorAndTheirBooks = Book.author <>: Author.books
 ```
 
 But how would you run this with an instance of Book that you have?

@@ -76,7 +76,7 @@ object RelationSpec extends ZIOSpecDefault {
             Baz,
             (Bar, Baz) // Output
           ] =
-            Foo.bar :>: Bar.baz
+            Foo.bar <>: Bar.baz
 
           val _: Relation[Foo, (Bar, Baz)] = composed
 
@@ -113,7 +113,7 @@ object RelationSpec extends ZIOSpecDefault {
             Foo,
             (Foo, Bar)
           ] =
-            Baz.foo :>: Foo.bar
+            Baz.foo <>: Foo.bar
 
           val _: Relation[Baz, Option[(Foo, Bar)]] = composed
 
@@ -152,7 +152,7 @@ object RelationSpec extends ZIOSpecDefault {
             (Foo, Baz),
             List
           ] =
-            Bar.foo :>: Foo.baz
+            Bar.foo <>: Foo.baz
 
           val _: Relation[Bar, List[(Foo, Baz)]] = composed
 
@@ -247,7 +247,7 @@ object RelationSpec extends ZIOSpecDefault {
             (Option[Foo], Option[Bar]),
             (Baz, Option[Foo], Option[Bar])
           ] =
-            Foo.baz :>: (Baz.foo & Baz.bar)
+            Foo.baz <>: (Baz.foo & Baz.bar)
 
           val _: Relation[Foo, (Baz, Option[Foo], Option[Bar])] = composed
 
@@ -286,7 +286,7 @@ object RelationSpec extends ZIOSpecDefault {
             (Baz, Option[Foo], Option[Bar]),
             (Foo, Baz, Option[Foo], Option[Bar])
           ] =
-            Foo.self & (Foo.baz :>: (Baz.foo & Baz.bar))
+            Foo.self & (Foo.baz <>: (Baz.foo & Baz.bar))
 
           val _: Relation[Foo, (Foo, Baz, Option[Foo], Option[Bar])] = composed
 
@@ -341,7 +341,7 @@ object RelationSpec extends ZIOSpecDefault {
             Foo,
             (Foo, Bar, Baz)
           ] =
-            Baz.foo :>: (Foo.bar & Foo.baz)
+            Baz.foo <>: (Foo.bar & Foo.baz)
 
           val _: Relation[Baz, Option[(Foo, Bar, Baz)]] = composed
 
@@ -380,7 +380,7 @@ object RelationSpec extends ZIOSpecDefault {
             Option[(Foo, Bar, Baz)],
             (Baz, Option[(Foo, Bar, Baz)])
           ] =
-            Baz.self & (Baz.foo :>: (Foo.bar & Foo.baz))
+            Baz.self & (Baz.foo <>: (Foo.bar & Foo.baz))
 
           val _: Relation[Baz, (Baz, Option[(Foo, Bar, Baz)])] = composed
 
@@ -437,7 +437,7 @@ object RelationSpec extends ZIOSpecDefault {
             (Foo, Bar, Baz),
             List
           ] =
-            Bar.foo :>: (Foo.bar & Foo.baz)
+            Bar.foo <>: (Foo.bar & Foo.baz)
 
           val _: Relation[Bar, List[(Foo, Bar, Baz)]] = composed
 
@@ -477,9 +477,39 @@ object RelationSpec extends ZIOSpecDefault {
             List[(Foo, Bar, Baz)],
             (Bar, List[(Foo, Bar, Baz)])
           ] =
-            Bar.self & (Bar.foo :>: (Foo.bar & Foo.baz))
+            Bar.self & (Bar.foo <>: (Foo.bar & Foo.baz))
 
           val _: Relation[Bar, (Bar, List[(Foo, Bar, Baz)])] = composed
+
+          assertCompletes
+        },
+        test("<>: and >>: has same operator precedence") {
+          val composed: Composed.Zipped[
+            Foo.bar.type & Relation.Single[Foo, Bar],
+            Foo,
+            Bar,
+            Composed.Single[
+              Foo.bar.type & Relation.Single[Foo, Bar],
+              Foo,
+              Bar,
+              Composed.Single[
+                Bar.baz.type & Relation.Single[Bar, Baz],
+                Bar,
+                Baz,
+                Baz.foo.type & Relation[Baz, Option[Foo]],
+                Baz,
+                Option[Foo]
+              ] & Relation[Bar, Option[Foo]],
+              Bar,
+              Option[Foo]
+            ],
+            Foo,
+            Option[Foo],
+            (Bar, Option[Foo])
+          ] =
+            Foo.bar <>: Bar.baz >>: Baz.foo
+
+          val _: Relation[Foo, (Bar, Option[Foo])] = composed
 
           assertCompletes
         }
