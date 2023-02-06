@@ -326,11 +326,11 @@ object zqueryProofSpec extends ZIOSpecDefault {
             }
           }
         ),
-        suite(":>:")(
+        suite("<>:")(
           test("simple") {
             proofs.flatMap { proofs =>
               import proofs.*
-              val relation = Book.currentRental :>: Rental.book
+              val relation = Book.currentRental <>: Rental.book
               val result   = relation.toZIO(book1)
 
               assertZIO(result)(isSome(equalTo((rental1, book1)))) &&
@@ -351,7 +351,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
               val cache = Cache.empty
                 .add(Book.fetch, book1.id, book1)
 
-              val relation = Book.currentRental :>: Rental.book
+              val relation = Book.currentRental <>: Rental.book
               val result   = relation.toZIO(book1, cache)
 
               assertZIO(result)(isSome(equalTo((rental1, book1)))) &&

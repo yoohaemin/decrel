@@ -121,8 +121,8 @@ object genSpec extends ZIOSpecDefault {
           assert(book.currentRental)(isSome(equalTo(staticRentalId)))
         }
       },
-      test("Composing with :>:") {
-        val relation = Rental.fetch :>: Rental.book
+      test("Composing with <>:") {
+        val relation = Rental.fetch <>: Rental.book
 
         val staticRentalId = Rental.Id("foo")
         val rentalIdGen    = Gen.const(staticRentalId)
@@ -132,8 +132,8 @@ object genSpec extends ZIOSpecDefault {
           assert(book.currentRental)(isSome(equalTo(staticRentalId)))
         }
       },
-      test("Composing with :>:") {
-        val relation = Rental.fetch :>: Rental.book
+      test("Composing with <>:") {
+        val relation = Rental.fetch <>: Rental.book
 
         val staticRentalId = Rental.Id("foo")
         val rentalIdGen    = Gen.const(staticRentalId)

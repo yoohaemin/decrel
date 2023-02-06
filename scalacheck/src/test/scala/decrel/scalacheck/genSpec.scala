@@ -124,8 +124,8 @@ object genSpec extends Properties("Relations") {
     book.currentRental contains staticRentalId
   }
 
-  property("Composing with :>:") = forAll {
-    val relation    = Rental.fetch :>: Rental.book
+  property("Composing with <>:") = forAll {
+    val relation    = Rental.fetch <>: Rental.book
     val rentalIdGen = Gen.const(staticRentalId)
     rentalIdGen.expand(relation)
   } { case (rental, book) =>
