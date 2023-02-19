@@ -18,8 +18,6 @@ case class Cache private (
   private[decrel] val entries: Map[Cache.Key[?, ?, ?], Cache.Entry[?, ?, ?]]
 ) {
 
-  // Because Scala 3 dropped support for existential type,
-  // consistency of key and value can only be enforced here.
   def add[Rel, A, B](relation: Rel & Relation[A, B], key: A, value: B)(implicit
     tag: Tag[Rel]
   ): Cache = {
