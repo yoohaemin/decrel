@@ -21,13 +21,17 @@ export default defineUserConfig({
 					link: '/',
 				},{
 					text: 'Guide',
-					link: '/guide/getting-started.html'
+					link: '/guide/index.html'
+				},{
+					text: 'Showcase',
+					link: '/showcase/index.html'
 				}],
 				selectLanguageName: 'English',
 				sidebar: {
 					'/guide/': [{
 						text: 'Guide',
 						children: [
+							'/guide/README.md',
 							'/guide/getting-started.md',
 							'/guide/defining-relations.md'
 						],
