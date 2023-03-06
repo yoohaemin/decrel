@@ -262,8 +262,8 @@ object zqueryProofSpec extends ZIOSpecDefault {
               assertZIO(proofs.calls.get)(
                 equalTo(
                   Calls(
-                    Book.fetch -> Chunk(book1.id),
-                    User.fetch -> Chunk(user1.id)
+                    User.fetch -> Chunk(user1.id),
+                    Book.fetch -> Chunk(book1.id)
                   )
                 )
               )

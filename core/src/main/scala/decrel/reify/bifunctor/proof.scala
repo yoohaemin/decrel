@@ -330,29 +330,43 @@ trait proof { this: access =>
     ] {
       override def reify: ReifiedRelation[LeftIn, RightE, ZOR] =
         new ReifiedRelation[LeftIn, RightE, ZOR] { self =>
-          override def apply(in: LeftIn): Access[RightE, ZOR] =
-            leftProof.reify
-              .apply(in)
-              .flatMap { leftOut =>
-                rightProof.reify
-                  .apply(zippedEv(in))
-                  .map { rightOut =>
-                    zippable.zip(leftOut, rightOut)
-                  }
-              }
+          override def apply(in: LeftIn): Access[RightE, ZOR] = {
+            val left: Access[RightE, LeftOutRefined] = leftProof.reify.apply(in)
+            val right: Access[RightE, RightOut]      = rightProof.reify(zippedEv(in))
+
+            foreach(List(left, right))(identity).map {
+              case List(l, r) =>
+                zippable.zip(
+                  l.asInstanceOf[LeftOutRefined],
+                  r.asInstanceOf[RightOut]
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "foreach has returned more or less elements than 2 during composedZippedProof"
+                )
+            }
+          }
 
           override def applyMultiple[Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]](
             in: Coll[LeftIn]
-          ): Access[RightE, Coll[ZOR]] =
-            leftProof.reify
-              .applyMultiple(in)
-              .flatMap { leftOut =>
-                rightProof.reify
-                  .applyMultiple(zippedEv.liftCo(in))
-                  .map { rightOut =>
-                    leftOut.zip(rightOut).map(p => zippable.zip(p._1, p._2))
-                  }
-              }
+          ): Access[RightE, Coll[ZOR]] = {
+            val left: Access[RightE, Coll[LeftOutRefined]] = leftProof.reify.applyMultiple(in)
+            val right: Access[RightE, Coll[RightOut]] =
+              rightProof.reify.applyMultiple(zippedEv.liftCo(in))
+
+            foreach(List(left, right))(identity).map {
+              case List(l, r) =>
+                val lcoll = l.asInstanceOf[Coll[LeftOutRefined]]
+                val rcoll = r.asInstanceOf[Coll[RightOut]]
+
+                lcoll.lazyZip(rcoll).map(zippable.zip)
+
+              case _ =>
+                throw new RuntimeException(
+                  "foreach has returned more or less elements than 2 during composedZippedProof"
+                )
+            }
+          }
         }
     }
   }
