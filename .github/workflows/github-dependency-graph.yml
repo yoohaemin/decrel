@@ -3,7 +3,7 @@ name: github-dependency-graph
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   submit-dependency-graph:

@@ -4,9 +4,6 @@ on:
   push:
     branches: ['**']
     tags: [v*]
-  pull_request:
-    paths-ignore:
-      - 'README.md'
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
