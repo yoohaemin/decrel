@@ -17,7 +17,7 @@ jobs:
           apps: scip-java
 
       - name: Generate SCIP File
-        run: scip-java index
+        run: scip-java index --build-tool=mill
 
       - name: Install src
         run: yarn global add @sourcegraph/src

@@ -21,7 +21,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '8'
-      - uses: jodersky/setup-mill@0.3.0
+      - uses: jodersky/setup-mill@8b45755
         with:
           mill-version: 0.10.11
 
