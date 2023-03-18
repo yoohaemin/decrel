@@ -1,4 +1,10 @@
-import mill._, scalalib._, scalafmt._
+import $ivy.`com.yoohaemin::mill-mdoc::0.0.3`
+import $ivy.`io.chris-kipp::mill-ci-release::0.1.5`
+import mill._, scalalib._, scalafmt._, publish._
+import de.tobiasroeser.mill.vcs.version.VcsVersion
+import de.wayofquality.mill.mdoc.MDocModule
+import io.kipp.mill.ci.release.CiReleaseModule
+import io.kipp.mill.ci.release.SonatypeHost
 
 ////// Modules //////////////////////////////////////////////////////
 
@@ -64,6 +70,47 @@ object cats extends PureCrossModule {
 
 }
 
+object mdoc extends MDocModule {
+
+  override def scalaVersion = V.scala3
+
+  override def scalaMdocVersion = "2.3.7"
+
+  override def millOuterCtx = super.millOuterCtx
+
+  override def mdocSources = T.sources {
+    T.workspace / "mdoc"
+  }
+
+  override def watchedMDocsDestination = T {
+    Some(dest())
+  }
+
+  private def dest = T {
+    T.workspace / "vuepress"
+  }
+
+  override def mdoc: T[PathRef] = T {
+    val out = super.mdoc()
+    os.copy.into(
+      from = out.path / "docs",
+      to = dest(),
+      replaceExisting = true,
+      createFolders = true,
+      mergeFolders = true
+    )
+    PathRef(dest() / "docs")
+  }
+
+  override def mdocVariables: T[Map[String, String]] = T {
+    val current = VcsVersion.vcsState()
+    Map(
+      "SNAPSHOTVERSION" -> current.format(),
+      "RELEASEVERSION"  -> current.stripV(current.lastTag.get)
+    )
+  }
+}
+
 ////// Dependencies /////////////////////////////////////////////////
 
 object D {
@@ -113,20 +160,24 @@ trait PureCrossModule extends Module { outer =>
   def testFramework: String = "zio.test.sbt.ZTestFramework"
 
   object jvm extends Cross[JvmModule](crossScalaVersionsJVM: _*)
-  class JvmModule(val crossScalaVersion: String) extends DecrelModuleBase {
+  class JvmModule(val crossScalaVersion: String) extends DecrelModuleBase { inner =>
     override def millSourcePath = outer.millSourcePath
     override def ivyDeps        = outer.ivyDeps
 
-    override def moduleDeps: Seq[JavaModule] =
-      outer.moduleDeps.map(_.jvm(crossScalaVersion))
+    override def moduleDeps: Seq[PublishModule] =
+      (outer.moduleDeps.map(_.jvm(crossScalaVersion)))
 
     object test extends Tests {
-      override def ivyDeps: T[Agg[Dep]] =
-        T(Agg(D.zioTest, D.zioTestSbt) ++ testIvyDeps())
+      override def ivyDeps: T[Agg[Dep]] = T {
+        Agg(D.zioTest, D.zioTestSbt) ++ testIvyDeps() ++ inner.ivyDeps()
+      }
 
-      override def allScalacOptions =
-        T(super.allScalacOptions().distinct)
-      override def testFramework: T[String] = outer.testFramework
+      override def allScalacOptions = T {
+        super.allScalacOptions().distinct
+      }
+
+      override def testFramework: T[String] =
+        outer.testFramework
     }
   }
 
@@ -134,26 +185,36 @@ trait PureCrossModule extends Module { outer =>
 
   object js extends Cross[JsModule](crossScalaVersionsJS: _*)
   class JsModule(val crossScalaVersion: String) extends DecrelModuleBase with ScalaJSModule {
+    inner =>
     override def millSourcePath = outer.millSourcePath
     override def ivyDeps        = outer.ivyDeps
     override def scalaJSVersion = V.scalaJS
     override def moduleKind     = T(ModuleKind.CommonJSModule)
 
-    override def moduleDeps: Seq[JavaModule] =
+    override def moduleDeps: Seq[PublishModule] =
       outer.moduleDeps.map(_.js(crossScalaVersion))
 
-    object test extends Tests with ScalaJSModuleTests {
-      override def ivyDeps: T[Agg[Dep]] =
-        T(Agg(D.zioTest, D.zioTestSbt) ++ testIvyDeps())
+    override def scalacPluginIvyDeps = super.scalacPluginIvyDeps()
 
-      override def allScalacOptions =
-        T(super.allScalacOptions().distinct)
-      override def testFramework: T[String] = outer.testFramework
+    object test extends Tests with TestScalaJSModule {
+      override def ivyDeps: T[Agg[Dep]] = T {
+        Agg(D.zioTest, D.zioTestSbt) ++ testIvyDeps() ++ JsModule.this.ivyDeps()
+      }
+
+      override def scalacPluginIvyDeps =
+        inner.scalacPluginIvyDeps() ++ super.scalacPluginIvyDeps()
+
+      override def allScalacOptions = T {
+        (inner.allScalacOptions() ++ super.allScalacOptions()).distinct
+      }
+
+      override def testFramework: T[String] =
+        outer.testFramework
     }
   }
 }
 
-trait DecrelModuleBase extends ScalafmtModule with CrossScalaModule {
+trait DecrelModuleBase extends ScalafmtModule with CrossScalaModule with CiReleaseModule {
 
   def crossScalaVersion: String
 
@@ -200,4 +261,30 @@ trait DecrelModuleBase extends ScalafmtModule with CrossScalaModule {
       case V.scala3   => Agg[Dep]()
       case V.scala213 => Agg(D.kindProjector)
     }
+
+  override def sonatypeHost = Some(SonatypeHost.s01)
+
+  override def pomSettings: T[PomSettings] = T {
+    PomSettings(
+      description = "Composable Relations for Scala",
+      organization = "com.yoohaemin",
+      url = "https://github.com/yoohaemin/decrel",
+      licenses = Seq[License](License.`MPL-2.0`),
+      versionControl = VersionControl(
+        browsableRepository = Some("https://github.com/yoohaemin/decrel"),
+        connection = Some("scm:git:git://github.com/yoohaemin/decrel.git"),
+        developerConnection = Some("scm:git:git@github.com:yoohaemin/decrel.git"),
+        tag = Some(VcsVersion.vcsState().currentRevision)
+      ),
+      developers = Seq[Developer](
+        Developer(
+          id = "yoohaemin",
+          name = "Haemin Yoo",
+          url = "https://yoohaemin.com/"
+        )
+      ),
+      packaging = "jar"
+    )
+  }
+
 }
