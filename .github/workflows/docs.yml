@@ -42,13 +42,9 @@ jobs:
           distribution: temurin
           java-version: 8
 
-      - uses: jodersky/setup-mill@8b45755d42c3a3f063af57f1bb40c2c6737d0c86
-        with:
-          mill-version: 0.10.11
-
       - run: yarn --cwd ./vuepress add -D vuepress@next
 
-      - run: mill mdoc.mdoc
+      - run: ./mill mdoc.mdoc
 
       - run: yarn --cwd ./vuepress docs:build
 
