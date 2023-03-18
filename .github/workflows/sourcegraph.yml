@@ -15,7 +15,9 @@ jobs:
         with:
           jvm: 'temurin:11'
           apps: scip-java
-
+      - uses: jodersky/setup-mill@8b45755d42c3a3f063af57f1bb40c2c6737d0c86
+        with:
+          mill-version: 0.10.11
       - name: Generate SCIP File
         run: scip-java index --build-tool=mill
 
