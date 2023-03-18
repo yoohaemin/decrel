@@ -1,4 +1,4 @@
-name: ci
+name: Continuous Integration
 
 on:
   push:
@@ -9,7 +9,7 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  style-check:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
