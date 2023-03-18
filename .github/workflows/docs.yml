@@ -34,7 +34,7 @@ jobs:
           cache: yarn
           cache-dependency-path: ./vuepress/yarn.lock
 
-      - run: yarn --cwd ./vuepress add -D vuepress@next
+      - uses: coursier/cache-action@v6
 
       - name: Setup Java
         uses: actions/setup-java@v3.9.0
@@ -42,7 +42,13 @@ jobs:
           distribution: temurin
           java-version: 8
 
-      - run: sbt docs/mdoc
+      - uses: jodersky/setup-mill@0.3.0
+        with:
+          mill-version: 0.10.11
+
+      - run: yarn --cwd ./vuepress add -D vuepress@next
+
+      - run: mill mdoc.mdoc
 
       - run: yarn --cwd ./vuepress docs:build
 
