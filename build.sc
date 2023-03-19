@@ -224,7 +224,7 @@ trait DecrelModuleBase extends ScalafmtModule with CrossScalaModule with CiRelea
     isJs || isNot213
   }
 
-  private val scalacOptionsCommon = Vector(
+  private val scalacOptionsCommon = List(
     "-deprecation",
     "-encoding",
     "UTF-8",
@@ -234,7 +234,7 @@ trait DecrelModuleBase extends ScalafmtModule with CrossScalaModule with CiRelea
     "-Xfatal-warnings"
   )
 
-  private val scalacOptions213 = scalacOptionsCommon ++ Vector(
+  private val scalacOptions213 = scalacOptionsCommon ::: List(
     "-Xsource:3",
     "-Xlint:-byname-implicit",
     "-explaintypes",
@@ -243,7 +243,7 @@ trait DecrelModuleBase extends ScalafmtModule with CrossScalaModule with CiRelea
     "-P:kind-projector:underscore-placeholders"
   )
 
-  private val scalacOptions3 = scalacOptionsCommon ++ Vector(
+  private val scalacOptions3 = scalacOptionsCommon ::: List(
     "-no-indent",
     "-Ykind-projector"
   )
