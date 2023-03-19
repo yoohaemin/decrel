@@ -44,7 +44,7 @@ jobs:
 
       - run: yarn --cwd ./vuepress add -D vuepress@next
 
-      - run: ./mill mdoc.mdoc
+      - run: ./mill -i mdoc.mdoc
 
       - run: yarn --cwd ./vuepress docs:build
 

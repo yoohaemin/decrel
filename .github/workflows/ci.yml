@@ -9,16 +9,39 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  check-format:
+    strategy:
+      matrix:
+        os: [ ubuntu-latest ]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
       - uses: coursier/cache-action@v6
       - uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
-          java-version: '8'
+          distribution: 'zulu'
+          java-version: '17'
 
       - name: Check formatting and test
         run:
-          ./mill -j 0 all __.checkFormat __.test
+          ./mill -i '__[2.13.10].checkFormat'
+
+  test:
+    strategy:
+      matrix:
+        os: [ ubuntu-latest ]
+        scala: [ '2.13.10', '3.2.2' ]
+        java: [ '8', '19' ]
+        platform: [ 'jvm', 'js' ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: coursier/cache-action@v6
+      - uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: ${{ matrix.java }}
+
+      - name: Check formatting and test
+        run:
+          ./mill -i '__.${{ matrix.platform }}[${{ matrix.scala }}].test'
