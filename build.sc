@@ -105,7 +105,7 @@ object mdoc extends MDocModule {
   override def mdocVariables: T[Map[String, String]] = T {
     val current = VcsVersion.vcsState()
     Map(
-      "SNAPSHOTVERSION" -> current.format(),
+      "SNAPSHOTVERSION" -> (current.format(dirtySep = "", dirtyHashDigits = 0) + "-SNAPSHOT"),
       "RELEASEVERSION"  -> current.stripV(current.lastTag.get)
     )
   }
