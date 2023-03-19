@@ -34,15 +34,17 @@ jobs:
           cache: yarn
           cache-dependency-path: ./vuepress/yarn.lock
 
-      - run: yarn --cwd ./vuepress add -D vuepress@next
+      - uses: coursier/cache-action@v6
 
       - name: Setup Java
         uses: actions/setup-java@v3.9.0
         with:
-          distribution: temurin
+          distribution: zulu
           java-version: 8
 
-      - run: sbt docs/mdoc
+      - run: yarn --cwd ./vuepress add -D vuepress@next
+
+      - run: ./mill -i mdoc.mdoc
 
       - run: yarn --cwd ./vuepress docs:build
 
