@@ -105,7 +105,7 @@ object mdoc extends MDocModule {
   override def mdocVariables: T[Map[String, String]] = T {
     val currentVcsState = VcsVersion.vcsState()
     val releaseVersion  = currentVcsState.stripV(currentVcsState.lastTag.get)
-    val snapshotVersion = currentVcsState.format(dirtySep = "", dirtyHashDigits = 0) + "-SNAPSHOT")
+    val snapshotVersion = currentVcsState.format(dirtySep = "", dirtyHashDigits = 0) + "-SNAPSHOT"
     Map(
       "SNAPSHOTVERSION" ->
         (if (currentVcsState.commitsSinceLastTag == 0)
