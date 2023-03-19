@@ -21,7 +21,7 @@ export default defineUserConfig({
 					link: '/',
 				},{
 					text: 'Guide',
-					link: '/guide/getting-started.html'
+					link: '/guide/index.html'
 				},{
 					text: 'Showcase',
 					link: '/showcase/index.html'
