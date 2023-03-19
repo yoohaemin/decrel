@@ -1,6 +1,6 @@
 import $ivy.`com.yoohaemin::mill-mdoc::0.0.3`
 import $ivy.`io.chris-kipp::mill-ci-release::0.1.5`
-import mill._, scalalib._, scalafmt._, publish._
+import mill._, scalalib._, scalafmt._, publish._, define.Command
 import de.tobiasroeser.mill.vcs.version.VcsVersion
 import de.wayofquality.mill.mdoc.MDocModule
 import io.kipp.mill.ci.release.CiReleaseModule
@@ -223,12 +223,25 @@ trait DecrelModuleBase extends ScalafmtModule with CrossScalaModule with CiRelea
 
   def crossScalaVersion: String
 
-  override def skipIdea: Boolean = {
-    val isJs     = this.isInstanceOf[scalajslib.ScalaJSModule]
-    val isNot213 = crossScalaVersion != V.scala213
+  protected final val is213 = crossScalaVersion == V.scala213
 
-    isJs || isNot213
-  }
+  protected final val isJs = this.isInstanceOf[scalajslib.ScalaJSModule]
+
+  protected def runActions = is213 && !isJs
+
+  override def skipIdea: Boolean = !runActions
+
+  override def checkFormat() =
+    if (runActions)
+      super.checkFormat()
+    else
+      T.command(mill.api.Result.Success(()))
+
+  override def reformat() =
+    if (runActions)
+      super.reformat()
+    else
+      T.command(mill.api.Result.Success(()))
 
   private val scalacOptionsCommon = List(
     "-deprecation",
