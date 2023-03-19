@@ -133,12 +133,11 @@ object V {
   val scalaJS  = "1.12.0"
 
   def cats         = "2.9.0"
-  def zio          = "2.0.6"
-  def zioQuery     = "0.3.4"
-  def fetch        = "3.1.0"
-  def izumiReflect = "2.2.2"
+  def zio          = "2.0.10"
+  def zioQuery     = "0.4.0"
+  def fetch        = "3.1.1"
+  def izumiReflect = "2.3.0"
   def scalacheck   = "1.17.0"
-  def scalajsDom   = "2.3.0"
 
   def kindProjector = "0.13.2"
 }
