@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: coursier/setup-action@v1
         with:
-          jvm: 'temurin:11'
+          jvm: 'zulu:11'
           apps: scip-java
       - name: Generate SCIP File
         run: scip-java index --build-tool=mill
