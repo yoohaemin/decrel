@@ -25,11 +25,17 @@ export default defineUserConfig({
 				},{
 					text: 'Showcase',
 					link: '/showcase/index.html'
+				},{
+					text: 'Contributing',
+					link: '/contributing/index.html'
+				},{
+					text: 'Scaladoc',
+					link: '/contributing/index.html'
 				}],
 				selectLanguageName: 'English',
 				sidebar: {
 					'/guide/': [{
-						text: 'Guide',
+						text: 'User Guide',
 						children: [
 							'/guide/README.md',
 							'/guide/getting-started.md',
@@ -37,9 +43,8 @@ export default defineUserConfig({
 							'/guide/defining-relations.md',
 							'/guide/providing-proofs.md', // Proofs, contramaps, ...
 							'/guide/callsites.md', //
-							'/guide/defining-relations.md', // Advanced
-							'/guide/defining-relations.md',
-
+							'/guide/.md', // Advanced
+							'/guide/contributing.md'
 						],
 					}],
 					'/showcase/': [{
@@ -48,6 +53,13 @@ export default defineUserConfig({
 							'/showcase/README.md'
 						],
 					}],
+					'/contributing/': [{
+						text: "Contributing",
+						children: [
+							'/contributing/README.md' //
+						],
+					}],
+
 					//'/reference/': [
 					//  {
 					//    text: 'Reference',
