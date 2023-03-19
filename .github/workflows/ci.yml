@@ -25,7 +25,7 @@ jobs:
           distribution: 'temurin'
           java-version: ${{ matrix.java }}
 
-      - name: Check formatting and test
+      - name: Check formatting
         run:
           ./mill -i '__.${{ matrix.platform }}[${{ matrix.scala }}].checkFormat'
 
@@ -45,6 +45,6 @@ jobs:
           distribution: 'temurin'
           java-version: ${{ matrix.java }}
 
-      - name: Check formatting and test
+      - name: Test
         run:
           ./mill -i '__.${{ matrix.platform }}[${{ matrix.scala }}].test'
