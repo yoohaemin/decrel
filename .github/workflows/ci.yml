@@ -7,6 +7,7 @@ on:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MILL_JVM_OPTS_PATH: '.mill-jvm-opts-ci'
 
 jobs:
   check-format:
@@ -47,4 +48,4 @@ jobs:
 
       - name: Test
         run:
-          ./mill -i '__.${{ matrix.platform }}[${{ matrix.scala }}].test'
+          ./mill -i all '__.${{ matrix.platform }}[${{ matrix.scala }}].compile' '__.${{ matrix.platform }}[${{ matrix.scala }}].test'

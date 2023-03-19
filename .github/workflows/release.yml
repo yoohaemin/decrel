@@ -1,4 +1,8 @@
 name: Release
+
+env:
+  MILL_JVM_OPTS_PATH: '.mill-jvm-opts-ci'
+
 on:
   push:
     branches:

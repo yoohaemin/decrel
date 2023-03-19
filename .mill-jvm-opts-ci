@@ -1,0 +1,3 @@
+-Xmx4G
+-XX:+UseG1GC
+-XX:MaxGCPauseMillis=4000
