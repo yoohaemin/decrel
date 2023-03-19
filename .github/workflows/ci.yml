@@ -14,9 +14,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest ]
-        scala: [ '2.13.10' ]
         java: [ '17' ]
-        platform: [ 'jvm' ]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
@@ -28,7 +26,7 @@ jobs:
 
       - name: Check formatting
         run:
-          ./mill -i '__.${{ matrix.platform }}[${{ matrix.scala }}].checkFormat'
+          ./mill -j 0 -i '__.checkFormat'
 
   test:
     strategy:
@@ -48,4 +46,4 @@ jobs:
 
       - name: Test
         run:
-          ./mill -i all '__.${{ matrix.platform }}[${{ matrix.scala }}].compile' '__.${{ matrix.platform }}[${{ matrix.scala }}].test'
+          ./mill -j 0 -i '__.${{ matrix.platform }}[${{ matrix.scala }}].test'
