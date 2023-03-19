@@ -47,4 +47,4 @@ jobs:
 
       - name: Test
         run:
-          ./mill -j 0 -i '__.${{ matrix.platform }}[${{ matrix.scala }}].test'
+          ./mill -i '__.${{ matrix.platform }}[${{ matrix.scala }}].test'
