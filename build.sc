@@ -110,8 +110,8 @@ object mdoc extends MDocModule {
       "SNAPSHOTVERSION" ->
         (if (currentVcsState.commitsSinceLastTag == 0)
            releaseVersion
-        else
-          snapshotVersion),
+         else
+           snapshotVersion),
       "RELEASEVERSION" -> releaseVersion
     )
   }
@@ -268,6 +268,10 @@ trait DecrelModuleBase extends ScalafmtModule with CrossScalaModule with CiRelea
     }
 
   override def sonatypeHost = Some(SonatypeHost.s01)
+
+  override def artifactName = T {
+    ("decrel" :: millModuleSegments.parts.dropRight(2)).mkString("-")
+  }
 
   override def pomSettings: T[PomSettings] = T {
     PomSettings(
