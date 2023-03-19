@@ -47,4 +47,4 @@ jobs:
 
       - name: Test
         run:
-          ./mill -i '__.${{ matrix.platform }}[${{ matrix.scala }}].test'
+          ./mill -i all '__.${{ matrix.platform }}[${{ matrix.scala }}].compile' '__.${{ matrix.platform }}[${{ matrix.scala }}].test'
