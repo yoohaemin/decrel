@@ -72,7 +72,7 @@ object cats extends PureCrossModule {
 
 object mdoc extends MDocModule {
 
-  override def scalaVersion = V.scala3
+  override def scalaVersion = V.scala213
 
   override def scalaMdocVersion = "2.3.7"
 
@@ -197,7 +197,7 @@ trait PureCrossModule extends Module { outer =>
 
     object test extends Tests with TestScalaJSModule {
       override def ivyDeps: T[Agg[Dep]] = T {
-        Agg(D.zioTest, D.zioTestSbt) ++ testIvyDeps() ++ JsModule.this.ivyDeps()
+        Agg(D.zioTest, D.zioTestSbt) ++ testIvyDeps() ++ inner.ivyDeps()
       }
 
       override def scalacPluginIvyDeps =
@@ -268,14 +268,14 @@ trait DecrelModuleBase extends ScalafmtModule with CrossScalaModule with CiRelea
       description = "Composable Relations for Scala",
       organization = "com.yoohaemin",
       url = "https://github.com/yoohaemin/decrel",
-      licenses = Seq[License](License.`MPL-2.0`),
+      licenses = List(License.`MPL-2.0`),
       versionControl = VersionControl(
         browsableRepository = Some("https://github.com/yoohaemin/decrel"),
         connection = Some("scm:git:git://github.com/yoohaemin/decrel.git"),
         developerConnection = Some("scm:git:git@github.com:yoohaemin/decrel.git"),
         tag = Some(VcsVersion.vcsState().currentRevision)
       ),
-      developers = Seq[Developer](
+      developers = List(
         Developer(
           id = "yoohaemin",
           name = "Haemin Yoo",
