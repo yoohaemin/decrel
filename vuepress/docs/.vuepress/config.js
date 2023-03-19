@@ -33,7 +33,13 @@ export default defineUserConfig({
 						children: [
 							'/guide/README.md',
 							'/guide/getting-started.md',
-							'/guide/defining-relations.md'
+							'/guide/core-concepts.md',
+							'/guide/defining-relations.md',
+							'/guide/providing-proofs.md', // Proofs, contramaps, ...
+							'/guide/callsites.md', //
+							'/guide/defining-relations.md', // Advanced
+							'/guide/defining-relations.md',
+
 						],
 					}],
 					'/showcase/': [{

@@ -72,7 +72,9 @@ object cats extends PureCrossModule {
 
 object mdoc extends MDocModule {
 
-  override def scalaVersion = V.scala213
+  private val scalaV = V.scala213
+
+  override def scalaVersion = scalaV
 
   override def scalaMdocVersion = "2.3.7"
 
@@ -115,6 +117,14 @@ object mdoc extends MDocModule {
       "RELEASEVERSION" -> releaseVersion
     )
   }
+
+  override def moduleDeps: Seq[JavaModule] = List(
+    core,
+    zquery,
+    fetch,
+    scalacheck,
+    ziotest
+  ).map(_.jvm(scalaV))
 }
 
 ////// Dependencies /////////////////////////////////////////////////
