@@ -130,7 +130,7 @@ object V {
   val scala213 = "2.13.10"
   val scala3   = "3.2.2"
   val scalaAll = scala213 :: scala3 :: Nil
-  val scalaJS  = "1.12.0"
+  val scalaJS  = "1.13.0"
 
   def cats         = "2.9.0"
   def zio          = "2.0.10"
