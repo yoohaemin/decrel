@@ -22,14 +22,24 @@ export default defineUserConfig({
 				},{
 					text: 'Guide',
 					link: '/guide/getting-started.html'
+				},{
+					text: 'Showcase',
+					link: '/showcase/index.html'
 				}],
 				selectLanguageName: 'English',
 				sidebar: {
 					'/guide/': [{
 						text: 'Guide',
 						children: [
+							'/guide/README.md',
 							'/guide/getting-started.md',
 							'/guide/defining-relations.md'
+						],
+					}],
+					'/showcase/': [{
+						text: 'Showcase',
+						children: [
+							'/showcase/README.md'
 						],
 					}],
 					//'/reference/': [
