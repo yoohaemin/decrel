@@ -13,6 +13,9 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest ]
+        scala: [ '2.13.10' ]
+        java: [ '17' ]
+        platform: [ 'jvm' ]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
@@ -20,11 +23,11 @@ jobs:
       - uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
-          java-version: '17'
+          java-version: ${{ matrix.java }}
 
       - name: Check formatting and test
         run:
-          ./mill -i '__[2.13.10].checkFormat'
+          ./mill -i '__.${{ matrix.platform }}[${{ matrix.scala }}].checkFormat'
 
   test:
     strategy:
