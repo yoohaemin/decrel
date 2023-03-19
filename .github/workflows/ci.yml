@@ -7,6 +7,7 @@ on:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MILL_JVM_OPTS_PATH: '.mill-jvm-opts-ci'
 
 jobs:
   check-format:
