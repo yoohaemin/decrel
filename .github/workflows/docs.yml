@@ -39,7 +39,7 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v3.9.0
         with:
-          distribution: microsoft
+          distribution: liberica
           java-version: 8
 
       - run: yarn --cwd ./vuepress add -D vuepress@next
