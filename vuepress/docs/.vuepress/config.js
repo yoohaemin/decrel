@@ -39,11 +39,16 @@ export default defineUserConfig({
 						children: [
 							'/guide/README.md',
 							'/guide/getting-started.md',
-							'/guide/core-concepts.md',
 							'/guide/defining-relations.md',
-							'/guide/providing-proofs.md', // Proofs, contramaps, ...
+
+							'/guide/zquery.md', // Proofs, contramaps, ...
+							'/guide/fetch.md', // Proofs, contramaps, ...
+							'/guide/scalacheck.md', // Proofs, contramaps, ...
+							'/guide/ziotest.md', // Proofs, contramaps, ...
+
 							'/guide/callsites.md', //
-							'/guide/.md', // Advanced
+							'/guide/core-concepts.md',
+							'/guide/advanced.md', // Advanced
 							'/guide/contributing.md'
 						],
 					}],
