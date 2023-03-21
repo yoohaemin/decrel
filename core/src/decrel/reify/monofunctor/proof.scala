@@ -24,28 +24,108 @@ trait proof { this: access =>
 
   }
 
-  abstract class Proof[Rel, -In, Out] {
+  abstract class Proof[+Rel, -In, Out] {
 
     def reify: ReifiedRelation[In, Out]
   }
 
   object Proof {
 
-    trait Single[Rel <: Relation.Single[In, Out], -In, Out] extends Proof[Rel, In, Out] {
+    sealed trait Declared[+Rel, -In, Out] extends Proof[Rel, In, Out] {
+
+      type Self[R, I, O] <: Proof[R & Relation[I, O], I, O]
+
+      def contramap[Rel2, In2](
+        rel: Rel2
+      )(
+        f: In2 => In
+      ): Self[Rel2, In2, Out]
+
+    }
+
+    /**
+     * Includes both Single and Self.
+     * Used for binding implicit search.
+     */
+    sealed trait GenericSingle[+Rel <: Relation.Single[In, Out], -In, Out]
+        extends Proof[Rel, In, Out]
+
+    abstract class Single[+Rel <: Relation.Single[In, Out], -In, Out]
+        extends Proof.Declared[Rel, In, Out]
+        with GenericSingle[Rel, In, Out] { outer =>
+
+      override type Self[R, I, O] = Proof.Single[R & Relation.Single[I, O], I, O]
+
       def reify: ReifiedRelation[In, Out]
+
+      override final def contramap[Rel2, In2](
+        rel: Rel2
+      )(
+        f: In2 => In
+      ): Proof.Single[Rel2 & Relation.Single[In2, Out], In2, Out] =
+        new Proof.Single[Rel2 & Relation.Single[In2, Out], In2, Out] {
+
+          override def reify: ReifiedRelation[In2, Out] =
+            new ReifiedRelation[In2, Out] {
+
+              override def apply(in: In2): Access[Out] =
+                outer.reify.apply(f(in))
+
+              def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+                in: Coll[In2]
+              ): Access[Coll[Out]] = outer.reify.applyMultiple(in.map(f))
+            }
+        }
     }
 
-    trait Optional[Rel <: Relation.Optional[In, Out], -In, Out]
-        extends Proof[Rel, In, Option[Out]] {
+    final class SelfProof[Rel <: Relation.Self[A], A] extends Proof.GenericSingle[Rel, A, A] {
+
+      override val reify: ReifiedRelation[A, A] =
+        new ReifiedRelation[A, A] {
+          override def apply(in: A): Access[A] = succeed(in)
+
+          override def applyMultiple[Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]](
+            in: Coll[A]
+          ): Access[Coll[A]] = succeed(in)
+        }
+    }
+
+    private val _selfProof: SelfProof[Relation.Self[Any], Any] =
+      new SelfProof[Relation.Self[Any], Any]
+
+    abstract class Optional[+Rel <: Relation.Optional[In, Out], -In, Out]
+        extends Proof.Declared[Rel, In, Option[Out]] { outer =>
+
       def reify: ReifiedRelation[In, Option[Out]]
+
+      override type Self[R, I, O] = Proof.Optional[R & Relation.Optional[I, O], I, O]
+
+      override final def contramap[Rel2, In2](
+        rel: Rel2
+      )(
+        f: In2 => In
+      ): Proof.Optional[Rel2 & Relation.Optional[In2, Out], In2, Out] =
+        new Proof.Optional[Rel2 & Relation.Optional[In2, Out], In2, Out] {
+
+          override def reify: ReifiedRelation[In2, Option[Out]] =
+            new ReifiedRelation[In2, Option[Out]] {
+
+              override def apply(in: In2): Access[Option[Out]] =
+                outer.reify.apply(f(in))
+
+              def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+                in: Coll[In2]
+              ): Access[Coll[Option[Out]]] = outer.reify.applyMultiple(in.map(f))
+            }
+        }
     }
 
-    trait Many[
+    abstract class Many[
       Rel <: Relation.Many[In, Coll, Out],
       -In,
       Out,
       Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]
-    ] extends Proof[Rel, In, Coll[Out]] {
+    ] extends Proof.Declared[Rel, In, Coll[Out]] {
       def reify: ReifiedRelation[In, Coll[Out]]
     }
 
@@ -60,20 +140,6 @@ trait proof { this: access =>
     )(implicit
       ev: Proof[Rel, In, Out]
     ): ReifiedRelation[In, Out] = ev.reify
-
-    private final class SelfProof[Rel <: Relation.Self[A], A] extends Proof.Single[Rel, A, A] {
-
-      override val reify: ReifiedRelation[A, A] =
-        new ReifiedRelation[A, A] {
-          override def apply(in: A): Access[A] = succeed(in)
-          override def applyMultiple[Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]](
-            in: Coll[A]
-          ): Access[Coll[A]] = succeed(in)
-        }
-    }
-
-    private val _selfProof: SelfProof[Relation.Self[Any], Any] =
-      new SelfProof[Relation.Self[Any], Any]
 
     implicit def selfProof[Rel <: Relation.Self[A], A]: Proof.Single[Rel, A, A] =
       _selfProof.asInstanceOf[Proof.Single[Rel, A, A]]
