@@ -33,26 +33,106 @@ trait proof { this: access =>
 
   object Proof {
 
-    sealed trait Declared[+Rel, -In, Out] extends Proof[Rel, In, Out] {
+    /**
+     * Proofs that are lifted from pure functions.
+     * The intention is for this to be used to implement contramap.
+     *
+     * subtypes are sealed because Scala 2 won't make it final -- for
+     * all intents and purposes sealed does the job.
+     */
+    sealed trait PureProof[Rel, -In, Out] extends Proof[Rel, In, Out] {
+      def rel: Rel
+    }
+    object PureProof {
 
-//      type Self[R, I, O] <: Proof[R & Relation[I, O], I, O]
-//
-//      def contramap[Rel2, In2](
-//        rel: Rel2
-//      )(
-//        f: In2 => In
-//      ): Self[Rel2, In2, Out]
+      sealed class Single[
+        Rel <: Relation.Single[In, Out],
+        -In,
+        Out
+      ](
+        relation: Rel,
+        f: In => Out
+      ) extends Proof.GenericSingle[Rel, In, Out]
+          with PureProof[Rel, In, Out] {
+
+        override final def rel: Rel = relation
+
+        override final val reify: ReifiedRelation[In, Out] =
+          new ReifiedRelation[In, Out] {
+
+            override final def apply(in: In): Access[Out] = succeed(f(in))
+
+            override final def applyMultiple[
+              Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]
+            ](
+              in: Coll[In]
+            ): Access[Coll[Out]] = succeed(in.map(f))
+          }
+
+      }
+
+      sealed class Optional[
+        Rel <: Relation.Optional[In, Out],
+        -In,
+        Out
+      ](
+        relation: Rel,
+        f: In => Option[Out]
+      ) extends Proof.Optional[Rel, In, Out]
+          with PureProof[Rel, In, Option[Out]] {
+
+        override final def rel: Rel = relation
+
+        override final val reify: ReifiedRelation[In, Option[Out]] =
+          new ReifiedRelation[In, Option[Out]] {
+
+            override final def apply(in: In): Access[Option[Out]] = succeed(f(in))
+
+            override final def applyMultiple[
+              Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]
+            ](
+              in: Coll[In]
+            ): Access[Coll[Option[Out]]] = succeed(in.map(f))
+          }
+      }
+
+      sealed class Many[
+        Rel <: Relation.Many[In, CC, Out],
+        -In,
+        CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]],
+        Out
+      ](
+        relation: Rel,
+        f: In => CC[Out]
+      ) extends Proof.Many[Rel, In, CC, Out]
+          with PureProof[Rel, In, CC[Out]] {
+
+        override def rel: Rel = relation
+
+        override final val reify: ReifiedRelation[In, CC[Out]] = new ReifiedRelation[In, CC[Out]] {
+
+          override final def apply(in: In): Access[CC[Out]] = succeed(f(in))
+
+          override final def applyMultiple[
+            Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]
+          ](
+            in: Coll[In]
+          ): Access[Coll[CC[Out]]] = succeed(in.map(f))
+        }
+      }
 
     }
+
+    sealed trait Declared[+Rel, -In, Out] extends Proof[Rel, In, Out]
 
     /**
      * Includes both Single and Self.
      * Used for binding implicit search.
      */
-    sealed trait GenericSingle[+Rel <: Relation.Single[In, Out], -In, Out]
+    sealed trait GenericSingle[+Rel <: Relation[In, Out], -In, Out]
         extends Proof[Rel, In, Out]
 
-    abstract class Single[+Rel <: Relation.Single[In, Out], -In, Out]
+    abstract class Single[+Rel <: Relation[In, Out], -In, Out]
         extends Proof.Declared[Rel, In, Out]
         with GenericSingle[Rel, In, Out] { outer =>
 
@@ -63,22 +143,12 @@ trait proof { this: access =>
       )(
         f: In2 => In
       ): Proof.Single[Rel2, In2, Out] =
-        new Proof.Single[Rel2, In2, Out] {
+        composedSingleProof(
+          new PureProof.Single[Relation[In2, In], In2, In](rel, f),
+          this,
+          implicitly[In <:< In]
+        )
 
-          override def reify: ReifiedRelation[In2, Out] =
-            new ReifiedRelation[In2, Out] {
-
-              override def apply(in: In2): Access[Out] =
-                outer.reify.apply(f(in))
-
-              def applyMultiple[
-                Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]
-              ](
-                in: Coll[In2]
-              ): Access[Coll[Out]] =
-                outer.reify.applyMultiple(in.map(f))
-            }
-        }
 
       final def contramapOptional[Rel2 <: Relation.Optional[In2, Out], In2](
         rel: Rel2
@@ -159,8 +229,8 @@ trait proof { this: access =>
     abstract class Many[
       Rel <: Relation.Many[In, Coll, Out],
       -In,
-      Out,
-      Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]
+      Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]],
+      Out
     ] extends Proof.Declared[Rel, In, Coll[Out]] {
       def reify: ReifiedRelation[In, Coll[Out]]
     }
@@ -188,10 +258,10 @@ trait proof { this: access =>
       RightIn,
       RightOut
     ](implicit
-      leftProof: Proof.Single[LeftTree, LeftIn, LeftOut],
+      leftProof: Proof.GenericSingle[LeftTree, LeftIn, LeftOut],
       rightProof: Proof[RightTree, RightIn, RightOut],
       ev: LeftOut <:< RightIn
-    ): Proof[
+    ): Proof.Single[
       Relation.Composed.Single[
         LeftTree,
         LeftIn,
@@ -309,7 +379,7 @@ trait proof { this: access =>
       RightOut,
       CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]
     ](implicit
-      leftProof: Proof.Many[LeftTree, LeftIn, LeftOut, CC],
+      leftProof: Proof.Many[LeftTree, LeftIn, CC, LeftOut],
       rightProof: Proof[RightTree, RightIn, RightOut],
       ev: LeftOut <:< RightIn,
       bf: BuildFrom[CC[RightIn], RightOut, CC[RightOut]]
