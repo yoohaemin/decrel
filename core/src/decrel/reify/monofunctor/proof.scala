@@ -24,6 +24,8 @@ trait proof { this: access =>
 
   }
 
+  // Can I lift pure functions into proofs???? omgomgomg
+
   abstract class Proof[+Rel, -In, Out] {
 
     def reify: ReifiedRelation[In, Out]
@@ -33,13 +35,13 @@ trait proof { this: access =>
 
     sealed trait Declared[+Rel, -In, Out] extends Proof[Rel, In, Out] {
 
-      type Self[R, I, O] <: Proof[R & Relation[I, O], I, O]
-
-      def contramap[Rel2, In2](
-        rel: Rel2
-      )(
-        f: In2 => In
-      ): Self[Rel2, In2, Out]
+//      type Self[R, I, O] <: Proof[R & Relation[I, O], I, O]
+//
+//      def contramap[Rel2, In2](
+//        rel: Rel2
+//      )(
+//        f: In2 => In
+//      ): Self[Rel2, In2, Out]
 
     }
 
@@ -54,16 +56,14 @@ trait proof { this: access =>
         extends Proof.Declared[Rel, In, Out]
         with GenericSingle[Rel, In, Out] { outer =>
 
-      override type Self[R, I, O] = Proof.Single[R & Relation.Single[I, O], I, O]
-
       def reify: ReifiedRelation[In, Out]
 
-      override final def contramap[Rel2, In2](
+      final def contramap[Rel2 <: Relation.Single[In2, Out], In2](
         rel: Rel2
       )(
         f: In2 => In
-      ): Proof.Single[Rel2 & Relation.Single[In2, Out], In2, Out] =
-        new Proof.Single[Rel2 & Relation.Single[In2, Out], In2, Out] {
+      ): Proof.Single[Rel2, In2, Out] =
+        new Proof.Single[Rel2, In2, Out] {
 
           override def reify: ReifiedRelation[In2, Out] =
             new ReifiedRelation[In2, Out] {
@@ -71,9 +71,47 @@ trait proof { this: access =>
               override def apply(in: In2): Access[Out] =
                 outer.reify.apply(f(in))
 
-              def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+              def applyMultiple[
+                Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]
+              ](
                 in: Coll[In2]
-              ): Access[Coll[Out]] = outer.reify.applyMultiple(in.map(f))
+              ): Access[Coll[Out]] =
+                outer.reify.applyMultiple(in.map(f))
+            }
+        }
+
+      final def contramapOptional[Rel2 <: Relation.Optional[In2, Out], In2](
+        rel: Rel2
+      )(
+        f: In2 => Option[In]
+      ): Proof.Optional[Rel2, In2, Out] =
+        new Proof.Optional[Rel2, In2, Out] {
+
+          override def reify: ReifiedRelation[In2, Option[Out]] =
+            new ReifiedRelation[In2, Option[Out]] {
+
+              override def apply(in: In2): Access[Option[Out]] =
+                f(in) match {
+                  case Some(value) => outer.reify.apply(value).map(Some(_))
+                  case None        => succeed(None)
+                }
+
+              def applyMultiple[
+                Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]
+              ](
+                ins: Coll[In2]
+              ): Access[Coll[Option[Out]]] = {
+                val optionals: Coll[Option[In]]    = ins.map(f)
+                val flat: Iterable[In]             = optionals.flatten
+                val results: Access[Iterable[Out]] = outer.reify.applyMultiple(flat)
+                results.map { resultsIterable =>
+                  val it = resultsIterable.iterator
+                  optionals.map {
+                    case Some(_) => Some(it.next())
+                    case None    => None
+                  }
+                }
+              }
             }
         }
     }
@@ -98,26 +136,24 @@ trait proof { this: access =>
 
       def reify: ReifiedRelation[In, Option[Out]]
 
-      override type Self[R, I, O] = Proof.Optional[R & Relation.Optional[I, O], I, O]
-
-      override final def contramap[Rel2, In2](
-        rel: Rel2
-      )(
-        f: In2 => In
-      ): Proof.Optional[Rel2 & Relation.Optional[In2, Out], In2, Out] =
-        new Proof.Optional[Rel2 & Relation.Optional[In2, Out], In2, Out] {
-
-          override def reify: ReifiedRelation[In2, Option[Out]] =
-            new ReifiedRelation[In2, Option[Out]] {
-
-              override def apply(in: In2): Access[Option[Out]] =
-                outer.reify.apply(f(in))
-
-              def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-                in: Coll[In2]
-              ): Access[Coll[Option[Out]]] = outer.reify.applyMultiple(in.map(f))
-            }
-        }
+//      override final def contramap[Rel2, In2](
+//        rel: Rel2
+//      )(
+//        f: In2 => In
+//      ): Proof.Optional[Rel2 & Relation.Optional[In2, Out], In2, Out] =
+//        new Proof.Optional[Rel2 & Relation.Optional[In2, Out], In2, Out] {
+//
+//          override def reify: ReifiedRelation[In2, Option[Out]] =
+//            new ReifiedRelation[In2, Option[Out]] {
+//
+//              override def apply(in: In2): Access[Option[Out]] =
+//                outer.reify.apply(f(in))
+//
+//              def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+//                in: Coll[In2]
+//              ): Access[Coll[Option[Out]]] = outer.reify.applyMultiple(in.map(f))
+//            }
+//        }
     }
 
     abstract class Many[
@@ -247,7 +283,7 @@ trait proof { this: access =>
           ): Access[Coll[Option[RightOut]]] =
             leftProof.reify
               .applyMultiple(in)
-              .flatMap { leftOuts =>
+              .flatMap { (leftOuts: Coll[Option[LeftOut]]) =>
                 type X[+A] = Coll[Option[A]]
                 val inputs: Coll[Option[RightIn]] = ev.liftCo[X](leftOuts)
                 val flat: Iterable[RightIn]       = inputs.flatten
