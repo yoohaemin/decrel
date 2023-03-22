@@ -33,13 +33,13 @@ trait proof { this: access =>
 
     sealed trait Declared[+Rel, -In, Out] extends Proof[Rel, In, Out] {
 
-//      type Self[R, I, F[_], O] <: Proof[R & Relation[I, F[O]], I, F[O]]
-//
-//      def contramap[Rel2, In2](
-//        rel: Rel2
-//      )(
-//        f: In2 => In
-//      ): Self[Rel2, In2,  Out]
+      type Self[R, I, O] <: Proof[R & Relation[I, O], I, O]
+
+      def contramap[Rel2, In2](
+        rel: Rel2
+      )(
+        f: In2 => In
+      ): Self[Rel2, In2, Out]
 
     }
 
