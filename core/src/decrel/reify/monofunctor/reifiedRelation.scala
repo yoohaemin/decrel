@@ -32,8 +32,21 @@ trait reifiedRelation { this: access =>
      */
     abstract class Defined[In, Out] extends ReifiedRelation[In, Out] {
 
-      def apply(in: In): Access[Out] =
-        map(applyMultiple(List(in)))(_.head)
+    }
+
+    private[monofunctor] class FromFunction[In, Out](
+      f: In => Out
+    ) extends ReifiedRelation[In, Out] {
+
+      override def apply(in: In): Access[Out] =
+        succeed(f(in))
+
+      override def applyMultiple[
+        Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]
+      ](
+        in: Coll[In]
+      ): Access[Coll[Out]] =
+        succeed(in.map(f))
 
     }
 
