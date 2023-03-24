@@ -419,38 +419,12 @@ trait proof { this: access & reifiedRelation =>
       ZOR
     ] {
       override def reify: ReifiedRelation[LeftIn, ZOR] =
-        new ReifiedRelation.Defined[LeftIn, ZOR] { self => // TODO defined?
-          override def apply(in: LeftIn): Access[ZOR] =
-            leftProof.reify
-              .apply(in)
-              .flatMap { leftOut =>
-                rightProof.reify
-                  .apply(zippedEv(in))
-                  .map { rightOut =>
-                    zippable.zip(leftOut, rightOut)
-                  }
-              }
-
-          override def applyMultiple[Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]](
-            in: Coll[LeftIn]
-          ): Access[Coll[ZOR]] =
-            leftProof.reify
-              .applyMultiple(in)
-              .flatMap { leftOut =>
-                rightProof.reify
-                  .applyMultiple(zippedEv.liftCo(in))
-                  .map { rightOut =>
-                    leftOut.zip(rightOut).map(p => zippable.zip(p._1, p._2))
-                  }
-              }
-        }
+        new ReifiedRelation.Zipped(leftProof.reify, rightProof.reify)
     }
   }
 
   implicit class relationOps[Rel, In, Out](val rel: Rel & Relation[In, Out]) {
-    def reify(implicit
-      ev: Proof[Rel, In, Out]
-    ): ReifiedRelation[In, Out] =
+    def reify(implicit ev: Proof[Rel, In, Out]): ReifiedRelation[In, Out] =
       ev.reify
   }
 

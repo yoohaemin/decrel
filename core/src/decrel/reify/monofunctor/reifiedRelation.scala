@@ -1,5 +1,7 @@
 package decrel.reify.monofunctor
 
+import decrel.Zippable
+
 import scala.collection.{ BuildFrom, IterableOps }
 
 trait reifiedRelation { this: access =>
@@ -7,8 +9,8 @@ trait reifiedRelation { this: access =>
   /**
    * Defines the behavior of Proofs.
    * The below cases embody the patterns in which the reifiedRelations can
-   * actually be composed. Composition of `ReifiedRelation` is orthogonal to the
-   * composition of Proofs.
+   * actually be composed. Composition patterns of of `ReifiedRelation` is orthogonal
+   * to the composition patterns of Proofs.
    *
    * Notice that there is no `Rel` type parameter. This is because it's not relevant
    * when the relations are already reified.
@@ -179,6 +181,47 @@ trait reifiedRelation { this: access =>
             }
           }
     }
+
+    private[monofunctor] class Zipped[
+      LeftIn,
+      LeftOut,
+      RightIn,
+      RightOut,
+      Zipped
+    ](
+      left: ReifiedRelation[LeftIn, LeftOut],
+      right: ReifiedRelation[RightIn, RightOut]
+    )(implicit
+      ev: LeftIn <:< RightIn,
+      zippable: Zippable.Out[LeftOut, RightOut, Zipped]
+    ) extends ReifiedRelation[LeftIn, Zipped] {
+
+      override def apply(in: LeftIn): Access[Zipped] =
+        left
+          .apply(in)
+          .flatMap { leftOut =>
+            right
+              .apply(ev(in))
+              .map { rightOut =>
+                zippable.zip(leftOut, rightOut)
+              }
+          }
+
+      override def applyMultiple[Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]](
+        in: Coll[LeftIn]
+      ): Access[Coll[Zipped]] =
+        left
+          .applyMultiple(in)
+          .flatMap { leftOut =>
+            right
+              .applyMultiple(ev.liftCo(in))
+              .map { rightOut =>
+                leftOut.zip(rightOut).map(p => zippable.zip(p._1, p._2))
+              }
+          }
+
+    }
+
   }
 
 }
