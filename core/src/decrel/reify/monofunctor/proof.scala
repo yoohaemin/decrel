@@ -9,8 +9,9 @@
 package decrel.reify.monofunctor
 
 import decrel.*
+import izumi.reflect.TagK
 
-import scala.collection.{ BuildFrom, IterableOps }
+import scala.collection.{ BuildFrom, Factory, IterableOps }
 
 trait proof { this: access & reifiedRelation =>
 
@@ -50,18 +51,221 @@ trait proof { this: access & reifiedRelation =>
       _selfProof.asInstanceOf[Proof.Single[Rel, A, A]]
 
     abstract class Single[+Rel <: Relation[In, Out], -In, Out]
-      extends Proof.Declared[Rel, In, Out]
-        with GenericSingle[Rel, In, Out]
+        extends Proof.Declared[Rel, In, Out]
+        with GenericSingle[Rel, In, Out] { outer =>
+
+      final def contramap[
+        Rel2 <: Relation.Single[In2, Out],
+        In2
+      ](
+        rel: Rel2
+      )(
+        f: In2 => In
+      ): Proof.Single[Rel2, In2, Out] =
+        new Proof.Single[Rel2 & Relation.Single[In2, Out], In2, Out] {
+          override val reify: ReifiedRelation[In2, Out] =
+            new ReifiedRelation.ComposedSingle(
+              new ReifiedRelation.FromFunction(f),
+              outer.reify
+            )
+        }
+
+      final def contramapOptional[
+        Rel2 <: Relation.Optional[In2, Out],
+        In2
+      ](
+        rel: Rel2
+      )(
+        f: In2 => Option[In]
+      ): Proof.Optional[Rel2, In2, Out] =
+        new Proof.Optional[Rel2, In2, Out] {
+
+          override val reify: ReifiedRelation[In2, Option[Out]] =
+            new ReifiedRelation.ComposedOptional(
+              new ReifiedRelation.FromFunction(f),
+              outer.reify
+            )
+        }
+
+      final def contramapMany[
+        Rel2 <: Relation.Many[In2, CC, Out],
+        In2,
+        CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]
+      ](
+        rel: Rel2
+      )(
+        f: In2 => CC[In]
+      )(implicit tagkColl: TagK[CC]): Proof.Many[Rel2, In2, CC, Out] =
+        new Proof.Many[Rel2, In2, CC, Out] {
+
+          override val reify: ReifiedRelation[In2, CC[Out]] =
+            new ReifiedRelation.ComposedMany(
+              new ReifiedRelation.FromFunction(f),
+              outer.reify
+            )
+        }
+    }
 
     abstract class Optional[+Rel <: Relation.Optional[In, Out], -In, Out]
-        extends Proof.Declared[Rel, In, Option[Out]]
+        extends Proof.Declared[Rel, In, Option[Out]] { outer =>
+
+      final def contramap[
+        Rel2 <: Relation.Optional[In2, Out],
+        In2
+      ](
+        rel: Rel2
+      )(
+        f: In2 => In
+      ): Proof.Optional[Rel2, In2, Out] =
+        new Proof.Optional[Rel2, In2, Out] {
+          override val reify: ReifiedRelation[In2, Option[Out]] =
+            new ReifiedRelation.ComposedSingle(
+              new ReifiedRelation.FromFunction(f),
+              outer.reify
+            )
+        }
+
+      final def contramapOptional[
+        Rel2 <: Relation.Optional[In2, Out],
+        In2
+      ](
+        rel: Rel2
+      )(
+        f: In2 => Option[In]
+      ): Proof.Optional[Rel2, In2, Out] =
+        new Proof.Optional[Rel2, In2, Out] {
+
+          private type X[A] = Option[Option[A]]
+
+          override val reify: ReifiedRelation[In2, Option[Out]] =
+            new ReifiedRelation.Transformed[In2, X, Option, Out](
+              new ReifiedRelation.ComposedOptional(
+                new ReifiedRelation.FromFunction(f),
+                outer.reify
+              ),
+              _.flatten
+            )
+        }
+
+      final def contramapMany[
+        Rel2 <: Relation.Many[In2, CC, Out],
+        In2,
+        CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]
+      ](
+        rel: Rel2
+      )(
+        f: In2 => CC[In]
+      )(implicit tagkColl: TagK[CC]): Proof.Many[Rel2, In2, CC, Out] =
+        new Proof.Many[Rel2, In2, CC, Out] {
+
+          private type X[A] = CC[Option[A]]
+
+          override val reify: ReifiedRelation[In2, CC[Out]] =
+            new ReifiedRelation.Transformed[In2, X, CC, Out](
+              new ReifiedRelation.ComposedMany[In2, In, In, CC, Option[Out]](
+                new ReifiedRelation.FromFunction[In2, CC[In]](f),
+                outer.reify
+              ),
+              _.flatten
+            )
+        }
+    }
 
     abstract class Many[
       Rel <: Relation.Many[In, Coll, Out],
       -In,
       Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]],
       Out
-    ] extends Proof.Declared[Rel, In, Coll[Out]]
+    ](implicit tagkColl: TagK[Coll])
+        extends Proof.Declared[Rel, In, Coll[Out]] { outer =>
+
+      final def contramap[
+        Rel2 <: Relation.Many[In2, Coll2, Out],
+        Coll2[+T] <: Iterable[T] & IterableOps[T, Coll2, Coll2[T]],
+        In2
+      ](
+        rel: Rel2
+      )(
+        f: In2 => In
+      )(implicit
+        tagkColl2: TagK[Coll2],
+        bf: BuildFrom[Coll[Out], Out, Coll2[Out]]
+      ): Proof.Many[Rel2, In2, Coll2, Out] =
+        new Proof.Many[Rel2, In2, Coll2, Out] {
+
+          override val reify: ReifiedRelation[In2, Coll2[Out]] =
+            new ReifiedRelation.Transformed[In2, Coll, Coll2, Out](
+              new ReifiedRelation.ComposedSingle[In2, In, In, Coll[Out]](
+                new ReifiedRelation.FromFunction(f),
+                outer.reify
+              ),
+              (c: Coll[Out]) =>
+                if (tagkColl.tag <:< tagkColl2.tag)
+                  c.asInstanceOf[Coll2[Out]]
+                else
+                  bf.fromSpecific(c)(c)
+            )
+        }
+
+      final def contramapOptional[
+        Rel2 <: Relation.Many[In2, Coll2, Out],
+        Coll2[+T] <: Iterable[T] & IterableOps[T, Coll2, Coll2[T]],
+        In2
+      ](
+        rel: Rel2
+      )(
+        f: In2 => Option[In]
+      )(implicit
+        tagkColl2: TagK[Coll2],
+        bf: BuildFrom[Iterable[Out], Out, Coll2[Out]]
+      ): Proof.Many[Rel2, In2, Coll2, Out] =
+        new Proof.Many[Rel2, In2, Coll2, Out] {
+
+          type X[A] = Option[Coll[A]]
+
+          override val reify: ReifiedRelation[In2, Coll2[Out]] =
+            new ReifiedRelation.Transformed[In2, X, Coll2, Out](
+              new ReifiedRelation.ComposedOptional[In2, In, In, Coll[Out]](
+                new ReifiedRelation.FromFunction(f),
+                outer.reify
+              ),
+              {
+                case Some(c) =>
+                  if (tagkColl.tag <:< tagkColl2.tag)
+                    c.asInstanceOf[Coll2[Out]]
+                  else
+                    bf.fromSpecific(c)(c)
+                case None =>
+                  bf.fromSpecific(Iterable.empty)(Iterable.empty)
+              }
+            )
+        }
+
+      final def contramapMany[
+        Rel2 <: Relation.Many[In2, Coll2, Out],
+        Coll2[+A] <: Iterable[A] & IterableOps[A, Coll2, Coll2[A]],
+        In2
+      ](
+        rel: Rel2
+      )(
+        f: In2 => Coll2[In]
+      )(implicit
+        tagkColl2: TagK[Coll2]
+      ): Proof.Many[Rel2, In2, Coll2, Out] =
+        new Proof.Many[Rel2, In2, Coll2, Out] {
+
+          type X[A] = Coll2[Coll[A]]
+
+          override val reify: ReifiedRelation[In2, Coll2[Out]] =
+            new ReifiedRelation.Transformed[In2, X, Coll2, Out](
+              new ReifiedRelation.ComposedMany[In2, In, In, Coll2, Coll[Out]](
+                new ReifiedRelation.FromFunction(f),
+                outer.reify
+              ),
+              _.flatten
+            )
+        }
+    }
 
     implicit def composedSingleProof[
       LeftTree <: Relation.Single[LeftIn, LeftOut],

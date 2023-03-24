@@ -1,12 +1,12 @@
 package decrel.reify.monofunctor
 
-import scala.collection.{BuildFrom, IterableOps}
+import scala.collection.{ BuildFrom, IterableOps }
 
 trait reifiedRelation { this: access =>
 
   /**
    * Defines the behavior of Proofs.
-   * The "Composed" cases embody the patterns in which the reifiedRelations can
+   * The below cases embody the patterns in which the reifiedRelations can
    * actually be composed. Composition of `ReifiedRelation` is orthogonal to the
    * composition of Proofs.
    *
@@ -30,9 +30,7 @@ trait reifiedRelation { this: access =>
     /**
      * Reification of a Single Relation
      */
-    abstract class Defined[In, Out] extends ReifiedRelation[In, Out] {
-
-    }
+    abstract class Defined[In, Out] extends ReifiedRelation[In, Out] {}
 
     private[monofunctor] class FromFunction[In, Out](
       f: In => Out
@@ -47,6 +45,23 @@ trait reifiedRelation { this: access =>
         in: Coll[In]
       ): Access[Coll[Out]] =
         succeed(in.map(f))
+
+    }
+
+    private[monofunctor] class Transformed[In, CC[_], DD[_], Out](
+      reifiedRelation: ReifiedRelation[In, CC[Out]],
+      transform: CC[Out] => DD[Out]
+    ) extends ReifiedRelation[In, DD[Out]] {
+
+      override def apply(in: In): Access[DD[Out]] =
+        reifiedRelation.apply(in).map(transform)
+
+      override def applyMultiple[
+        Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]
+      ](
+        in: Coll[In]
+      ): Access[Coll[DD[Out]]] =
+        reifiedRelation.applyMultiple(in).map(_.map(transform))
 
     }
 
