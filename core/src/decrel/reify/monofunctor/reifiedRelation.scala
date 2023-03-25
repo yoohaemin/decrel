@@ -32,7 +32,7 @@ trait reifiedRelation { this: access =>
     /**
      * Reification of a Single Relation
      */
-    abstract class Defined[In, Out] extends ReifiedRelation[In, Out] {}
+    abstract class Defined[In, Out] extends ReifiedRelation[In, Out]
 
     private[monofunctor] class FromFunction[In, Out](
       f: In => Out
