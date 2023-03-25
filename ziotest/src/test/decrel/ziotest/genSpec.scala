@@ -81,8 +81,8 @@ object genSpec extends ZIOSpecDefault {
   implicit val userCurrentRentals: Proof.Many[
     User.currentRentals.type & Relation.Many[User, List, Rental],
     User,
-    Rental,
-    List
+    List,
+    Rental
   ] = Gen.relationMany(User.currentRentals) { user =>
     Gen
       // Use `expand` even when implementing other relations

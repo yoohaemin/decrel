@@ -54,14 +54,14 @@ trait gen[R] extends module[Gen[R, *]] {
       relation: Rel & Relation.Many[In, List, Out]
     )(
       f: In => Gen[R, CC[Out]]
-    ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, Out, CC] =
-      new Proof.Many[Rel & Relation.Many[In, CC, Out], In, Out, CC] {
+    ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] =
+      new Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] {
         override val reify: ReifiedRelation[In, CC[Out]] = reifiedRelation(f)
       }
   }
 
   private def reifiedRelation[In, Out](f: In => Gen[R, Out]): ReifiedRelation[In, Out] =
-    new ReifiedRelation[In, Out] {
+    new ReifiedRelation.Custom[In, Out] {
       override def apply(in: In): Gen[R, Out] =
         applyMultiple(List(in)).map(_.head)
 

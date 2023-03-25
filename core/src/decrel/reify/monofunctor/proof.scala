@@ -11,7 +11,7 @@ package decrel.reify.monofunctor
 import decrel.*
 import izumi.reflect.TagK
 
-import scala.collection.{ BuildFrom, Factory, IterableOps }
+import scala.collection.{ BuildFrom, IterableOps }
 
 trait proof { this: access & reifiedRelation =>
 
@@ -34,26 +34,40 @@ trait proof { this: access & reifiedRelation =>
 
     /**
      * Includes both Single and Self.
-     * Used for binding implicit search.
      */
     sealed trait GenericSingle[+Rel <: Relation[In, Out], -In, Out] extends Proof[Rel, In, Out]
 
     final class SelfProof[Rel <: Relation.Self[A], A] extends Proof.GenericSingle[Rel, A, A] {
 
       override val reify: ReifiedRelation[A, A] =
-        new ReifiedRelation.FromFunction(identity)
+        // Same as new ReifiedRelation.FromFunction(identity)
+        // but avoids traversing the collection.
+        new ReifiedRelation.Custom[A, A] {
+
+          override def apply(in: A): Access[A] = succeed(in)
+
+          override def applyMultiple[
+            Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]
+          ](
+            in: Coll[A]
+          ): Access[Coll[A]] = succeed(in)
+        }
     }
 
     private val _selfProof: SelfProof[Relation.Self[Any], Any] =
       new SelfProof[Relation.Self[Any], Any]
 
-    implicit def selfProof[Rel <: Relation.Self[A], A]: Proof.Single[Rel, A, A] =
-      _selfProof.asInstanceOf[Proof.Single[Rel, A, A]]
+    implicit def selfProof[Rel <: Relation.Self[A], A]: Proof.GenericSingle[Rel, A, A] =
+      _selfProof.asInstanceOf[Proof.GenericSingle[Rel, A, A]]
 
     abstract class Single[+Rel <: Relation[In, Out], -In, Out]
         extends Proof.Declared[Rel, In, Out]
         with GenericSingle[Rel, In, Out] { outer =>
 
+      /**
+       * To `contramap` a single relation with single function results in
+       * a `Relation.Single`
+       */
       final def contramap[
         Rel2 <: Relation.Single[In2, Out],
         In2
@@ -176,8 +190,7 @@ trait proof { this: access & reifiedRelation =>
       -In,
       Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]],
       Out
-    ](implicit tagkColl: TagK[Coll])
-        extends Proof.Declared[Rel, In, Coll[Out]] { outer =>
+    ] extends Proof.Declared[Rel, In, Coll[Out]] { outer =>
 
       final def contramap[
         Rel2 <: Relation.Many[In2, Coll2, Out],
@@ -188,6 +201,7 @@ trait proof { this: access & reifiedRelation =>
       )(
         f: In2 => In
       )(implicit
+        tagkColl: TagK[Coll],
         tagkColl2: TagK[Coll2],
         bf: BuildFrom[Coll[Out], Out, Coll2[Out]]
       ): Proof.Many[Rel2, In2, Coll2, Out] =
@@ -216,6 +230,7 @@ trait proof { this: access & reifiedRelation =>
       )(
         f: In2 => Option[In]
       )(implicit
+        tagkColl: TagK[Coll],
         tagkColl2: TagK[Coll2],
         bf: BuildFrom[Iterable[Out], Out, Coll2[Out]]
       ): Proof.Many[Rel2, In2, Coll2, Out] =
@@ -250,6 +265,7 @@ trait proof { this: access & reifiedRelation =>
       )(
         f: In2 => Coll2[In]
       )(implicit
+        tagkColl: TagK[Coll],
         tagkColl2: TagK[Coll2]
       ): Proof.Many[Rel2, In2, Coll2, Out] =
         new Proof.Many[Rel2, In2, Coll2, Out] {
