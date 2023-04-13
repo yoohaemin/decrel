@@ -80,7 +80,7 @@ trait proof { this: access & reifiedRelation =>
       ): Proof.Single[Rel2, In2, E, Out] =
         new Proof.Single[Rel2 & Relation.Single[In2, Out], In2, E, Out] {
           override val reify: ReifiedRelation[In2, E, Out] =
-            new ReifiedRelation.ComposedSingle(
+            new ReifiedRelation.ComposedSingle[In2, Nothing, In, In, E, Out](
               new ReifiedRelation.FromFunction(f),
               outer.reify
             )
@@ -97,7 +97,7 @@ trait proof { this: access & reifiedRelation =>
         new Proof.Optional[Rel2, In2, E, Out] {
 
           override val reify: ReifiedRelation[In2, E, Option[Out]] =
-            new ReifiedRelation.ComposedOptional(
+            new ReifiedRelation.ComposedOptional[In2, Nothing, In, In, E, Out](
               new ReifiedRelation.FromFunction(f),
               outer.reify
             )
@@ -135,7 +135,7 @@ trait proof { this: access & reifiedRelation =>
       ): Proof.Optional[Rel2, In2, E, Out] =
         new Proof.Optional[Rel2, In2, E, Out] {
           override val reify: ReifiedRelation[In2, E, Option[Out]] =
-            new ReifiedRelation.ComposedSingle(
+            new ReifiedRelation.ComposedSingle[In2, Nothing, In, In, E, Option[Out]](
               new ReifiedRelation.FromFunction(f),
               outer.reify
             )
@@ -155,7 +155,7 @@ trait proof { this: access & reifiedRelation =>
 
           override val reify: ReifiedRelation[In2, E, Option[Out]] =
             new ReifiedRelation.Transformed[In2, X, E, Option, Out](
-              new ReifiedRelation.ComposedOptional(
+              new ReifiedRelation.ComposedOptional[In2, Nothing, In, In, E, Option[Out]](
                 new ReifiedRelation.FromFunction(f),
                 outer.reify
               ),
