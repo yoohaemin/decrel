@@ -32,25 +32,25 @@ trait reifiedRelation { this: access =>
     /**
      * Reification of a Single Relation
      */
-    abstract class Custom[In, E, Out] extends ReifiedRelation[In, E, Out]
+    abstract class Custom[In, +E, Out] extends ReifiedRelation[In, E, Out]
 
-    private[bifunctor] class FromFunction[In, E, Out](
+    private[bifunctor] class FromFunction[In, Out](
       f: In => Out
-    ) extends ReifiedRelation[In, E, Out] {
+    ) extends ReifiedRelation[In, Nothing, Out] {
 
-      override def apply(in: In): Access[E, Out] =
+      override def apply(in: In): Access[Nothing, Out] =
         succeed(f(in))
 
       override def applyMultiple[
         Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]
       ](
         in: Coll[In]
-      ): Access[E, Coll[Out]] =
+      ): Access[Nothing, Coll[Out]] =
         succeed(in.map(f))
 
     }
 
-    private[bifunctor] class Transformed[In, CC[_], DD[_], +E, Out](
+    private[bifunctor] class Transformed[In, CC[_], +E, DD[_], Out](
       reifiedRelation: ReifiedRelation[In, E, CC[Out]],
       transform: CC[Out] => DD[Out]
     ) extends ReifiedRelation[In, E, DD[Out]] {
@@ -67,7 +67,14 @@ trait reifiedRelation { this: access =>
 
     }
 
-    private[bifunctor] class ComposedSingle[LeftIn, LeftE <: RightE, LeftOut, RightIn, RightE, RightOut](
+    private[bifunctor] class ComposedSingle[
+      LeftIn,
+      LeftE <: RightE,
+      LeftOut,
+      RightIn,
+      RightE,
+      RightOut
+    ](
       left: ReifiedRelation[LeftIn, LeftE, LeftOut],
       right: ReifiedRelation[RightIn, RightE, RightOut]
     )(implicit
@@ -98,7 +105,13 @@ trait reifiedRelation { this: access =>
     }
 
     private[bifunctor] class ComposedOptional[
-      LeftIn , LeftE <: RightE, LeftOut, RightIn, RightE, RightOut](
+      LeftIn,
+      LeftE <: RightE,
+      LeftOut,
+      RightIn,
+      RightE,
+      RightOut
+    ](
       left: ReifiedRelation[LeftIn, LeftE, Option[LeftOut]],
       right: ReifiedRelation[RightIn, RightE, RightOut]
     )(implicit
@@ -189,10 +202,10 @@ trait reifiedRelation { this: access =>
 
     private[bifunctor] class Zipped[
       LeftIn,
-    LeftE <: RightE,
+      LeftE <: RightE,
       LeftOut,
       RightIn,
-    RightE,
+      RightE,
       RightOut,
       Zipped
     ](
