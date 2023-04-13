@@ -99,7 +99,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
       private val ds = buildDatasource[Rel, In, E, Out](relation)(batchExecute)
 
       override val reify: ReifiedRelation[In, E, Out] =
-        new ReifiedRelation[In, E, Out] {
+        new ReifiedRelation.Custom[In, E, Out] {
           override def apply(in: In): ZQuery[R, E, Out] =
             applyMultiple(List(in)).map(_.head) // TODO add tests for this
 
@@ -127,7 +127,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
       private val ds = buildDatasource[Rel, In, E, Option[Out]](relation)(batchExecute)
 
       override val reify: ReifiedRelation[In, E, Option[Out]] =
-        new ReifiedRelation[In, E, Option[Out]] {
+        new ReifiedRelation.Custom[In, E, Option[Out]] {
           override def apply(in: In): ZQuery[R, E, Option[Out]] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
 
@@ -155,13 +155,13 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
     batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, CC[Out])]]
   )(implicit
     tag: Tag[CC[Out]]
-  ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, E, Out, CC] =
-    new Proof.Many[Rel & Relation.Many[In, CC, Out], In, E, Out, CC] {
+  ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, E, CC, Out] =
+    new Proof.Many[Rel & Relation.Many[In, CC, Out], In, E, CC, Out] {
 
       private val ds = buildDatasource[Rel, In, E, CC[Out]](relation)(batchExecute)
 
       override val reify: ReifiedRelation[In, E, CC[Out]] =
-        new ReifiedRelation[In, E, CC[Out]] {
+        new ReifiedRelation.Custom[In, E, CC[Out]] {
           override def apply(in: In): ZQuery[R, E, CC[Out]] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
 
@@ -193,7 +193,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
       private val ds = buildDatasource(relation)(batchExecute)
 
       override val reify: ReifiedRelation[In, E, Out] =
-        new ReifiedRelation[In, E, Out] {
+        new ReifiedRelation.Custom[In, E, Out] {
           override def apply(in: In): ZQuery[R, E, Out] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
 
@@ -218,7 +218,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
   ): Proof.Single[NewRel & Relation.Single[B, Out], B, E, Out] =
     new Proof.Single[NewRel & Relation.Single[B, Out], B, E, Out] {
       override val reify: ReifiedRelation[B, E, Out] =
-        new ReifiedRelation[B, E, Out] {
+        new ReifiedRelation.Custom[B, E, Out] {
           override def apply(in: B): ZQuery[R, E, Out] =
             proof.reify.apply(f(in))
 
@@ -243,7 +243,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
   ): Proof.Optional[NewRel & Relation.Optional[B, Out], B, E, Out] =
     new Proof.Optional[NewRel & Relation.Optional[B, Out], B, E, Out] {
       override val reify: ReifiedRelation[B, E, Option[Out]] =
-        new ReifiedRelation[B, E, Option[Out]] {
+        new ReifiedRelation.Custom[B, E, Option[Out]] {
 
           override def apply(in: B): ZQuery[R, E, Option[Out]] =
             proof.reify.applyMultiple(f(in).toList).map(_.headOption)
@@ -268,10 +268,10 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
     proof: Proof[Rel, In, E, Out],
     rel: NewRel & Relation.Many[B, CC, Out],
     f: B => CC[In]
-  ): Proof.Many[NewRel & Relation.Many[B, CC, Out], B, E, Out, CC] =
-    new Proof.Many[NewRel & Relation.Many[B, CC, Out], B, E, Out, CC] {
+  ): Proof.Many[NewRel & Relation.Many[B, CC, Out], B, E, CC, Out] =
+    new Proof.Many[NewRel & Relation.Many[B, CC, Out], B, E, CC, Out] {
       override val reify: ReifiedRelation[B, E, CC[Out]] =
-        new ReifiedRelation[B, E, CC[Out]] {
+        new ReifiedRelation.Custom[B, E, CC[Out]] {
 
           override def apply(in: B): ZQuery[R, E, CC[Out]] =
             proof.reify.applyMultiple(f(in))
@@ -350,14 +350,14 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
     def toQuery(in: In)(implicit
       proof: Proof[Rel & Relation[In, Out], In, E, Out]
     ): ZQuery[R, E, Out] =
-      Proof.reify(rel).apply(in)
+      proof.reify.apply(in)
 
     def toQueryMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, E, Out]
     ): ZQuery[R, E, Coll[Out]] =
-      Proof.reify(rel).applyMultiple(in)
+      proof.reify.applyMultiple(in)
   }
 
   /**
