@@ -15,9 +15,6 @@ trait access { self =>
   /**
    * An `Access` datatype represents an action, when evaluated, brings a value of type A into memory.
    * The datatype needs to be monadic for the derivation mechanism to work.
-   *
-   * The `bifunctor` package supports `Access` values that are bifunctors (covariant on both type parameters, i.e. not profunctors),
-   * but does not place any assumption on the meaning of the first type parameter.
    */
   type Access[A]
 

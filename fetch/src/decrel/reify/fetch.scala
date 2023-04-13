@@ -157,7 +157,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
       private val ds = buildDatasource[Rel, In, Out](relation)(batchExecute)
 
       override val reify: ReifiedRelation[In, Out] =
-        new ReifiedRelation[In, Out] {
+        new ReifiedRelation.Custom[In, Out] {
           override def apply(in: In): Fetch[F, Out] =
             applyMultiple(List(in)).map(_.head) // TODO add tests for this
 
@@ -185,7 +185,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
       private val ds = buildDatasource[Rel, In, Option[Out]](relation)(batchExecute)
 
       override val reify: ReifiedRelation[In, Option[Out]] =
-        new ReifiedRelation[In, Option[Out]] {
+        new ReifiedRelation.Custom[In, Option[Out]] {
           override def apply(in: In): Fetch[F, Option[Out]] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
 
@@ -214,13 +214,13 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   )(
     // Also should allow exception per request, so when failing we can give back what we fetched so far
     batchExecute: List[In] => F[List[(In, CC[Out])]]
-  ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, Out, CC] =
-    new Proof.Many[Rel & Relation.Many[In, CC, Out], In, Out, CC] {
+  ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] =
+    new Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] {
 
       private val ds = buildDatasource[Rel, In, CC[Out]](relation)(batchExecute)
 
       override val reify: ReifiedRelation[In, CC[Out]] =
-        new ReifiedRelation[In, CC[Out]] {
+        new ReifiedRelation.Custom[In, CC[Out]] {
           override def apply(in: In): Fetch[F, CC[Out]] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
 
@@ -255,7 +255,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
       type Rel = Relation.Custom[Tree, In, Out]
 
       override val reify: ReifiedRelation[In, Out] =
-        new ReifiedRelation[In, Out] {
+        new ReifiedRelation.Custom[In, Out] {
           override def apply(in: In): Fetch[F, Out] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
 
@@ -279,7 +279,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   ): Proof.Single[NewRel & Relation.Single[B, Out], B, Out] =
     new Proof.Single[NewRel & Relation.Single[B, Out], B, Out] {
       override val reify: ReifiedRelation[B, Out] =
-        new ReifiedRelation[B, Out] {
+        new ReifiedRelation.Custom[B, Out] {
           override def apply(in: B): Fetch[F, Out] =
             proof.reify.apply(f(in))
 
@@ -303,7 +303,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   ): Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out] =
     new Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out] {
       override val reify: ReifiedRelation[B, Option[Out]] =
-        new ReifiedRelation[B, Option[Out]] {
+        new ReifiedRelation.Custom[B, Option[Out]] {
 
           override def apply(in: B): Fetch[F, Option[Out]] =
             proof.reify.applyMultiple(f(in).toList).map(_.headOption)
@@ -329,10 +329,10 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     proof: Proof[Rel, In, Out],
     rel: NewRel & Relation.Many[B, CC, Out],
     f: B => CC[In]
-  ): Proof.Many[NewRel & Relation.Many[B, CC, Out], B, Out, CC] =
-    new Proof.Many[NewRel & Relation.Many[B, CC, Out], B, Out, CC] {
+  ): Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out] =
+    new Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out] {
       override val reify: ReifiedRelation[B, CC[Out]] =
-        new ReifiedRelation[B, CC[Out]] {
+        new ReifiedRelation.Custom[B, CC[Out]] {
 
           override def apply(in: B): Fetch[F, CC[Out]] =
             proof.reify.applyMultiple(f(in))
@@ -412,14 +412,14 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     def toFetch(in: In)(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out]
     ): Fetch[F, Out] =
-      Proof.reify(rel).apply(in)
+      proof.reify(in)
 
     def toFetchMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out]
     ): Fetch[F, Coll[Out]] =
-      Proof.reify(rel).applyMultiple(in)
+      proof.reify.applyMultiple(in)
   }
 
   /**

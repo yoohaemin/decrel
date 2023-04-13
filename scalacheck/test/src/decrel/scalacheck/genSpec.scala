@@ -87,8 +87,8 @@ object genSpec extends Properties("Relations") {
   implicit val userCurrentRentals: Proof.Many[
     User.currentRentals.type & Relation.Many[User, List, Rental],
     User,
+    List,
     Rental,
-    List
   ] = Gen.relationMany(User.currentRentals) { user =>
     Gen
       // Use `expand` even when implementing other relations

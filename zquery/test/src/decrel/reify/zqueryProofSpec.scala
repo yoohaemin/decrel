@@ -165,8 +165,8 @@ object zqueryProofSpec extends ZIOSpecDefault {
       User.currentRentals.type & Relation.Many[User, Chunk, Rental],
       User,
       Nothing,
+      Chunk,
       Rental,
-      Chunk
     ] =
       implementManyDatasource(User.currentRentals) { ins =>
         calls.update(_.add(User.currentRentals, ins)).map { _ =>
