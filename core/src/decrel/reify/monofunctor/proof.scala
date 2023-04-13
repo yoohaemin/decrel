@@ -21,8 +21,6 @@ trait proof { this: access & reifiedRelation =>
    * In practice, this data structure is the outer shell of `ReifiedRelation`
    * that guides the implicit derivation mechanism.
    */
-  // TODO: drop tparam Rel. It's only used for just a subset of cases.
-  // Need to overhaul how
   abstract class Proof[+Rel, -In, Out] {
 
     def reify: ReifiedRelation[In, Out]
