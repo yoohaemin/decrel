@@ -34,7 +34,7 @@ trait reifiedRelation { this: access =>
      */
     abstract class Custom[In, E, Out] extends ReifiedRelation[In, E, Out]
 
-    private[monofunctor] class FromFunction[In, E, Out](
+    private[bifunctor] class FromFunction[In, E, Out](
       f: In => Out
     ) extends ReifiedRelation[In, E, Out] {
 
@@ -50,7 +50,7 @@ trait reifiedRelation { this: access =>
 
     }
 
-    private[monofunctor] class Transformed[In, CC[_], DD[_], +E, Out](
+    private[bifunctor] class Transformed[In, CC[_], DD[_], +E, Out](
       reifiedRelation: ReifiedRelation[In, E, CC[Out]],
       transform: CC[Out] => DD[Out]
     ) extends ReifiedRelation[In, E, DD[Out]] {
@@ -67,7 +67,7 @@ trait reifiedRelation { this: access =>
 
     }
 
-    private[monofunctor] class ComposedSingle[LeftIn, LeftE, LeftOut, RightIn, RightE, RightOut](
+    private[bifunctor] class ComposedSingle[LeftIn, LeftE <: RightE, LeftOut, RightIn, RightE, RightOut](
       left: ReifiedRelation[LeftIn, LeftE, LeftOut],
       right: ReifiedRelation[RightIn, RightE, RightOut]
     )(implicit
@@ -97,7 +97,8 @@ trait reifiedRelation { this: access =>
 
     }
 
-    private[monofunctor] class ComposedOptional[LeftIn, LeftE, LeftOut, RightIn, RightE, RightOut](
+    private[bifunctor] class ComposedOptional[
+      LeftIn , LeftE <: RightE, LeftOut, RightIn, RightE, RightOut](
       left: ReifiedRelation[LeftIn, LeftE, Option[LeftOut]],
       right: ReifiedRelation[RightIn, RightE, RightOut]
     )(implicit
@@ -130,7 +131,7 @@ trait reifiedRelation { this: access =>
             type X[+A] = Coll[Option[A]]
             val inputs: Coll[Option[RightIn]] = ev.liftCo[X](leftOuts)
             val flat: Iterable[RightIn]       = inputs.flatten
-            val results: Access[E, Iterable[RightOut]] =
+            val results: Access[RightE, Iterable[RightOut]] =
               right.applyMultiple(flat)
             results.map { resultsIterable =>
               val it = resultsIterable.iterator
@@ -142,23 +143,23 @@ trait reifiedRelation { this: access =>
           }
     }
 
-    private[monofunctor] class ComposedMany[
+    private[bifunctor] class ComposedMany[
       LeftIn,
-    LeftE,
+      LeftE <: RightE,
       LeftOut,
       RightIn,
-    RightE,
+      RightE,
       CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]],
       RightOut
     ](
-      left: ReifiedRelation[LeftIn, CC[LeftOut]],
-      right: ReifiedRelation[RightIn, RightOut]
+      left: ReifiedRelation[LeftIn, LeftE, CC[LeftOut]],
+      right: ReifiedRelation[RightIn, RightE, RightOut]
     )(implicit
       ev: LeftOut <:< RightIn,
       bf: BuildFrom[CC[RightIn], RightOut, CC[RightOut]]
-    ) extends ReifiedRelation[LeftIn, CC[RightOut]] {
+    ) extends ReifiedRelation[LeftIn, RightE, CC[RightOut]] {
 
-      override def apply(in: LeftIn): Access[E, CC[RightOut]] =
+      override def apply(in: LeftIn): Access[RightE, CC[RightOut]] =
         left
           .apply(in)
           .flatMap { leftOut =>
@@ -170,7 +171,7 @@ trait reifiedRelation { this: access =>
 
       override def applyMultiple[Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]](
         in: Coll[LeftIn]
-      ): Access[E, Coll[CC[RightOut]]] =
+      ): Access[RightE, Coll[CC[RightOut]]] =
         left
           .applyMultiple(in)
           .flatMap { leftOuts =>
@@ -186,21 +187,23 @@ trait reifiedRelation { this: access =>
           }
     }
 
-    private[monofunctor] class Zipped[
+    private[bifunctor] class Zipped[
       LeftIn,
+    LeftE <: RightE,
       LeftOut,
       RightIn,
+    RightE,
       RightOut,
       Zipped
     ](
-      left: ReifiedRelation[LeftIn, LeftOut],
-      right: ReifiedRelation[RightIn, RightOut]
+      left: ReifiedRelation[LeftIn, LeftE, LeftOut],
+      right: ReifiedRelation[RightIn, RightE, RightOut]
     )(implicit
       ev: LeftIn <:< RightIn,
       zippable: Zippable.Out[LeftOut, RightOut, Zipped]
-    ) extends ReifiedRelation[LeftIn, Zipped] {
+    ) extends ReifiedRelation[LeftIn, RightE, Zipped] {
 
-      override def apply(in: LeftIn): Access[E, Zipped] =
+      override def apply(in: LeftIn): Access[RightE, Zipped] =
         left
           .apply(in)
           .flatMap { leftOut =>
@@ -213,7 +216,7 @@ trait reifiedRelation { this: access =>
 
       override def applyMultiple[Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]](
         in: Coll[LeftIn]
-      ): Access[E, Coll[Zipped]] =
+      ): Access[RightE, Coll[Zipped]] =
         left
           .applyMultiple(in)
           .flatMap { leftOut =>
