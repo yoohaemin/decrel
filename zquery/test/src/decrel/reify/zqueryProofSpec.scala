@@ -166,7 +166,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
       User,
       Nothing,
       Chunk,
-      Rental,
+      Rental
     ] =
       implementManyDatasource(User.currentRentals) { ins =>
         calls.update(_.add(User.currentRentals, ins)).map { _ =>
@@ -259,12 +259,12 @@ object zqueryProofSpec extends ZIOSpecDefault {
               val result   = relation.toZIO(rental1)
 
               assertZIO(result)(equalTo((rental1, book1, user1))) &&
-              assertZIO(proofs.calls.get)(
-                equalTo(
+              assertZIO(proofs.calls.get.map(_.value))(
+                hasSameElements(
                   Calls(
                     Book.fetch -> Chunk(book1.id),
                     User.fetch -> Chunk(user1.id)
-                  )
+                  ).value
                 )
               )
             }

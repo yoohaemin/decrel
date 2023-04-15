@@ -197,28 +197,41 @@ trait reifiedRelation { this: access =>
     ) extends ReifiedRelation[LeftIn, Zipped] {
 
       override def apply(in: LeftIn): Access[Zipped] =
-        left
-          .apply(in)
-          .flatMap { leftOut =>
-            right
-              .apply(ev(in))
-              .map { rightOut =>
-                zippable.zip(leftOut, rightOut)
-              }
-          }
+        foreach(
+          List[Access[Any]](
+            left.apply(in).asInstanceOf[Access[Any]],
+            right.apply(ev(in)).asInstanceOf[Access[Any]]
+          )
+        )(identity).map {
+          case List(leftOut, rightOut) =>
+            zippable.zip(
+              leftOut.asInstanceOf[LeftOut],
+              rightOut.asInstanceOf[RightOut]
+            )
+          case _ =>
+            throw new RuntimeException(
+              "foreach has returned more or less elements than 2 during composedZippedProof.apply"
+            )
+        }
 
       override def applyMultiple[Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]](
         in: Coll[LeftIn]
       ): Access[Coll[Zipped]] =
-        left
-          .applyMultiple(in)
-          .flatMap { leftOut =>
-            right
-              .applyMultiple(ev.liftCo(in))
-              .map { rightOut =>
-                leftOut.zip(rightOut).map(p => zippable.zip(p._1, p._2))
-              }
-          }
+        foreach(
+          List[Access[Coll[Any]]](
+            left.applyMultiple(in).asInstanceOf[Access[Coll[Any]]],
+            right.applyMultiple(ev.liftCo(in)).asInstanceOf[Access[Coll[Any]]]
+          )
+        )(identity).map {
+          case List(leftOuts, rightOuts) =>
+            val leftOutsIt  = leftOuts.asInstanceOf[Iterable[LeftOut]].iterator
+            val rightOutsIt = rightOuts.asInstanceOf[Iterable[RightOut]].iterator
+            in.map(_ => zippable.zip(leftOutsIt.next(), rightOutsIt.next()))
+          case _ =>
+            throw new RuntimeException(
+              "foreach has returned more or less elements than 2 during composedZippedProof.applyMultiple"
+            )
+        }
 
     }
 
