@@ -142,7 +142,7 @@ object V {
   def zio          = "2.0.12"
   def zioQuery     = "0.4.0"
   def fetch        = "3.1.2"
-  def izumiReflect = "2.3.2"
+  def izumiReflect = "2.3.4"
   def scalacheck   = "1.17.0"
 
   def kindProjector = "0.13.2"
