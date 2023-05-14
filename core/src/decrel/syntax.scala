@@ -16,10 +16,8 @@ trait syntax {
     private val right: RightTree & Relation[RightIn, RightOut]
   ) {
 
-    def >>:[LeftTree, LeftIn, LeftOut](
+    def >>:[LeftTree, LeftIn, LeftOut <: RightIn](
       left: LeftTree & Relation.Single[LeftIn, LeftOut]
-    )(implicit
-      ev: LeftOut <:< RightIn
     ): Relation.Composed.Single[
       LeftTree & Relation.Single[LeftIn, LeftOut],
       LeftIn,
@@ -29,10 +27,9 @@ trait syntax {
       RightOut
     ] = Relation.Composed.Single(left, right)
 
-    def <>:[LeftTree, LeftIn, LeftOut, ZippedOut](
+    def <>:[LeftTree, LeftIn, LeftOut <: RightIn, ZippedOut](
       left: LeftTree & Relation.Single[LeftIn, LeftOut]
     )(implicit
-      ev: LeftOut <:< RightIn,
       zippable: Zippable.Out[LeftOut, RightOut, ZippedOut]
     ): Relation.Composed.Zipped[
       LeftTree & Relation.Single[LeftIn, LeftOut],
@@ -52,10 +49,8 @@ trait syntax {
     ] =
       Relation.Composed.Zipped(left, Relation.Composed.Single(left, right))
 
-    def >>:[LeftTree, LeftIn, LeftOut](
+    def >>:[LeftTree, LeftIn, LeftOut <: RightIn](
       left: LeftTree & Relation.Optional[LeftIn, LeftOut]
-    )(implicit
-      ev: LeftOut <:< RightIn
     ): Relation.Composed.Optional[
       LeftTree & Relation.Optional[LeftIn, LeftOut],
       LeftIn,
@@ -65,10 +60,9 @@ trait syntax {
       RightOut
     ] = Relation.Composed.Optional(left, right)
 
-    def <>:[LeftTree, LeftIn, LeftOut, ZippedOut](
+    def <>:[LeftTree, LeftIn, LeftOut <: RightIn, ZippedOut](
       left: LeftTree & Relation.Optional[LeftIn, LeftOut]
     )(implicit
-      ev: LeftOut <:< RightIn,
       zippable: Zippable.Out[LeftOut, RightOut, ZippedOut]
     ): Composed.Optional[
       LeftTree & Relation.Optional[LeftIn, LeftOut],
@@ -88,10 +82,8 @@ trait syntax {
     ] =
       Relation.Composed.Optional(left, Relation.Composed.Zipped(Relation.Self[LeftOut], right))
 
-    def >>:[LeftTree, LeftIn, LeftOut, CC[+A]](
+    def >>:[LeftTree, LeftIn, LeftOut <: RightIn, CC[+A]](
       left: LeftTree & Relation.Many[LeftIn, CC, LeftOut]
-    )(implicit
-      ev: LeftOut <:< RightIn
     ): Relation.Composed.Many[
       LeftTree & Relation.Many[LeftIn, CC, LeftOut],
       LeftIn,
@@ -102,10 +94,9 @@ trait syntax {
       CC
     ] = Relation.Composed.Many(left, right)
 
-    def <>:[LeftTree, LeftIn, LeftOutO, ZippedOut, CC[+A]](
+    def <>:[LeftTree, LeftIn, LeftOutO <: RightIn, ZippedOut, CC[+A]](
       left: LeftTree & Relation.Many[LeftIn, CC, LeftOutO]
     )(implicit
-      ev: LeftOutO <:< RightIn,
       zippable: Zippable.Out[LeftOutO, RightOut, ZippedOut]
     ): Composed.Many[
       LeftTree & Relation.Many[LeftIn, CC, LeftOutO],
@@ -137,14 +128,13 @@ trait syntax {
      */
     def zip[
       RightTree,
-      RightIn,
+      RightIn >: LeftIn,
       RightOut,
       ZippedOut
     ](
       that: RightTree & Relation[RightIn, RightOut]
     )(implicit
-      zippable: Zippable.Out[LeftOut, RightOut, ZippedOut],
-      ev: LeftIn <:< RightIn
+      zippable: Zippable.Out[LeftOut, RightOut, ZippedOut]
     ): Relation.Composed.Zipped[
       LeftTree & Relation[LeftIn, LeftOut],
       LeftIn,
@@ -161,14 +151,13 @@ trait syntax {
      */
     def &[
       RightTree,
-      RightIn <: LeftIn,
+      RightIn >: LeftIn,
       RightOut,
       ZippedOut
     ](
       that: RightTree & Relation[RightIn, RightOut]
     )(implicit
-      zippable: Zippable.Out[LeftOut, RightOut, ZippedOut],
-      ev: LeftIn <:< RightIn
+      zippable: Zippable.Out[LeftOut, RightOut, ZippedOut]
     ): Relation.Composed.Zipped[
       LeftTree & Relation[LeftIn, LeftOut],
       LeftIn,
