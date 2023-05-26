@@ -68,57 +68,43 @@ object Relation {
     ](
       left: LeftTree & Relation[LeftIn, LeftOut],
       right: RightTree & Relation[RightIn, RightOut]
-    )(implicit
-      zippedEv: LeftIn <:< RightIn
     ) extends Composed[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut, ZippedOut]
 
     case class Single[
-      LeftTree,
+      LeftTree <: Relation.Single[LeftIn, LeftOut],
       LeftIn,
-      LeftOut,
-      RightTree,
+      LeftOut <: RightIn,
+      RightTree <: Relation[RightIn, RightOut],
       RightIn,
       RightOut
     ](
       left: LeftTree,
       right: RightTree
-    )(implicit
-      composeOneEv: LeftOut <:< RightIn,
-      leftRel: LeftTree <:< Relation.Single[LeftIn, LeftOut],
-      rightRel: RightTree <:< Relation[RightIn, RightOut]
     ) extends Composed[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut, RightOut]
 
     case class Optional[
-      LeftTree,
+      LeftTree <: Relation.Optional[LeftIn, LeftOut],
       LeftIn,
-      LeftOut,
-      RightTree,
+      LeftOut <: RightIn,
+      RightTree <: Relation[RightIn, RightOut],
       RightIn,
       RightOut
     ](
       left: LeftTree,
       right: RightTree
-    )(implicit
-      composeOneEv: LeftOut <:< RightIn,
-      leftRel: LeftTree <:< Relation.Optional[LeftIn, LeftOut],
-      rightRel: RightTree <:< Relation[RightIn, RightOut]
     ) extends Composed[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut, Option[RightOut]]
 
     case class Many[
-      LeftTree,
+      LeftTree <: Relation.Many[LeftIn, CC, LeftOut],
       LeftIn,
-      LeftOut,
-      RightTree,
+      LeftOut <: RightIn,
+      RightTree <: Relation[RightIn, RightOut],
       RightIn,
       RightOut,
       CC[+A]
     ](
       left: LeftTree,
       right: RightTree
-    )(implicit
-      composeOneEv: LeftOut <:< RightIn,
-      leftRel: LeftTree <:< Relation.Many[LeftIn, CC, LeftOut],
-      rightRel: RightTree <:< Relation[RightIn, RightOut]
     ) extends Composed[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut, CC[RightOut]]
   }
 }

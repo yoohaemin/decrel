@@ -284,14 +284,13 @@ trait proof { this: access & reifiedRelation =>
     implicit def composedSingleProof[
       LeftTree <: Relation.Single[LeftIn, LeftOut],
       LeftIn,
-      LeftOut,
-      RightTree,
+      LeftOut <: RightIn,
+      RightTree <: Relation[RightIn, RightOut],
       RightIn,
       RightOut
     ](implicit
       leftProof: Proof.GenericSingle[LeftTree, LeftIn, LeftOut],
-      rightProof: Proof[RightTree, RightIn, RightOut],
-      ev: LeftOut <:< RightIn
+      rightProof: Proof[RightTree, RightIn, RightOut]
     ): Proof.Single[
       Relation.Composed.Single[
         LeftTree,
@@ -322,14 +321,13 @@ trait proof { this: access & reifiedRelation =>
     implicit def composedOptionalProof[
       LeftTree <: Relation.Optional[LeftIn, LeftOut],
       LeftIn,
-      LeftOut,
-      RightTree,
+      LeftOut <: RightIn,
+      RightTree <: Relation[RightIn, RightOut],
       RightIn,
       RightOut
     ](implicit
       leftProof: Proof.Optional[LeftTree, LeftIn, LeftOut],
-      rightProof: Proof[RightTree, RightIn, RightOut],
-      ev: LeftOut <:< RightIn
+      rightProof: Proof[RightTree, RightIn, RightOut]
     ): Proof[
       Relation.Composed.Optional[
         LeftTree,
@@ -353,15 +351,14 @@ trait proof { this: access & reifiedRelation =>
     implicit def composedManyProof[
       LeftTree <: Relation.Many[LeftIn, CC, LeftOut],
       LeftIn,
-      LeftOut,
-      RightTree,
+      LeftOut <: RightIn,
+      RightTree <: Relation[RightIn, RightOut],
       RightIn,
       RightOut,
       CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]
     ](implicit
       leftProof: Proof.Many[LeftTree, LeftIn, CC, LeftOut],
       rightProof: Proof[RightTree, RightIn, RightOut],
-      ev: LeftOut <:< RightIn,
       bf: BuildFrom[CC[RightIn], RightOut, CC[RightOut]]
     ): Proof[
       Relation.Composed.Many[
@@ -386,11 +383,11 @@ trait proof { this: access & reifiedRelation =>
 
     implicit def composedZippedProof[
       LeftTree,
-      LeftIn,
+      LeftIn <: RightIn,
       LeftOut,
       LeftOutRefined <: LeftOut,
       RightTree,
-      RightIn <: LeftIn,
+      RightIn,
       RightOut,
       ZippedOut,
       ZOR <: ZippedOut
@@ -405,8 +402,7 @@ trait proof { this: access & reifiedRelation =>
         RightIn,
         RightOut
       ],
-      zippable: Zippable.Out[LeftOutRefined, RightOut, ZOR],
-      zippedEv: LeftIn <:< RightIn
+      zippable: Zippable.Out[LeftOutRefined, RightOut, ZOR]
     ): Proof[
       Relation.Composed.Zipped[
         LeftTree,

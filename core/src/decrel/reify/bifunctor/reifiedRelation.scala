@@ -78,8 +78,7 @@ trait reifiedRelation { this: access =>
       left: ReifiedRelation[LeftIn, LeftE, LeftOut],
       right: ReifiedRelation[RightIn, RightE, RightOut]
     )(implicit
-      ev: LeftOut <:< RightIn,
-      e: LeftE <:< RightE
+      ev: LeftOut <:< RightIn
     ) extends ReifiedRelation[LeftIn, RightE, RightOut] {
 
       override def apply(in: LeftIn): Access[RightE, RightOut] =
@@ -115,8 +114,7 @@ trait reifiedRelation { this: access =>
       left: ReifiedRelation[LeftIn, LeftE, Option[LeftOut]],
       right: ReifiedRelation[RightIn, RightE, RightOut]
     )(implicit
-      ev: LeftOut <:< RightIn,
-      e: LeftE <:< RightE
+      ev: LeftOut <:< RightIn
     ) extends ReifiedRelation[LeftIn, RightE, Option[RightOut]] {
 
       override def apply(in: LeftIn): Access[RightE, Option[RightOut]] =
