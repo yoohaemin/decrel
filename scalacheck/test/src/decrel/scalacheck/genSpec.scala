@@ -88,7 +88,7 @@ object genSpec extends Properties("Relations") {
     User.currentRentals.type & Relation.Many[User, List, Rental],
     User,
     List,
-    Rental,
+    Rental
   ] = Gen.relationMany(User.currentRentals) { user =>
     Gen
       // Use `expand` even when implementing other relations
