@@ -1,5 +1,5 @@
 import $ivy.`com.yoohaemin::mill-mdoc::0.0.3`
-import $ivy.`io.chris-kipp::mill-ci-release::0.1.7`
+import $ivy.`io.chris-kipp::mill-ci-release::0.1.8`
 import mill._, scalalib._, scalafmt._, publish._, define.Command
 import de.tobiasroeser.mill.vcs.version.VcsVersion
 import de.wayofquality.mill.mdoc.MDocModule
