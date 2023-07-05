@@ -68,7 +68,7 @@ trait gen extends module[Gen] {
       override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
         ins: Coll[In]
       ): Gen[Coll[Out]] = {
-        val F = implicitly[Applicative[Gen]] // Monad for Gen wasn't stack safe last time I checked
+        val F = implicitly[Applicative[Gen]]
 
         def addElem[A](
           listGen: Gen[mutable.Builder[A, Coll[A]]],
