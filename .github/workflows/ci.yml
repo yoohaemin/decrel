@@ -33,7 +33,7 @@ jobs:
       matrix:
         os: [ ubuntu-latest ]
         scala: [ '2.13.10', '3.3.0' ]
-        java: [ '8', '19' ]
+        java: [ '8', '20' ]
         platform: [ 'jvm', 'js' ]
     runs-on: ${{ matrix.os }}
     steps:
