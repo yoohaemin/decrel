@@ -81,8 +81,8 @@ object genSpec extends ZIOSpecDefault {
   implicit val userCurrentRentals: Proof.Many[
     User.currentRentals.type & Relation.Many[User, List, Rental],
     User,
-    Rental,
-    List
+    List,
+    Rental
   ] = Gen.relationMany(User.currentRentals) { user =>
     Gen
       // Use `expand` even when implementing other relations
@@ -121,19 +121,8 @@ object genSpec extends ZIOSpecDefault {
           assert(book.currentRental)(isSome(equalTo(staticRentalId)))
         }
       },
-      test("Composing with :>:") {
-        val relation = Rental.fetch :>: Rental.book
-
-        val staticRentalId = Rental.Id("foo")
-        val rentalIdGen    = Gen.const(staticRentalId)
-
-        check(rentalIdGen.expand(relation)) { case (rental, book) =>
-          assert(rental.id)(equalTo(staticRentalId))
-          assert(book.currentRental)(isSome(equalTo(staticRentalId)))
-        }
-      },
-      test("Composing with :>:") {
-        val relation = Rental.fetch :>: Rental.book
+      test("Composing with <>:") {
+        val relation = Rental.fetch <>: Rental.book
 
         val staticRentalId = Rental.Id("foo")
         val rentalIdGen    = Gen.const(staticRentalId)
