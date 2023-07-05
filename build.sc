@@ -172,7 +172,10 @@ trait PureCrossModule extends Module { outer =>
     override def moduleDeps: Seq[PublishModule] =
       (outer.moduleDeps.map(_.jvm(crossScalaVersion)))
 
-    object test extends Tests {
+    object test extends Tests with DecrelModuleActionBase {
+      override def crossScalaVersion: String = inner.crossScalaVersion
+      override def skipIdea: Boolean = super.skipIdea
+
       override def ivyDeps: T[Agg[Dep]] = T {
         Agg(D.zioTest, D.zioTestSbt) ++ testIvyDeps() ++ inner.ivyDeps()
       }
@@ -201,7 +204,10 @@ trait PureCrossModule extends Module { outer =>
 
     override def scalacPluginIvyDeps = super.scalacPluginIvyDeps()
 
-    object test extends Tests with TestScalaJSModule {
+    object test extends Tests with TestScalaJSModule with DecrelModuleActionBase {
+      override def crossScalaVersion: String = inner.crossScalaVersion
+      override def skipIdea: Boolean = super.skipIdea
+
       override def ivyDeps: T[Agg[Dep]] = T {
         Agg(D.zioTest, D.zioTestSbt) ++ testIvyDeps() ++ inner.ivyDeps()
       }
@@ -219,17 +225,9 @@ trait PureCrossModule extends Module { outer =>
   }
 }
 
-trait DecrelModuleBase extends ScalafmtModule with CrossScalaModule with CiReleaseModule {
+trait DecrelModuleBase extends ScalafmtModule with CrossScalaModule with CiReleaseModule with DecrelModuleActionBase {
 
-  def crossScalaVersion: String
-
-  protected final val is213 = crossScalaVersion == V.scala213
-
-  protected final val isJs = this.isInstanceOf[scalajslib.ScalaJSModule]
-
-  protected def runActions = is213 && !isJs
-
-  override def skipIdea: Boolean = !runActions
+  override def skipIdea: Boolean = DecrelModuleBase.super.skipIdea
 
   override def checkFormat() =
     if (runActions)
@@ -308,5 +306,19 @@ trait DecrelModuleBase extends ScalafmtModule with CrossScalaModule with CiRelea
       packaging = "jar"
     )
   }
+
+}
+
+trait DecrelModuleActionBase {
+
+  def crossScalaVersion: String
+
+  protected final val is213 = crossScalaVersion == V.scala213
+
+  protected final val isJs = this.isInstanceOf[scalajslib.ScalaJSModule]
+
+  protected def runActions = is213 && !isJs
+
+  def skipIdea: Boolean = !runActions
 
 }
