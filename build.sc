@@ -174,7 +174,7 @@ trait PureCrossModule extends Module { outer =>
 
     object test extends Tests with DecrelModuleActionBase {
       override def crossScalaVersion: String = inner.crossScalaVersion
-      override def skipIdea: Boolean = super.skipIdea
+      override def skipIdea: Boolean         = super.skipIdea
 
       override def ivyDeps: T[Agg[Dep]] = T {
         Agg(D.zioTest, D.zioTestSbt) ++ testIvyDeps() ++ inner.ivyDeps()
@@ -206,7 +206,7 @@ trait PureCrossModule extends Module { outer =>
 
     object test extends Tests with TestScalaJSModule with DecrelModuleActionBase {
       override def crossScalaVersion: String = inner.crossScalaVersion
-      override def skipIdea: Boolean = super.skipIdea
+      override def skipIdea: Boolean         = super.skipIdea
 
       override def ivyDeps: T[Agg[Dep]] = T {
         Agg(D.zioTest, D.zioTestSbt) ++ testIvyDeps() ++ inner.ivyDeps()
@@ -225,7 +225,11 @@ trait PureCrossModule extends Module { outer =>
   }
 }
 
-trait DecrelModuleBase extends ScalafmtModule with CrossScalaModule with CiReleaseModule with DecrelModuleActionBase {
+trait DecrelModuleBase
+    extends ScalafmtModule
+    with CrossScalaModule
+    with CiReleaseModule
+    with DecrelModuleActionBase {
 
   override def skipIdea: Boolean = DecrelModuleBase.super.skipIdea
 
