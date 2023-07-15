@@ -26,14 +26,14 @@ jobs:
 
       - name: Check formatting
         run:
-          ./mill -j 0 -i '__.checkFormat'
+          ./mill -i '__.checkFormat'
 
   test:
     strategy:
       matrix:
         os: [ ubuntu-latest ]
         scala: [ '2.13.11', '3.3.0' ]
-        java: [ '8', '19' ]
+        java: [ '8', '20' ]
         platform: [ 'jvm', 'js' ]
     runs-on: ${{ matrix.os }}
     steps:
