@@ -138,7 +138,7 @@ object V {
   val scalaAll = scala213 :: scala3 :: Nil
   val scalaJS  = "1.13.0"
 
-  def cats         = "2.9.0"
+  def cats         = "2.10.0"
   def zio          = "2.0.15"
   def zioQuery     = "0.4.0"
   def fetch        = "3.1.2"
