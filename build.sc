@@ -74,7 +74,7 @@ object mdoc extends MDocModule {
 
   override def scalaVersion = V.scala213
 
-  override def scalaMdocVersion = "2.3.8"
+  override def scalaMdocVersion = "2.4.0"
 
   override def millOuterCtx = super.millOuterCtx
 
