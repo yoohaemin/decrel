@@ -60,6 +60,16 @@ object ziotest extends PureCrossModule {
 
 }
 
+object hedgehog extends PureCrossModule {
+
+  override def moduleDeps = Seq(core)
+
+  override def ivyDeps = Agg(
+    D.hedgehog
+  )
+
+}
+
 object cats extends PureCrossModule {
 
   override def moduleDeps = Seq(core)
@@ -128,6 +138,7 @@ object D {
   def fetch          = ivy"com.47deg::fetch::${V.fetch}"
   def scalacheck     = ivy"org.scalacheck::scalacheck::${V.scalacheck}"
   def cats           = ivy"org.typelevel::cats-core::${V.cats}"
+  def hedgehog       = ivy"qa.hedgehog::hedgehog-core::${V.hedgehog}"
 
   def kindProjector = ivy"org.typelevel:::kind-projector:${V.kindProjector}"
 }
@@ -144,6 +155,7 @@ object V {
   def fetch        = "3.1.2"
   def izumiReflect = "2.3.8"
   def scalacheck   = "1.17.0"
+  def hedgehog     = "0.10.1"
 
   def kindProjector = "0.13.2"
 }
