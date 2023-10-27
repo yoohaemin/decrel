@@ -32,7 +32,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest ]
-        scala: [ '2.13.12', '3.3.0' ]
+        scala: [ '2.13.11', '3.3.0' ]
         java: [ '8', '20' ]
         platform: [ 'jvm', 'js' ]
     runs-on: ${{ matrix.os }}
