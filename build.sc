@@ -74,7 +74,7 @@ object mdoc extends MDocModule {
 
   override def scalaVersion = V.scala213
 
-  override def scalaMdocVersion = "2.3.7"
+  override def scalaMdocVersion = "2.4.0"
 
   override def millOuterCtx = super.millOuterCtx
 
@@ -134,12 +134,12 @@ object D {
 
 object V {
   val scala213 = "2.13.11"
-  val scala3   = "3.3.0"
+  val scala3   = "3.3.1"
   val scalaAll = scala213 :: scala3 :: Nil
   val scalaJS  = "1.13.0"
 
-  def cats         = "2.9.0"
-  def zio          = "2.0.15"
+  def cats         = "2.10.0"
+  def zio          = "2.0.18"
   def zioQuery     = "0.4.0"
   def fetch        = "3.1.2"
   def izumiReflect = "2.3.8"
