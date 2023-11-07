@@ -139,7 +139,7 @@ object V {
   val scalaJS  = "1.13.0"
 
   def cats         = "2.10.0"
-  def zio          = "2.0.18"
+  def zio          = "2.0.19"
   def zioQuery     = "0.4.0"
   def fetch        = "3.1.2"
   def izumiReflect = "2.3.8"
