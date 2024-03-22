@@ -140,7 +140,7 @@ object V {
 
   def cats         = "2.10.0"
   def zio          = "2.0.18"
-  def zioQuery     = "0.4.0"
+  def zioQuery     = "0.5.1"
   def fetch        = "3.1.2"
   def izumiReflect = "2.3.8"
   def scalacheck   = "1.17.0"
