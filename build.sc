@@ -261,7 +261,8 @@ trait DecrelModuleBase
     "-explaintypes",
     "-Vimplicits",
     "-Vtype-diffs",
-    "-P:kind-projector:underscore-placeholders"
+    "-P:kind-projector:underscore-placeholders",
+    "-Xmigration"
   )
 
   private val scalacOptions3 = scalacOptionsCommon ::: List(

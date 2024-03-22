@@ -14,8 +14,8 @@ import izumi.reflect.Tag
 /**
  * Simple cache implementation that is reusable across various integrations
  */
-case class Cache private (
-  private[decrel] val entries: Map[Cache.Key[?, ?, ?], Cache.Entry[?, ?, ?]]
+final case class Cache(
+  entries: Map[Cache.Key[?, ?, ?], Cache.Entry[?, ?, ?]]
 ) {
 
   def add[Rel, A, B](relation: Rel & Relation[A, B], key: A, value: B)(implicit
