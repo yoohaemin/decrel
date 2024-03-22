@@ -66,7 +66,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
           ZIO.foldLeft(requests)(CompletedRequestMap.empty) { (crm, request) =>
             resultsMap.get(request.id) match {
               case Some(result) =>
-                ZIO.succeed(crm.insert(request)(Exit.succeed(result)))
+                ZIO.succeed(crm.insert(request, Exit.succeed(result)))
               case None =>
                 ZIO.die(
                   new NoSuchElementException(s"Response for request not found: ${request.id}")
@@ -76,7 +76,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
         }.catchAll { e =>
           ZIO.succeed(
             requests.foldLeft(CompletedRequestMap.empty) { (crm, request) =>
-              crm.insert(request)(Exit.fail(e))
+              crm.insert(request, Exit.fail(e))
             }
           )
         }
@@ -300,13 +300,14 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
         val relation: k.R & Relation[k.Input, k.Result] = k.relationEv(k._relation)
         val key: k.Input                                = k._key
         val value: k.Result                             = v.valueEv(v._value)
-        Ref
-          .make[Option[Exit[Nothing, k.Result]]](Some(Exit.succeed(value)))
-          .flatMap { value =>
-            zCache.put(
-              RelationRequest[k.R, k.Input, Nothing, k.Result](relation, key),
-              value
-            )
+        Promise
+          .make[Nothing, k.Result]
+          .flatMap { promise =>
+            promise.succeed(value) *>
+              zCache.put(
+                RelationRequest[k.R, k.Input, Nothing, k.Result](relation, key),
+                promise
+              )
           }
           .as(zCache)
       }
