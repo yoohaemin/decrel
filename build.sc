@@ -145,7 +145,7 @@ object V {
   def izumiReflect = "2.3.8"
   def scalacheck   = "1.17.0"
 
-  def kindProjector = "0.13.2"
+  def kindProjector = "0.13.3"
 }
 
 ////// Module definition helpers //////////////////////////////////////
