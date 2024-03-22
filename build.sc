@@ -133,8 +133,8 @@ object D {
 }
 
 object V {
-  val scala213 = "2.13.11"
-  val scala3   = "3.3.1"
+  val scala213 = "2.13.13"
+  val scala3   = "3.3.3"
   val scalaAll = scala213 :: scala3 :: Nil
   val scalaJS  = "1.13.0"
 
@@ -145,7 +145,7 @@ object V {
   def izumiReflect = "2.3.8"
   def scalacheck   = "1.17.0"
 
-  def kindProjector = "0.13.2"
+  def kindProjector = "0.13.3"
 }
 
 ////// Module definition helpers //////////////////////////////////////
@@ -261,7 +261,8 @@ trait DecrelModuleBase
     "-explaintypes",
     "-Vimplicits",
     "-Vtype-diffs",
-    "-P:kind-projector:underscore-placeholders"
+    "-P:kind-projector:underscore-placeholders",
+    "-Xmigration"
   )
 
   private val scalacOptions3 = scalacOptionsCommon ::: List(
