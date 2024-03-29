@@ -134,7 +134,7 @@ object D {
 
 object V {
   val scala213 = "2.13.13"
-  val scala3   = "3.3.3"
+  val scala3   = "3.4.1"
   val scalaAll = scala213 :: scala3 :: Nil
   val scalaJS  = "1.13.0"
 
