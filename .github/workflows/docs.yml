@@ -34,7 +34,7 @@ jobs:
           cache: yarn
           cache-dependency-path: ./vuepress/yarn.lock
 
-      - run: yarn --cwd ./vuepress add -D vuepress@next
+      - run: yarn --cwd ./vuepress install
 
       - name: Setup Java
         uses: actions/setup-java@v3.9.0

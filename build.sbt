@@ -4,7 +4,7 @@ inThisBuild(
     crossScalaVersions       := V.scalaAll,
     organization             := "com.yoohaemin",
     homepage                 := Some(url("https://github.com/yoohaemin/decrel")),
-    licenses                 := List("MPL-2.0" -> new URL("https://www.mozilla.org/MPL/2.0/")),
+    licenses                 := List("MPL-2.0" -> url("https://www.mozilla.org/MPL/2.0/")),
     Test / parallelExecution := true,
     scmInfo := Some(
       ScmInfo(
