@@ -294,7 +294,7 @@ lazy val V = new {
 
 lazy val ciSettings = List(
   githubWorkflowPublishTargetBranches := List(RefPredicate.Equals(Ref.Branch("master"))),
-  githubWorkflowJavaVersions          := Seq(JavaSpec.temurin("8")),
+  githubWorkflowJavaVersions          := Seq(JavaSpec.temurin("11")),
   githubWorkflowUseSbtThinClient      := false,
   githubWorkflowBuild                 := Seq(WorkflowStep.Sbt(List("++${{ matrix.scala }} test"))),
   githubWorkflowPublishTargetBranches += RefPredicate.StartsWith(Ref.Tag("v")),
