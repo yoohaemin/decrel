@@ -62,8 +62,9 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
         val deduplicated = requests.distinctBy(_.id)
 
         batchExecute(deduplicated.map(_.id)).flatMap { results =>
-          val resultsMap = results.toMap
-          ZIO.foldLeft(requests)(CompletedRequestMap.empty) { (crm, request) =>
+          results.corresponds()
+
+          ZIO.foldLeft(requests)() { (crm, request) =>
             resultsMap.get(request.id) match {
               case Some(result) =>
                 ZIO.succeed(crm.insert(request, Exit.succeed(result)))
