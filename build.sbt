@@ -279,16 +279,16 @@ lazy val commonSettings = Def.settings(
 )
 
 lazy val V = new {
-  val scala213 = "2.13.13"
+  val scala213 = "2.13.14"
   val scala3   = "3.3.3"
   val scalaAll = scala213 :: scala3 :: Nil
 
-  val cats         = "2.10.0"
+  val cats         = "2.12.0"
   val zio          = "2.0.22"
   val zioQuery     = "0.7.1"
   val fetch        = "3.1.2"
   val izumiReflect = "2.3.8"
-  val scalacheck   = "1.17.1"
+  val scalacheck   = "1.18.0"
   val scalajsDom   = "2.3.0"
 }
 
