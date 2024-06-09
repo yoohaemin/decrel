@@ -62,8 +62,9 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
         val deduplicated = requests.distinctBy(_.id)
 
         batchExecute(deduplicated.map(_.id)).flatMap { results =>
-          val resultsMap = mutable.Map
-            .newBuilder[In, Exit[E, Out]]
+          val mapBuilder = mutable.Map.newBuilder[In, Exit[E, Out]]
+          mapBuilder.sizeHint(results)
+          val resultsMap = mapBuilder
             .addAll(results.view.map(pair => pair._1 -> Exit.succeed(pair._2)))
             .result()
             .withDefault(in =>
