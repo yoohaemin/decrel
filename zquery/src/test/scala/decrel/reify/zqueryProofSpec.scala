@@ -419,7 +419,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
                     User.fetch          -> Chunk(rental2.userId),
                     User.currentRentals -> Chunk(user2),
                     // The following two calls have been batched, avoiding N+1 problem
-                    Book.fetch -> Chunk(rental3.bookId, rental2.bookId)
+                    Book.fetch -> Chunk(rental2.bookId, rental3.bookId)
                   )
                 )
               )
