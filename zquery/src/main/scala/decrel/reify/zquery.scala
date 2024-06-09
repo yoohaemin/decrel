@@ -13,7 +13,7 @@ import izumi.reflect.Tag
 import zio.*
 import zio.query.{ CompletedRequestMap, DataSource, ZQuery }
 
-import scala.collection.{ BuildFrom, IterableOps }
+import scala.collection.{ mutable, BuildFrom, IterableOps }
 
 trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
 
@@ -62,22 +62,26 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
         val deduplicated = requests.distinctBy(_.id)
 
         batchExecute(deduplicated.map(_.id)).flatMap { results =>
-          val resultsMap = results.toMap
-          ZIO.foldLeft(requests)(CompletedRequestMap.empty) { (crm, request) =>
-            resultsMap.get(request.id) match {
-              case Some(result) =>
-                ZIO.succeed(crm.insert(request, Exit.succeed(result)))
-              case None =>
-                ZIO.die(
-                  new NoSuchElementException(s"Response for request not found: ${request.id}")
-                )
-            }
-          }
-        }.catchAll { e =>
+          val resultsMap = mutable.Map
+            .newBuilder[In, Exit[E, Out]]
+            .addAll(results.view.map(pair => pair._1 -> Exit.succeed(pair._2)))
+            .result()
+            .withDefault(in =>
+              Exit.die(new NoSuchElementException(s"Response for request not found: $in"))
+            )
+
           ZIO.succeed(
-            requests.foldLeft(CompletedRequestMap.empty) { (crm, request) =>
-              crm.insert(request, Exit.fail(e))
-            }
+            CompletedRequestMap.fromIterableWith[E, RelationRequest[Rel, In, E, Out], Out](
+              requests
+            )(
+              (a: zio.query.Request[E, Out]) => a,
+              request => resultsMap(request.id)
+            )
+          )
+        }.catchAll { e =>
+          val failure = Exit.fail(e)
+          ZIO.succeed(
+            CompletedRequestMap.fromIterableWith(requests)(identity, _ => failure)
           )
         }
       }
