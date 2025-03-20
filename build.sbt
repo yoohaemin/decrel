@@ -287,7 +287,7 @@ lazy val V = new {
   val zio          = "2.1.14"
   val zioQuery     = "0.7.6"
   val fetch        = "3.1.2"
-  val izumiReflect = "2.3.10"
+  val izumiReflect = "3.0.2"
   val scalacheck   = "1.18.1"
   val scalajsDom   = "2.3.0"
 }
