@@ -285,7 +285,7 @@ lazy val V = new {
 
   val cats         = "2.13.0"
   val zio          = "2.1.14"
-  val zioQuery     = "0.7.6"
+  val zioQuery     = "0.7.7"
   val fetch        = "3.1.2"
   val izumiReflect = "2.3.10"
   val scalacheck   = "1.18.1"
