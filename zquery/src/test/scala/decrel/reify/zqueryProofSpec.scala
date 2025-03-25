@@ -195,7 +195,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
         test("Self relation") {
           // self does not require any proof
           val relation = Rental.self
-          val result   = relation.toZIO(rental1)
+          val result   = relation.startingFrom(rental1)
 
           assertZIO(result)(equalTo(rental1))
         },
@@ -203,7 +203,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
           proofs.flatMap { proofs =>
             import proofs.*
             val relation = Book.fetch
-            val result   = relation.toZIO(book1.id)
+            val result   = relation.startingFrom(book1.id)
 
             assertZIO(result)(equalTo(book1)) &&
             assertZIO(proofs.calls.get)(equalTo(Calls(Book.fetch -> Chunk(rental1.bookId))))
@@ -213,7 +213,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
           proofs.flatMap { proofs =>
             import proofs.*
             val relation = Rental.book
-            val result   = relation.toZIO(rental1)
+            val result   = relation.startingFrom(rental1)
 
             assertZIO(result)(equalTo(book1)) &&
             assertZIO(proofs.calls.get)(equalTo(Calls(Book.fetch -> Chunk(rental1.bookId))))
@@ -223,7 +223,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
           proofs.flatMap { proofs =>
             import proofs.*
             val relation = Book.currentRental
-            val result   = relation.toZIO(book1)
+            val result   = relation.startingFrom(book1)
 
             assertZIO(result)(isSome(equalTo(rental1))) &&
             assertZIO(proofs.calls.get)(equalTo(Calls(Book.currentRental -> Chunk(book1))))
@@ -233,7 +233,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
           proofs.flatMap { proofs =>
             import proofs.*
             val relation = Book.currentRental
-            val result   = relation.toZIO(book4)
+            val result   = relation.startingFrom(book4)
 
             assertZIO(result)(isNone) &&
             assertZIO(proofs.calls.get)(equalTo(Calls(Book.currentRental -> Chunk(book4))))
@@ -243,7 +243,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
           proofs.flatMap { proofs =>
             import proofs.*
             val relation = User.currentRentals
-            val result   = relation.toZIO(user1)
+            val result   = relation.startingFrom(user1)
 
             assertZIO(result)(equalTo(Chunk(rental1))) &&
             assertZIO(proofs.calls.get)(equalTo(Calls(User.currentRentals -> Chunk(user1))))
@@ -256,7 +256,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
             proofs.flatMap { proofs =>
               import proofs.*
               val relation = Rental.self & Rental.book & Rental.user
-              val result   = relation.toZIO(rental1)
+              val result   = relation.startingFrom(rental1)
 
               assertZIO(result)(equalTo((rental1, book1, user1))) &&
               assertZIO(proofs.calls.get.map(_.value))(
@@ -280,7 +280,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
                 .add(Book.fetch, book1.id, book1)
 
               val relation = Rental.self & Rental.book
-              val result   = relation.toZIO(rental1, cache)
+              val result   = relation.startingFrom(rental1, cache)
 
               assertZIO(result)(equalTo((rental1, book1))) &&
               assertZIO(proofs.calls.get)(equalTo(Calls()))
@@ -292,7 +292,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
             proofs.flatMap { proofs =>
               import proofs.*
               val relation = Book.currentRental >>: Rental.book
-              val result   = relation.toZIO(book1)
+              val result   = relation.startingFrom(book1)
 
               assertZIO(result)(isSome(equalTo(book1))) &&
               assertZIO(proofs.calls.get)(
@@ -313,7 +313,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
                 .add(Book.fetch, book1.id, book1)
 
               val relation = Book.currentRental >>: Rental.book
-              val result   = relation.toZIO(book1, cache)
+              val result   = relation.startingFrom(book1, cache)
 
               assertZIO(result)(isSome(equalTo(book1))) &&
               assertZIO(proofs.calls.get)(
@@ -331,7 +331,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
             proofs.flatMap { proofs =>
               import proofs.*
               val relation = Book.currentRental <>: Rental.book
-              val result   = relation.toZIO(book1)
+              val result   = relation.startingFrom(book1)
 
               assertZIO(result)(isSome(equalTo((rental1, book1)))) &&
               assertZIO(proofs.calls.get)(
@@ -352,7 +352,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
                 .add(Book.fetch, book1.id, book1)
 
               val relation = Book.currentRental <>: Rental.book
-              val result   = relation.toZIO(book1, cache)
+              val result   = relation.startingFrom(book1, cache)
 
               assertZIO(result)(isSome(equalTo((rental1, book1)))) &&
               assertZIO(proofs.calls.get)(
@@ -372,7 +372,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
                 import proofs.*
 
                 val relation = Rental.book & Rental.book
-                val result   = relation.toZIO(rental1)
+                val result   = relation.startingFrom(rental1)
 
                 assertZIO(result)(equalTo((book1, book1))) &&
                 assertZIO(proofs.calls.get)(
@@ -391,7 +391,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
 
                 val relation =
                   Rental.book >>: Book.currentRental >>: Rental.book >>: Book.currentRental
-                val result = relation.toZIO(rental1)
+                val result = relation.startingFrom(rental1)
 
                 assertZIO(result)(isSome(isSome(equalTo(rental1)))) &&
                 assertZIO(proofs.calls.get)(
@@ -410,7 +410,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
               import proofs.*
 
               val relation = Rental.user >>: User.currentRentals >>: Rental.book
-              val result   = relation.toZIO(rental2)
+              val result   = relation.startingFrom(rental2)
 
               assertZIO(result)(equalTo(Chunk(book2, book3))) &&
               assertZIO(proofs.calls.get)(
@@ -432,10 +432,10 @@ object zqueryProofSpec extends ZIOSpecDefault {
               import proofs.*
 
               val fetchUser = User.fetch
-              val user      = fetchUser.toQuery(user1.id)
+              val user      = fetchUser.startingFromQuery(user1.id)
 
               val fetchBook = Book.fetch
-              val book      = fetchBook.toQuery(book1.id)
+              val book      = fetchBook.startingFromQuery(book1.id)
 
               assertZIO((user <*> book).run)(equalTo((user1, book1)))
             }
