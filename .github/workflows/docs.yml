@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -39,8 +39,12 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v3.9.0
         with:
-          distribution: temurin
+          distribution: zulu
           java-version: 11
+
+      - uses: sbt/setup-sbt@v1
+        with:
+          sbt-runner-version: 1.10.7
 
       - run: sbt docs/mdoc
 
@@ -49,7 +53,7 @@ jobs:
       - run: mv vuepress/docs/.vuepress/dist ./_site
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3
 
   # Deployment job
   deploy:
@@ -61,4 +65,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v1
+        uses: actions/deploy-pages@v4
