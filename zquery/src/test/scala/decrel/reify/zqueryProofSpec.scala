@@ -195,91 +195,121 @@ object zqueryProofSpec extends ZIOSpecDefault {
         test("Self relation") {
           // self does not require any proof
           val relation = Rental.self
-          val result   = relation.startingFrom(rental1)
 
-          assertZIO(result)(equalTo(rental1))
+          for {
+            result <- relation.startingFrom(rental1)
+          } yield assertTrue(
+            result == rental1
+          )
         },
         test("Single relation - implemented for itself") {
           proofs.flatMap { proofs =>
             import proofs.*
             val relation = Book.fetch
-            val result   = relation.startingFrom(book1.id)
-
-            assertZIO(result)(equalTo(book1)) &&
-            assertZIO(proofs.calls.get)(equalTo(Calls(Book.fetch -> Chunk(rental1.bookId))))
+            for {
+              result <- relation.startingFrom(book1.id)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == book1,
+              calls == Calls(Book.fetch -> Chunk(book1.id))
+            )
           }
         },
         test("Single relation - contramapped") {
           proofs.flatMap { proofs =>
             import proofs.*
             val relation = Rental.book
-            val result   = relation.startingFrom(rental1)
 
-            assertZIO(result)(equalTo(book1)) &&
-            assertZIO(proofs.calls.get)(equalTo(Calls(Book.fetch -> Chunk(rental1.bookId))))
+            for {
+              result <- relation.startingFrom(rental1)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == book1,
+              calls == Calls(Book.fetch -> Chunk(rental1.bookId))
+            )
           }
         },
         test("Optional relation - existing") {
           proofs.flatMap { proofs =>
             import proofs.*
             val relation = Book.currentRental
-            val result   = relation.startingFrom(book1)
 
-            assertZIO(result)(isSome(equalTo(rental1))) &&
-            assertZIO(proofs.calls.get)(equalTo(Calls(Book.currentRental -> Chunk(book1))))
+            for {
+              result <- relation.startingFrom(book1)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result.contains(rental1),
+              calls == Calls(Book.currentRental -> Chunk(book1))
+            )
           }
         },
         test("Optional relation - non-existing") {
           proofs.flatMap { proofs =>
             import proofs.*
             val relation = Book.currentRental
-            val result   = relation.startingFrom(book4)
 
-            assertZIO(result)(isNone) &&
-            assertZIO(proofs.calls.get)(equalTo(Calls(Book.currentRental -> Chunk(book4))))
+            for {
+              result <- relation.startingFrom(book4)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result.isEmpty,
+              calls == Calls(Book.currentRental -> Chunk(book4))
+            )
           }
         },
         test("Many relation") {
           proofs.flatMap { proofs =>
             import proofs.*
             val relation = User.currentRentals
-            val result   = relation.startingFrom(user1)
 
-            assertZIO(result)(equalTo(Chunk(rental1))) &&
-            assertZIO(proofs.calls.get)(equalTo(Calls(User.currentRentals -> Chunk(user1))))
+            for {
+              result <- relation.startingFrom(user1)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == Chunk(rental1),
+              calls == Calls(User.currentRentals -> Chunk(user1))
+            )
           }
         },
         test("Many relation - multiple results") {
           proofs.flatMap { proofs =>
             import proofs.*
             val relation = User.currentRentals
-            val result   = relation.startingFrom(user2)
 
-            assertZIO(result)(equalTo(Chunk(rental2, rental3))) &&
-            assertZIO(proofs.calls.get)(equalTo(Calls(User.currentRentals -> Chunk(user2))))
+            for {
+              result <- relation.startingFrom(user2)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == Chunk(rental2, rental3),
+              calls == Calls(User.currentRentals -> Chunk(user2))
+            )
           }
         },
         test("Many relation - empty result") {
           proofs.flatMap { proofs =>
             import proofs.*
             val relation = User.currentRentals
-            val result   = relation.startingFrom(user3)
 
-            assertZIO(result)(equalTo(Chunk.empty)) &&
-            assertZIO(proofs.calls.get)(equalTo(Calls(User.currentRentals -> Chunk(user3))))
+            for {
+              result <- relation.startingFrom(user3)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == Chunk.empty,
+              calls == Calls(User.currentRentals -> Chunk(user3))
+            )
           }
         },
         test("Many relation with batch queries") {
           proofs.flatMap { proofs =>
             import proofs.*
             val relation = User.currentRentals
-            val result   = relation.startingFrom(Chunk(user1, user2, user3))
 
-            assertZIO(result)(
-              equalTo(Chunk(Chunk(rental1), Chunk(rental2, rental3), Chunk.empty))
-            ) &&
-            assertZIO(proofs.calls.get)(
-              equalTo(Calls(User.currentRentals -> Chunk(user1, user2, user3)))
+            for {
+              result <- relation.startingFrom(Chunk(user1, user2, user3))
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == Chunk(Chunk(rental1), Chunk(rental2, rental3), Chunk.empty),
+              calls == Calls(User.currentRentals -> Chunk(user1, user2, user3))
             )
           }
         },
@@ -291,10 +321,14 @@ object zqueryProofSpec extends ZIOSpecDefault {
               .add(User.currentRentals, user2, Chunk(rental2, rental3))
 
             val relation = User.currentRentals
-            val result   = relation.startingFrom(user2, cache)
 
-            assertZIO(result)(equalTo(Chunk(rental2, rental3))) &&
-            assertZIO(proofs.calls.get)(equalTo(Calls()))
+            for {
+              result <- relation.startingFrom(user2, cache)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == Chunk(rental2, rental3),
+              calls == Calls()
+            )
           }
         }
       ),
@@ -307,10 +341,14 @@ object zqueryProofSpec extends ZIOSpecDefault {
               .add(Book.fetch, book1.id, book1)
 
             val relation = Book.fetch
-            val result   = relation.startingFrom(book1.id, cache)
 
-            assertZIO(result)(equalTo(book1)) &&
-            assertZIO(proofs.calls.get)(equalTo(Calls()))
+            for {
+              result <- relation.startingFrom(book1.id, cache)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == book1,
+              calls == Calls()
+            )
           }
         },
         test("Optional relation with cache - existing") {
@@ -321,10 +359,14 @@ object zqueryProofSpec extends ZIOSpecDefault {
               .add(Book.currentRental, book1, Some(rental1))
 
             val relation = Book.currentRental
-            val result   = relation.startingFrom(book1, cache)
 
-            assertZIO(result)(isSome(equalTo(rental1))) &&
-            assertZIO(proofs.calls.get)(equalTo(Calls()))
+            for {
+              result <- relation.startingFrom(book1, cache)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result.contains(rental1),
+              calls == Calls()
+            )
           }
         },
         test("Optional relation with cache - non-existing") {
@@ -335,10 +377,14 @@ object zqueryProofSpec extends ZIOSpecDefault {
               .add(Book.currentRental, book4, None)
 
             val relation = Book.currentRental
-            val result   = relation.startingFrom(book4, cache)
 
-            assertZIO(result)(isNone) &&
-            assertZIO(proofs.calls.get)(equalTo(Calls()))
+            for {
+              result <- relation.startingFrom(book4, cache)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result.isEmpty,
+              calls == Calls()
+            )
           }
         },
         test("Multiple cache entries") {
@@ -354,14 +400,17 @@ object zqueryProofSpec extends ZIOSpecDefault {
             val userRelation   = User.fetch
             val rentalRelation = Rental.fetch
 
-            val result = for {
+            for {
               book   <- bookRelation.startingFrom(book1.id, cache)
               user   <- userRelation.startingFrom(user1.id, cache)
               rental <- rentalRelation.startingFrom(rental1.id, cache)
-            } yield (book, user, rental)
-
-            assertZIO(result)(equalTo((book1, user1, rental1))) &&
-            assertZIO(proofs.calls.get)(equalTo(Calls()))
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              book == book1,
+              user == user1,
+              rental == rental1,
+              calls == Calls()
+            )
           }
         }
       ),
@@ -375,10 +424,14 @@ object zqueryProofSpec extends ZIOSpecDefault {
               .add(Book.fetch, book2.id, book2)
 
             val relation = Book.fetch
-            val result   = relation.startingFrom(List(book1.id, book2.id, book3.id), cache)
 
-            assertZIO(result)(equalTo(List(book1, book2, book3))) &&
-            assertZIO(proofs.calls.get)(equalTo(Calls(Book.fetch -> Chunk(book3.id))))
+            for {
+              result <- relation.startingFrom(List(book1.id, book2.id, book3.id), cache)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == List(book1, book2, book3),
+              calls == Calls(Book.fetch -> Chunk(book3.id))
+            )
           }
         },
         test(">>: composition with cache") {
@@ -390,10 +443,14 @@ object zqueryProofSpec extends ZIOSpecDefault {
               .add(User.fetch, rental1.userId, user1)
 
             val relation = Book.currentRental >>: Rental.user
-            val result   = relation.startingFrom(book1, cache)
 
-            assertZIO(result)(isSome(equalTo(user1))) &&
-            assertZIO(proofs.calls.get)(equalTo(Calls()))
+            for {
+              result <- relation.startingFrom(book1, cache)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result.contains(user1),
+              calls == Calls()
+            )
           }
         },
         test("complex composition with partial cache") {
@@ -407,15 +464,13 @@ object zqueryProofSpec extends ZIOSpecDefault {
               .add(Book.fetch, book3.id, book3)
 
             val relation = User.fetch >>: User.currentRentals >>: Rental.book
-            val result   = relation.startingFrom(user2.id, cache)
 
-            assertZIO(result)(equalTo(Chunk(book2, book3))) &&
-            assertZIO(proofs.calls.get)(
-              equalTo(
-                Calls(
-                  User.currentRentals -> Chunk(user2)
-                )
-              )
+            for {
+              result <- relation.startingFrom(user2.id, cache)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == Chunk(book2, book3),
+              calls == Calls(User.currentRentals -> Chunk(user2))
             )
           }
         },
@@ -429,15 +484,13 @@ object zqueryProofSpec extends ZIOSpecDefault {
             // Note: book3.id isn't cached
 
             val relation = User.currentRentals >>: Rental.book
-            val result   = relation.startingFrom(user2, cache)
 
-            assertZIO(result)(equalTo(Chunk(book2, book3))) &&
-            assertZIO(proofs.calls.get)(
-              equalTo(
-                Calls(
-                  Book.fetch -> Chunk(book3.id)
-                )
-              )
+            for {
+              result <- relation.startingFrom(user2, cache)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == Chunk(book2, book3),
+              calls == Calls(Book.fetch -> Chunk(book3.id))
             )
           }
         }
@@ -453,7 +506,11 @@ object zqueryProofSpec extends ZIOSpecDefault {
             val fetchBook = Book.fetch
             val book      = fetchBook.startingFromQuery(book1.id)
 
-            assertZIO((user <*> book).run)(equalTo((user1, book1)))
+            for {
+              result <- (user <*> book).run
+            } yield assertTrue(
+              result == (user1, book1)
+            )
           }
         }
       )
