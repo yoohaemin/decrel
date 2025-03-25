@@ -324,6 +324,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
    * Syntax for Relation values
    */
   implicit class ZQueryRelationOps[Rel, In, E, Out](private val rel: Rel & Relation[In, Out]) { // TODO add AnyVal
+
     def startingFrom(in: In)(implicit
       proof: Proof[Rel & Relation[In, Out], In, E, Out]
     ): ZIO[R, E, Out] =
@@ -336,21 +337,21 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
         startingFromQuery(in).runCache(zCache)
       }
 
-    def startingFromMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def startingFrom[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, E, Out]
     ): ZIO[R, E, Coll[Out]] =
-      startingFromQueryMany(in).run
+      startingFromQuery(in).run
 
-    def startingFromMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def startingFrom[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In],
       cache: Cache
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, E, Out]
     ): ZIO[R, E, Coll[Out]] =
       toZQueryCacheImpl(cache).flatMap { zCache =>
-        startingFromQueryMany(in).runCache(zCache)
+        startingFromQuery(in).runCache(zCache)
       }
 
     def startingFromQuery(in: In)(implicit
@@ -358,7 +359,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
     ): ZQuery[R, E, Out] =
       proof.reify.apply(in)
 
-    def startingFromQueryMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def startingFromQuery[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, E, Out]

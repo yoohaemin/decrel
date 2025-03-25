@@ -376,6 +376,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
    * Syntax for Relation values
    */
   implicit class FetchRelationOps[Rel, In, Out](private val rel: Rel & Relation[In, Out]) { // TODO add AnyVal
+
     def startingFrom(in: In)(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out],
       clock: Clock[F]
@@ -390,15 +391,15 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
         Fetch.run(startingFromFetch(in), cache)
       }
 
-    def startingFromMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def startingFrom[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out],
       clock: Clock[F]
     ): F[Coll[Out]] =
-      Fetch.run(startingFromManyFetch(in))
+      Fetch.run(startingFromFetch(in))
 
-    def startingFromMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def startingFrom[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In],
       cache: Cache
     )(implicit
@@ -406,7 +407,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
       clock: Clock[F]
     ): F[Coll[Out]] =
       toFetchCacheImpl(cache).flatMap { cache =>
-        Fetch.run(startingFromManyFetch(in), cache)
+        Fetch.run(startingFromFetch(in), cache)
       }
 
     def startingFromFetch(in: In)(implicit
@@ -414,7 +415,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     ): Fetch[F, Out] =
       proof.reify(in)
 
-    def startingFromManyFetch[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def startingFromFetch[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out]
