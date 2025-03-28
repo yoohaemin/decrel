@@ -5,176 +5,192 @@ title: decrel showcase
 
 # Showcase
 
-## Datasource access
+This section contains real-world examples showing how Decrel solves common data fetching problems elegantly.
 
-### Business logic (simple)
+## Basic Example: Blog Post System
 
-Decrel provides a simple syntax to describe data access; there is no more need to declare methods for each data access pattern.
+Let's consider a simple blog system with posts, authors, and comments. We'll define relations and implement efficient data fetching.
 
-In this example, I am trying to fetch a `Rental` object, plus the associated `Book` and `User` object from a given `rentalId`.
-
-```scala
-for {
-  rental <- rentals.get(rentalId)
-  book <- books.get(rental.bookId)
-  user <- users.get(rental.userId)
-
-  // ... do something with 3 objets
-```
-
-becomes
-
-<CodeGroup>
-  <CodeGroupItem title="ZQuery (ZIO)" active>
+First, our domain model:
 
 ```scala
-for {
-  (rental, book, user) <- (Rental.fetch <>: (Rental.book & Rental.user)).toZIO(rentalId)
-
-  // ... do something with 3 objets
+case class Author(id: String, name: String)
+case class Post(id: String, title: String, authorId: String, content: String)
+case class Comment(id: String, postId: String, authorId: String, content: String)
 ```
-  </CodeGroupItem>
-  <CodeGroupItem title="Fetch (cats-effect)">
+
+### Defining Relations
 
 ```scala
-for {
-  (rental, book, user) <- (Rental.fetch <>: (Rental.book & Rental.user)).toF(rentalId)
+import decrel.Relation
 
-  // ... do something with 3 objets
-```
-  </CodeGroupItem>
-</CodeGroup>
+object Author {
+  object posts extends Relation.Many[Author, List, Post]
+}
 
-With the Decrel example, two queries to fetch the book and the user are parallelized by default.
+object Post {
+  object author extends Relation.Single[Post, Author]
+  object comments extends Relation.Many[Post, List, Comment]
+}
 
-### Business logic (complex)
-
-In this example, I am trying to fetch the list of books the user is currently renting, identified by the given `userId`.
-
-<CodeGroup>
-  <CodeGroupItem title="Inefficient (N+1 problem) but simple" active>
-
-```scala
-for {
-  user <- users.get(userId)
-  currentRentals <- rentals.currentForUser(user)
-  books <- currentRentals.traverse(rental => books.get(rental.bookId))
-
-  // ... do something with books
-```
-  </CodeGroupItem>
-  <CodeGroupItem title="Efficient but requires dedicated method">
-
-```scala
-for {
-  user <- users.get(userId)
-  currentRentals <- rentals.currentForUser(user)
-  books <- books.getForRentals(currentRentals)
-
-  // ... do something with books
-```
-  </CodeGroupItem>
-</CodeGroup>
-
-In the inefficient example, only the simple `books.get` operation was used, but calls to the datasource are not batched, resulting in an inefficient query.
-
-In the efficient example, a custom method (`getForRentals`) was used, requiring additional implementation and tests for your application.
-
-<CodeGroup>
-  <CodeGroupItem title="ZQuery (ZIO)" active>
-
-```scala
-for {
-  books <- (User.fetch >>: User.currentRentals >>: Rental.book).toZIO(userId)
-
-  // ... do something with books
-```
-  </CodeGroupItem>
-  <CodeGroupItem title="Fetch (cats-effect)">
-
-```scala
-for {
-  books <- (User.fetch >>: User.currentRentals >>: Rental.book).toF(userId)
-
-  // ... do something with books
-```
-  </CodeGroupItem>
-</CodeGroup>
-
-With Decrel, your queries remain efficient while maintaining clarity.
-Datasource accesses are automatically batched, deduplicated, and parallelized by the underlying ZQuery or Fetch library.
-
-### Implementing REST APIs
-
-Decrel removes the need to maintain duplicate versions of the same method to support different data requirement patterns for a single operation.
-
-In this example, we expose a `create rental` route that returns additional information on top of created rental, based on the `expand` query parameter:
-
-```scala:{7,12}
-val route = HttpRoutes.of {
-  case req @ GET -> POST / "rental" :? Expand(expand) =>
-    val (userId, bookId) = extractDetails(req)
-
-    if (expand) // Need rental and book info
-      rentalService
-        .createRentalReturningExpanded(userId, bookId)
-        .map(ExpandedRentalResponse.make)
-        .flatMap(Ok(_))
-    else // Need only rental info
-      rentalService
-        .createRental(userId, bookId) // Need to maintain additional method
-        .map(RentalResponse.make)
-        .flatMap(Ok(_))
+object Comment {
+  object author extends Relation.Single[Comment, Author]
+  object post extends Relation.Single[Comment, Post]
 }
 ```
 
-Notice that without the ability to abstract over return types, there is no choice but to duplicate methods that essentially does the same thing.
+### Implementing Data Access with ZQuery
 
-```scala:{7,16}
-val route = HttpRoutes.of {
-  case req @ GET -> POST / "rental" :? Expand(expand) =>
-    val (userId, bookId) = extractDetails(req)
+```scala
+import decrel.reify.zquery
+import zio._
 
-    if (expand) // Need rental and book info
-      rentalService
-        .createRental(
-          userId,
-          bookId,
-          (Rental.self & Rental.user & Rental.book).reify
-        ) // Returns `(Rental, User, Book)`
-        .map(ExpandedRentalResponse.make)
-        .flatMap(Ok(_))
-    else // Need only rental info
-      rentalService
-        .createRental( // Same method
-          userId,
-          bookId,
-          Rental.self.reify
-        ) // Returns `Rental`
-        .map(RentalResponse.make)
-        .flatMap(Ok(_))
+object BlogDataAccess extends zquery[Any] {
+  // Simulated data storage
+  val authors = Map(
+    "a1" -> Author("a1", "Jane Doe"),
+    "a2" -> Author("a2", "John Smith")
+  )
+  
+  val posts = List(
+    Post("p1", "First Post", "a1", "Hello world!"),
+    Post("p2", "Second Post", "a1", "More content"),
+    Post("p3", "Another Post", "a2", "Different author")
+  )
+  
+  val comments = List(
+    Comment("c1", "p1", "a2", "Great post!"),
+    Comment("c2", "p1", "a1", "Thanks!"),
+    Comment("c3", "p2", "a2", "Interesting")
+  )
+
+  // Implement relations
+  implicit val postAuthorProof: Proof.Single[Post.author.type, Post, Nothing, Author] =
+    implementSingleDatasource(Post.author) { posts =>
+      ZIO.succeed(
+        posts.map(post => post -> authors(post.authorId))
+      )
+    }
+    
+  implicit val postCommentsProof: Proof.Many[Post.comments.type, Post, Nothing, List, Comment] =
+    implementManyDatasource(Post.comments) { posts =>
+      ZIO.succeed(
+        posts.map(post => 
+          post -> comments.filter(_.postId == post.id)
+        )
+      )
+    }
+    
+  // Other implementations...
 }
 ```
 
-With Decrel, your methods can be polymorphic, letting the callsite decide what the exact return type would be. This removes the need to duplicate methods.
-
-### Caliban integration
-
-You can easily build ZQuery values for your Caliban protocols.
+### Using the Relations
 
 ```scala
-def getRental(id: Rental.Id): zio.query.Query[Err, Rental] = 
-  Rental.fetch.toQuery(id).map { domainRental =>
-    protocol.Rental(
-      id = domainRental.id,
-      book = (Rental.fetch >>: Rental.book).toQuery(id).map(protocol.Book.make),
-      user = (Rental.fetch >>: Rental.user).toQuery(id).map(protocol.User.make)
-    )
+import decrel.syntax.relation._
+import zio._
+
+object BlogApp extends ZIOAppDefault {
+  def run = {
+    // Get a post with its author and all comments
+    val postWithDetails = for {
+      post <- ZIO.succeed(BlogDataAccess.posts.head)
+      details <- (Post.author & Post.comments).toZIO(post)
+      (author, comments) = details
+      _ <- Console.printLine(s"Post: ${post.title}")
+      _ <- Console.printLine(s"By: ${author.name}")
+      _ <- Console.printLine(s"Comments: ${comments.size}")
+      _ <- ZIO.foreach(comments) { comment =>
+        Comment.author.toZIO(comment).flatMap(author =>
+          Console.printLine(s"- ${author.name}: ${comment.content}")
+        )
+      }
+    } yield ()
+    
+    // The magic happens here - all data fetches are batched and run in parallel!
+    postWithDetails
   }
-
-Queries(
-  getRental = getRental
-)
+}
 ```
 
----
+## Advanced Example: E-commerce System
+
+For a more complex example, let's consider an e-commerce system with products, orders, and customers.
+
+### Domain Model with Nested Relations
+
+```scala
+import decrel.Relation
+import decrel.syntax.relation._
+
+case class Product(id: String, name: String, price: BigDecimal)
+case class Customer(id: String, name: String, email: String)
+case class Order(id: String, customerId: String, date: java.time.LocalDate)
+case class OrderItem(orderId: String, productId: String, quantity: Int)
+
+object Product {
+  object orderItems extends Relation.Many[Product, List, OrderItem]
+  object orders = orderItems <>: OrderItem.order  // Composed relation
+}
+
+object Customer {
+  object orders extends Relation.Many[Customer, List, Order]
+  object orderItems = orders <>: Order.items  // Nested relation
+  object products = orderItems <>: OrderItem.product  // Deep nested relation
+}
+
+object Order {
+  object customer extends Relation.Single[Order, Customer]
+  object items extends Relation.Many[Order, List, OrderItem]
+  object products = items <>: OrderItem.product  // Composed relation
+}
+
+object OrderItem {
+  object order extends Relation.Single[OrderItem, Order]
+  object product extends Relation.Single[OrderItem, Product]
+}
+```
+
+### Complex Query Example
+
+```scala
+// Get a customer with all their orders, including all items and product details for each order
+val customerOrdersQuery = Customer.orders <>: (Order.items & (Order.items <>: OrderItem.product))
+
+// Using this query
+for {
+  customer <- getCustomer("c1")
+  (orders, orderItemsWithProducts) <- customerOrdersQuery.toZIO(customer)
+  // Process the results...
+} yield ()
+```
+
+## Performance Benefits
+
+In traditional imperative code, fetching all the data in these examples would likely result in N+1 query problems. With Decrel:
+
+1. All queries for the same entity type are automatically batched
+2. Independent queries run in parallel
+3. Results are automatically joined in memory
+
+For example, if you need to fetch details for 100 posts, each with an author and comments, the traditional approach might make:
+- 1 query for posts
+- 100 queries for authors (N+1 problem)
+- 100 queries for comments (another N+1 problem)
+
+With Decrel, you'd make just:
+- 1 query for posts
+- 1 batched query for authors
+- 1 batched query for comments
+
+## Real-world Applications
+
+Decrel is particularly well-suited for:
+
+1. **GraphQL API implementations** - The declarative nature maps well to GraphQL's hierarchical queries
+2. **Microservice architectures** - Efficiently fetch data from multiple services
+3. **Legacy system integrations** - Create a clean domain model on top of complex data sources
+4. **Testing environments** - Use the same relations with mock generators
+
+These examples demonstrate how Decrel helps you write more declarative, efficient, and maintainable code for data access patterns.
