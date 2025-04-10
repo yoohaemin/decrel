@@ -513,6 +513,182 @@ object zqueryProofSpec extends ZIOSpecDefault {
             )
           }
         }
+      ),
+      suite("Deduplication")(
+        test("Single relation deduplication") {
+          proofs.flatMap { proofs =>
+            import proofs.*
+            val relation = Book.fetch
+
+            for {
+              _ <- ZIO.unit
+              // Create two queries for the same book ID
+              results = relation.startingFromQuery(Chunk(book1.id, book1.id))
+
+              // Run both queries together
+              combined <- results.run
+              calls    <- proofs.calls.get
+            } yield assertTrue(
+              combined == Chunk(book1, book1),
+              // Only one call should be made despite two queries
+              calls == Calls(Book.fetch -> Chunk(book1.id))
+            )
+          }
+        },
+        test("Many relation deduplication") {
+          proofs.flatMap { proofs =>
+            import proofs.*
+            val relation = User.currentRentals
+
+            for {
+              _ <- ZIO.unit
+              // Create two queries for the same user
+              result1 = relation.startingFromQuery(user2)
+              result2 = relation.startingFromQuery(user2)
+              // Run both queries together
+              combined <- (result1 <*> result2).run
+              calls    <- proofs.calls.get
+            } yield assertTrue(
+              combined == (Chunk(rental2, rental3), Chunk(rental2, rental3)),
+              // Only one call should be made despite two queries
+              calls == Calls(User.currentRentals -> Chunk(user2))
+            )
+          }
+        },
+        test("Composed relation deduplication") {
+          proofs.flatMap { proofs =>
+            import proofs.*
+            val relation1 = Rental.book
+            val relation2 = Rental.user
+
+            for {
+              _ <- ZIO.unit
+              // Create two queries that will both need to fetch the same book
+              book1Result = relation1.startingFromQuery(rental1)
+              book2Result = relation1.startingFromQuery(rental1)
+              // Also fetch the user for the same rental
+              userResult = relation2.startingFromQuery(rental1)
+              // Run all queries together
+              combined <- (book1Result <*> book2Result <*> userResult).run
+              calls    <- proofs.calls.get
+            } yield assertTrue(
+              combined == (book1, book1, user1),
+              // Book.fetch and User.fetch should each be called only once
+              calls == Calls(
+                Book.fetch -> Chunk(rental1.bookId),
+                User.fetch -> Chunk(rental1.userId)
+              )
+            )
+          }
+        },
+        test("Batch deduplication") {
+          proofs.flatMap { proofs =>
+            import proofs.*
+            val relation = Book.fetch
+
+            for {
+              _ <- ZIO.unit
+              // Create two batch queries with overlapping IDs
+              result1 = relation.startingFromQuery(Chunk(book1.id, book2.id))
+              result2 = relation.startingFromQuery(Chunk(book2.id, book3.id))
+              // Run both queries together
+              combined <- (result1 <~> result2).run
+              calls    <- proofs.calls.get
+            } yield assertTrue(
+              combined == (Chunk(book1, book2), Chunk(book2, book3)),
+              // Each book ID should only be fetched once, even though book2.id appears twice
+              calls == Calls(Book.fetch -> Chunk(book1.id, book2.id, book3.id))
+            )
+          }
+        },
+        test("Complex composition deduplication") {
+          proofs.flatMap { proofs =>
+            import proofs.*
+
+            // Create two different compositions that will both need to fetch user2's rentals
+            val path1 = User.fetch >>: User.currentRentals
+            val path2 = User.fetch >>: User.currentRentals >>: Rental.book
+
+            for {
+              _ <- ZIO.unit
+              // These queries will both need to fetch the same user and rentals
+              result1 = path1.startingFromQuery(user2.id)
+              result2 = path2.startingFromQuery(user2.id)
+              // Run both queries together
+              combined <- (result1 <*> result2).run
+              calls    <- proofs.calls.get
+            } yield assertTrue(
+              combined._1 == Chunk(rental2, rental3),
+              combined._2 == Chunk(book2, book3),
+              // Each operation should happen exactly once despite being used in multiple paths
+              calls == Calls(
+                User.fetch          -> Chunk(user2.id),
+                User.currentRentals -> Chunk(user2),
+                Book.fetch          -> Chunk(rental2.bookId, rental3.bookId)
+              )
+            )
+          }
+        },
+        test("Multiple layers of deduplication") {
+          proofs.flatMap { proofs =>
+            import proofs.*
+
+            // Create several dependent queries that all involve rental1
+            val bookQuery = Rental.book.startingFromQuery(rental1)
+            val userQuery = Rental.user.startingFromQuery(rental1)
+
+            // Create queries that would cause duplicate requests without deduplication
+            val bookAgainQuery = Book.fetch.startingFromQuery(rental1.bookId)
+            val userAgainQuery = User.fetch.startingFromQuery(rental1.userId)
+
+            for {
+              // Run all queries together - this tests whether ZQuery properly deduplicates
+              // both the direct fetch requests and the ones derived from Rental
+              result <- (bookQuery <*> userQuery <*> bookAgainQuery <*> userAgainQuery).run
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == (book1, user1, book1, user1),
+              // Book.fetch and User.fetch should each be called exactly once
+              calls == Calls(
+                Book.fetch -> Chunk(rental1.bookId),
+                User.fetch -> Chunk(rental1.userId)
+              )
+            )
+          }
+        }
+      ),
+      suite("Expand syntax")(
+        test("Expand syntax for single relation") {
+          proofs.flatMap { proofs =>
+            import proofs.*
+
+            for {
+              result <- book1.id.expand(Book.fetch)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == book1,
+              calls == Calls(Book.fetch -> Chunk(book1.id))
+            )
+          }
+        },
+        test("Expand syntax for many relation") {
+          proofs.flatMap { proofs =>
+            import proofs.*
+
+            for {
+              result <- user2.id.expand(User.fetch >>: User.currentRentals >>: Rental.book)
+              _ = println(result)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == Chunk(book2, book3),
+              calls == Calls(
+                User.fetch          -> Chunk(user2.id),
+                User.currentRentals -> Chunk(user2),
+                Book.fetch          -> Chunk(rental2.bookId, rental3.bookId)
+              )
+            )
+          }
+        }
       )
     )
 

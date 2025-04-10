@@ -15,7 +15,7 @@ import zio.query.{ CompletedRequestMap, DataSource, ZQuery }
 
 import scala.collection.{ mutable, BuildFrom, IterableOps }
 
-trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
+trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R] {
 
   // ****** Implementations for Required Operations **************************
 
@@ -257,7 +257,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
             in: Coll[B]
           ): Access[E, Coll[Option[Out]]] =
             // TODO how to optimize?
-            ZQuery.foreachPar(in)(b => apply(b))
+            ZQuery.foreachBatched(in)(b => apply(b))
         }
     }
 
@@ -285,7 +285,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
             in: Coll[B]
           ): Access[E, Coll[CC[Out]]] =
             // TODO how to optimize?
-            ZQuery.foreachPar(in) { b =>
+            ZQuery.foreachBatched(in) { b =>
               proof.reify.applyMultiple(f(b))
             }
         }
@@ -366,6 +366,20 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
     ): ZQuery[R, E, Coll[Out]] =
       proof.reify.applyMultiple(in)
   }
+
+  // /**
+  //  * Syntax for expand
+  //  */
+  // implicit class ZQueryRelationOpsExpand[In](private val in: In) { // TODO add AnyVal
+
+  //   def expand[Rel, E, Out](
+  //     rel: Rel & Relation[In, Out]
+  //   )(implicit
+  //     proof: Proof[Rel & Relation[In, Out], In, E, Out]
+  //   ): ZIO[R, E, Out] =
+  //     proof.reify.apply(in).run
+
+  // }
 
   implicit class RefCacheOps(private val refCache: Ref[Cache]) {
 
