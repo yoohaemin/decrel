@@ -1,6 +1,6 @@
 inThisBuild(
   List(
-    scalaVersion             := V.scala213,
+    scalaVersion             := V.scala3,
     crossScalaVersions       := V.scalaAll,
     organization             := "com.yoohaemin",
     homepage                 := Some(url("https://github.com/yoohaemin/decrel")),
