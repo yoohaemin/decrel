@@ -1,152 +1,209 @@
-## Decrel
+# Decrel
 
 [![Continuous Integration](https://github.com/yoohaemin/decrel/actions/workflows/ci.yml/badge.svg)](https://github.com/yoohaemin/decrel/actions/workflows/ci.yml)
-[![Project stage: Experimental][project-stage-badge: Experimental]](#) 
+[![Project stage: Active][project-stage-badge: Active]](#)
 [![Release Artifacts][Badge-SonatypeReleases]][Link-SonatypeReleases]
 [![Snapshot Artifacts][Badge-SonatypeSnapshots]][Link-SonatypeSnapshots]
 
-[project-stage-badge: Experimental]: https://img.shields.io/badge/Project%20Stage-Experimental-yellow.svg
+[project-stage-badge: Active]: https://img.shields.io/badge/Project%20Stage-Active-blue.svg
 [Link-SonatypeReleases]: https://s01.oss.sonatype.org/content/repositories/releases/com/yoohaemin/decrel-core_3/ "Sonatype Releases"
 [Badge-SonatypeReleases]: https://img.shields.io/nexus/r/https/s01.oss.sonatype.org/com.yoohaemin/decrel-core_3.svg "Sonatype Releases"
 [Link-SonatypeSnapshots]: https://s01.oss.sonatype.org/content/repositories/snapshots/com/yoohaemin/decrel-core_3/ "Sonatype Snapshots"
 [Badge-SonatypeSnapshots]: https://img.shields.io/nexus/s/https/s01.oss.sonatype.org/com.yoohaemin/decrel-core_3.svg "Sonatype Snapshots"
 
-Decrel is a library for **dec**larative programming using **rel**ations between your data.
+Decrel is a Scala library for **dec**larative programming using **rel**ations between your data.
 
-## Motivation
+Read on to see how you can fetch data with automatic batching, parallelization, and caching while keeping your business logic clean and readable.
 
-We commonly use abstractions from optics libraries to zoom into data that is in memory.
+## Problem Statement
 
-For a moment, let's free ourselves of the in-memory limitation, and try imagining an applications' entire datasource as a giant case class.
+Fetching data from datasources is an extremely common operation in applications. Usually, this is done by calling methods or functions to fetch data in an imperative manner.
 
-In such a structure, abstract _relations_ between data will correspond to concrete lenses in optics.
+This pattern is universal across languages and frameworks, from JavaScript to Haskell, and from Spring to Django:
+
+```scala
+val bookId: Book.Id = ???
+
+for {
+  book <- bookRepository.getById(bookId)
+  author <- authorRepository.getById(book.authorId)
+  price <- priceService.getPrice(book.id)
+  // ... do your stuff with book, author, and price
+} yield ()
+```
+
+This code works, but has several hidden issues:
+
+* **Sequential Execution**: Fetching the author and price are independent operations but run sequentially, creating unnecessary latency
+* **N+1 Query Problem**: If you have multiple books, you'll end up calling each API N times, or need to manually implement "joins"
+* **No Caching by Default**: Cache access typically requires additional code for each operation
+* **Complexity Escalation**: Combining these concerns quickly increases code complexity
+
+## What is Decrel?
+
+Decrel enables:
+
+### 1. Declarative Data Access
+
+Express relationships between your data models as first-class values:
+* "A `Book` has one `Author`"
+* "A `User` may or may not have a `PremiumSubscription`"
+
+```scala
+object Book {
+  object author extends Relation.Single[Book, Author]
+}
+
+object User {
+  object subscription extends Relation.Optional[User, PremiumSubscription]
+}
+```
+
+### 2. Implementation Control
+
+You decide how to fulfill each relation with actual data access logic:
+
+```scala
+// ZIO implementation
+implementSingleDatasource(Book.author) { books =>
+  ZIO.succeed(books.map(book => book -> authorMap(book.authorId)))
+}
+
+// Cats Effect implementation
+implementSingleDatasource(Book.author) { books =>
+  IO.pure(books.map(book => book -> authorMap(book.authorId)))
+}
+```
+
+### 3. Composition of Relations
+
+Combine simple relations to express complex access patterns:
+
+```scala
+// Get the publisher of a book's author (sequential composition)
+val bookAuthorPublisher = Book.author <>: Author.publisher
+
+// Get both the author and the price of a book (parallel composition)
+val bookDetails = Book.author & Book.price
+```
+
+### 4. Efficient Execution
+
+The composed relations are efficiently executed against your datasource, with automatic batching and parallelization through integrations with ZQuery and Fetch.
+
+### 5. Testing Support
+
+The same relations can be used to generate random test data:
+
+```scala
+// For ScalaCheck
+val bookGen: Gen[Book] = Book.arbitrary
+val bookWithAuthorGen: Gen[(Book, Author)] = (Book.Self & Book.author).arbitrary
+
+// For ZIO Test
+val bookGen: Gen[Any, Book] = Book.gen
+val bookWithAuthorGen: Gen[Any, (Book, Author)] = (Book.Self & Book.author).gen
+```
+
+## Examples
+
+With Decrel, you can express the same operation more clearly and efficiently:
+
+```scala
+val bookId: Book.Id = ???
+
+for {
+  (book: Book, author: Author, price: Price) <-
+    (Book.Self & Book.author & Book.price).toZIO(bookId)
+                                       // ^ .toF for cats-effect
+  // ... do your stuff with book, author, and price
+} yield ()
+```
+
+### Batching and Parallelism by Default, not an Optimization
+
+Decrel integrates with ZQuery (ZIO) or Fetch (cats-effect) to provide efficient batching and parallelism by default. Independent data fetching operations (like getting author and price) run concurrently.
+
+### No N+1 Problem
+
+When dealing with multiple items, Decrel handles batching efficiently:
+
+```scala
+val bookIds: List[Book.Id] = ???
+
+for {
+  bookDetails: List[(Book, Author, Price)] <- 
+    (Book.Self & Book.author & Book.price).toZIOMany(bookIds)
+                                       // ^ .toFMany for cats-effect
+  // ... do your stuff with the list
+} yield ()
+```
+
+The return type is a list of tuples, making it easy to process the results. Decrel preserves your collection type - if you use `Vector`, you get `Vector` back; same works for `List`, `Array`, `zio.Chunk` etc.
+
+Underlying calls are automatically batched and parallelized. With proper batch implementations of your datasources, this code will call the underlying APIs at most 3 times, regardless of how many books you're retrieving.
+
+### Advanced Optimization and Caching
+
+Decrel gives you complete control over how data is accessed. You can implement sophisticated caching strategies.
+
+Refer to the below pseudocode to see an example, showcasing what you can do with decrel:
+
+```scala
+object BookRelations extends zquery[Any] {
+  implicit val bookAuthorProof: Proof.Single[Book.author.type, Book, Nothing, Author] =
+    implementSingleDatasource(Book.author) { books =>
+      for {
+        // Check cache first
+        cachedAuthors <- checkCache(books.map(_.authorId))
+        // Find which IDs aren't in cache
+        missingIds = books.map(_.authorId).filterNot(cachedAuthors.contains)
+        // Fetch missing authors from DB
+        fetchedAuthors <- if (missingIds.isEmpty) ZIO.succeed(Chunk.empty) else fetchAuthors(missingIds) 
+        // Update cache with newly fetched authors
+        _ <- updateCache(fetchedAuthors)
+        // Combine cached and fetched results
+        results = books.map(book => book -> (cachedAuthors.get(book.authorId) orElse fetchedAuthors.get(book.authorId)).get)
+      } yield results
+    }
+}
+```
+
+Your domain logic remains clean and unaware of these optimizations.
+
+## Getting Started
+
+Add Decrel to your build:
+
+[![Release Artifacts][Badge-SonatypeReleases]][Link-SonatypeReleases]
+
+```scala
+// For ZIO users
+"com.yoohaemin" %% "decrel-zquery" % "x.y.z"
+
+// For Cats Effect users
+"com.yoohaemin" %% "decrel-fetch" % "x.y.z"
+
+// For testing
+"com.yoohaemin" %% "decrel-scalacheck" % "x.y.z" % Test
+"com.yoohaemin" %% "decrel-ziotest" % "x.y.z" % Test
+```
 
 ## Documentation
 
-Please visit the [documentation](https://decrel.yoohaemin.com) for more details.
+For comprehensive documentation, examples, and guides, please visit the [Decrel Documentation](https://yoohaemin.github.io/decrel).
 
-## Usecases
+## Conceptual Explanation
 
-For a given domain:
-```scala
-case class Book(id: Book.Id, name: String, author: Author.Id)
-object Book {
-  case class Id(value: String)
-}
+On a fundamental level, Decrel is a structured way to compose `flatMap`/`traverse` operations:
 
-case class Author(id: Author.Id, name: String, books: List[Book.Id])
-object Author {
-  case class Id(value: String)
-}
-```
+* Relations are like arrows with three "kinds" — Single, Optional, and Many
+* You provide implementations as functions: `In => F[Kind[Out]]` (where `Kind` is `Id`, `Option`, or `Collection[A]`)
+* Decrel handles the composition of these operations according to the relation structure
 
-You can declare relations between your entities by extending the appropriate `Relation` types.
+## Contributing
 
-```scala
-case class Book(id: Book.Id, name: String, author: Author.Id)
-object Book {
-  case class Id(value: String)
-  
-  // Define a relation to itself by extending Relation.Self
-  // This is useful when composing with other relations later
-  case object self extends Relation.Self[Book]
-  
-  // Define the relation and the kind of relation that exists between two entities
-  // Relation.Single means for a book there is a single author
-  // depending on your domain, you may want to choose different kinds
-  case object author extends Relation.Single[Book, Author]
-}
-
-case class Author(id: Author.Id, name: String, books: List[Book.Id])
-object Author {
-  case class Id(value: String)
-  
-  case object self extends Relation.Self[Author]
-
-  // Extending Relation.Many means for a given author, there is a list of books
-  case object book extends Relation.Many[Author, List, Book]
-}
-```
-
-### Accessing your data source
-
-To express "given a book, get the author && all the books written by them", looks like this:
-```scala
-val getAuthorAndTheirBooks = Book.author <>: Author.books
-```
-
-But how would you run this with an instance of Book that you have?
-```scala
-val exampleBook = Book(Book.Id("book_id"), "bookname", Author.Id("author_id"))
-```
-If your application uses [ZIO](https://github.com/zio/zio), there is an integration with ZIO through [ZQuery](https://github.com/zio/zio-query):
-```scala
-import decrel.reify.zquery._
-import proofs._  // Datasource implementation defined elsewhere in your code
-
-// Exception is user defined in the datasource implementation
-val output: zio.IO[AppError, (Author, List[Book])] = 
-  getAuthorAndTheirBooks.toZIO(exampleBook)
-```
-
-Or if you use [cats-effect](https://github.com/typelevel/cats-effect), there is an integration with any effect type
-that implements `cats.effect.Concurrent` (including `cats.effect.IO`) through the [Fetch](https://github.com/47degrees/fetch) library:
-```scala
-class BookServiceImpl[F[_]](
-  // contains your datasource implementations
-  proofs: Proofs[F]
-) {
-  import proofs._
-
-  val output: F[(Author, List[Book])] =
-    getAuthorAndTheirBooks.toF(exampleBook) 
-}
-```
-
-By default, queries made by decrel will be efficiently batched and deduplicated, thanks to the underlying[^1] `ZQuery` or `Fetch`
-data types which are based on [Haxl](https://github.com/facebook/Haxl).
-
-[^1]: You are not required to interact with ZQuery or Fetch datatypes in your application -- simply use the APIs that exposes `ZIO` or `F[_]`.
-
-
-### Generating mock data
-
-You can combine generators defined using scalacheck or zio-test. [^2]
-
-[^2]: Even if your testing library is not supported, adding one is done easily. See `decrel.scalacheck.gen` or `decrel.ziotest.gen`.
-The implementation code should work for a different `Gen` type with minimal changes.
-
-To express generating an author and a list of books by the author, you can write the following:
-
-```scala
-val authorAndBooks: Gen[(Author, Book)] =
-  gen.author // This is your existing generator for Author
-    .expand(Author.self & Author.books) // Give me the generated author,
-                                        // additionally list of books for the author
-```
-
-Now you can simply use the composed generator in your test suite.
-
-The benefit of using decrel to compose generators is twofold:
-- less boilerplate compared to specifying generators one-by-one (especially when options/lists are involved)
-- values generated are more consistent compared to generating values independently
-  - In this case, all books will have the `authorId` fields set to the generated author.
-
-## Notice to all Scala 3 users
-
-Any method that requires an implicit (given) instance of `Proof` needs to be called against a `val` value.
-
-See [this commit](https://github.com/yoohaemin/decrel/commit/8b836b5c41b58a77d791c36e8b81e4f6e979e297) for examples.
-
-## Acknowledgements
-
-Thanks to [@ghostdogpr](https://github.com/ghostdogpr) for critical piece of insight regarding the design of the api and the initial feedback.
-
-Thanks to [@benrbray](https://github.com/benrbray) for all the helpful discussions.
-
-Thanks to [@benetis](https://github.com/benetis) for pointing out there was a problem that needs fixing.
-
-Thanks to all of my friends and colleagues who provided valuable initial feedback.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
