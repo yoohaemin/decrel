@@ -11,7 +11,9 @@
 [Link-SonatypeSnapshots]: https://s01.oss.sonatype.org/content/repositories/snapshots/com/yoohaemin/decrel-core_3/ "Sonatype Snapshots"
 [Badge-SonatypeSnapshots]: https://img.shields.io/nexus/s/https/s01.oss.sonatype.org/com.yoohaemin/decrel-core_3.svg "Sonatype Snapshots"
 
-Decrel is a library for **dec**larative programming using **rel**ations between your data.
+Decrel is a Scala library for **dec**larative programming using **rel**ations between your data.
+
+Read on to see how you can fetch data with automatic batching, parallelization, and caching while keeping your business logic clean and readable.
 
 ## Problem Statement
 
@@ -37,7 +39,73 @@ This code works, but has several hidden issues:
 * **No Caching by Default**: Cache access typically requires additional code for each operation
 * **Complexity Escalation**: Combining these concerns quickly increases code complexity
 
-## How does Decrel code look like?
+## What is Decrel?
+
+Decrel enables:
+
+### 1. Declarative Data Access
+
+Express relationships between your data models as first-class values:
+* "A `Book` has one `Author`"
+* "A `User` may or may not have a `PremiumSubscription`"
+
+```scala
+object Book {
+  object author extends Relation.Single[Book, Author]
+}
+
+object User {
+  object subscription extends Relation.Optional[User, PremiumSubscription]
+}
+```
+
+### 2. Implementation Control
+
+You decide how to fulfill each relation with actual data access logic:
+
+```scala
+// ZIO implementation
+implementSingleDatasource(Book.author) { books =>
+  ZIO.succeed(books.map(book => book -> authorMap(book.authorId)))
+}
+
+// Cats Effect implementation
+implementSingleDatasource(Book.author) { books =>
+  IO.pure(books.map(book => book -> authorMap(book.authorId)))
+}
+```
+
+### 3. Composition of Relations
+
+Combine simple relations to express complex access patterns:
+
+```scala
+// Get the publisher of a book's author (sequential composition)
+val bookAuthorPublisher = Book.author <>: Author.publisher
+
+// Get both the author and the price of a book (parallel composition)
+val bookDetails = Book.author & Book.price
+```
+
+### 4. Efficient Execution
+
+The composed relations are efficiently executed against your datasource, with automatic batching and parallelization through integrations with ZQuery and Fetch.
+
+### 5. Testing Support
+
+The same relations can be used to generate random test data:
+
+```scala
+// For ScalaCheck
+val bookGen: Gen[Book] = Book.arbitrary
+val bookWithAuthorGen: Gen[(Book, Author)] = (Book.Self & Book.author).arbitrary
+
+// For ZIO Test
+val bookGen: Gen[Any, Book] = Book.gen
+val bookWithAuthorGen: Gen[Any, (Book, Author)] = (Book.Self & Book.author).gen
+```
+
+## Examples
 
 With Decrel, you can express the same operation more clearly and efficiently:
 
@@ -45,16 +113,18 @@ With Decrel, you can express the same operation more clearly and efficiently:
 val bookId: Book.Id = ???
 
 for {
-  (book: Book, author: Author, price: Price) <- (Book.Self & Book.author & Book.price).toZIO(bookId)
+  (book: Book, author: Author, price: Price) <-
+    (Book.Self & Book.author & Book.price).toZIO(bookId)
+                                       // ^ .toF for cats-effect
   // ... do your stuff with book, author, and price
 } yield ()
 ```
 
-### Batching and parallelism by default, not an optimization
+### Batching and Parallelism by Default, not an Optimization
 
 Decrel integrates with ZQuery (ZIO) or Fetch (cats-effect) to provide efficient batching and parallelism by default. Independent data fetching operations (like getting author and price) run concurrently.
 
-### No N+1 problem
+### No N+1 Problem
 
 When dealing with multiple items, Decrel handles batching efficiently:
 
@@ -62,18 +132,22 @@ When dealing with multiple items, Decrel handles batching efficiently:
 val bookIds: List[Book.Id] = ???
 
 for {
-  bookDetails: List[(Book, Author, Price)] <- (Book.Self & Book.author & Book.price).toZIOMany(bookIds)
+  bookDetails: List[(Book, Author, Price)] <- 
+    (Book.Self & Book.author & Book.price).toZIOMany(bookIds)
+                                       // ^ .toFMany for cats-effect
   // ... do your stuff with the list
 } yield ()
 ```
 
-The return type is a list of tuples, making it easy to process the results. Decrel preserves your collection type - if you use `Vector`, you get `Vector` back; if you use `Array`, you get `Array` back.
+The return type is a list of tuples, making it easy to process the results. Decrel preserves your collection type - if you use `Vector`, you get `Vector` back; same works for `List`, `Array`, `zio.Chunk` etc.
 
-Underlying calls are automatically batched and parallelized. With proper batch implementations of your data sources, this code will call the underlying APIs at most 3 times, regardless of how many books you're retrieving.
+Underlying calls are automatically batched and parallelized. With proper batch implementations of your datasources, this code will call the underlying APIs at most 3 times, regardless of how many books you're retrieving.
 
 ### Advanced Optimization and Caching
 
-Decrel gives you complete control over how data is accessed. You can implement sophisticated caching strategies:
+Decrel gives you complete control over how data is accessed. You can implement sophisticated caching strategies.
+
+Refer to the below pseudocode to see an example, showcasing what you can do with decrel:
 
 ```scala
 object BookRelations extends zquery[Any] {
@@ -97,75 +171,11 @@ object BookRelations extends zquery[Any] {
 
 Your domain logic remains clean and unaware of these optimizations.
 
-## What is Decrel?
-
-Decrel enables:
-
-### 1. Declarative data access
-
-Express relationships between your data models as first-class values:
-* "A `Book` has one `Author`"
-* "A `User` may or may not have a `PremiumSubscription`"
-
-```scala
-object Book {
-  object author extends Relation.Single[Book, Author]
-}
-
-object User {
-  object subscription extends Relation.Optional[User, PremiumSubscription]
-}
-```
-
-### 2. Implementation control
-
-You decide how to fulfill each relation with actual data access logic:
-
-```scala
-// ZIO implementation
-implementSingleDatasource(Book.author) { books =>
-  ZIO.succeed(books.map(book => book -> authorMap(book.authorId)))
-}
-
-// Cats Effect implementation
-implementSingleDatasource(Book.author) { books =>
-  IO.pure(books.map(book => book -> authorMap(book.authorId)))
-}
-```
-
-### 3. Composition of relations
-
-Combine simple relations to express complex access patterns:
-
-```scala
-// Get the publisher of a book's author
-val bookAuthorPublisher = Book.author <>: Author.publisher
-
-// Get both the author and the price of a book
-val bookDetails = Book.author & Book.price
-```
-
-### 4. Efficient execution
-
-The composed relations are efficiently executed against your datasource, with automatic batching and parallelization through integrations with ZQuery and Fetch.
-
-### 5. Testing support
-
-The same relations can be used to generate random test data:
-
-```scala
-// For ScalaCheck
-val bookGen: Gen[Book] = Book.arbitrary
-val bookWithAuthorGen: Gen[(Book, Author)] = (Book.Self & Book.author).arbitrary
-
-// For ZIO Test
-val bookGen: Gen[Any, Book] = Book.gen
-val bookWithAuthorGen: Gen[Any, (Book, Author)] = (Book.Self & Book.author).gen
-```
-
 ## Getting Started
 
 Add Decrel to your build:
+
+[![Release Artifacts][Badge-SonatypeReleases]][Link-SonatypeReleases]
 
 ```scala
 // For ZIO users
