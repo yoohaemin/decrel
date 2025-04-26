@@ -204,3 +204,10 @@ On a fundamental level, Decrel is a structured way to compose `flatMap`/`travers
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+decrel is copyright Haemin Yoo, and is licensed under Mozilla Public License v2.0
+
+`modules/core/src/main/scala/decrel/Zippable.scala` is based on https://github.com/zio/zio/blob/v2.0.2/core/shared/src/main/scala/zio/Zippable.scala , 
+licensed under the Apache License v2.0
