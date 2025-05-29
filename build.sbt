@@ -289,7 +289,7 @@ lazy val V = new {
   val fetch        = "3.1.2"
   val izumiReflect = "3.0.2"
   val scalacheck   = "1.18.1"
-  val scalajsDom   = "2.3.0"
+  val scalajsDom   = "2.4.0"
 }
 
 lazy val ciSettings = List(
