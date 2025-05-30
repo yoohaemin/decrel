@@ -6,7 +6,7 @@ inThisBuild(
     homepage                 := Some(url("https://github.com/yoohaemin/decrel")),
     licenses                 := List("MPL-2.0" -> url("https://www.mozilla.org/MPL/2.0/")),
     Test / parallelExecution := true,
-    scmInfo := Some(
+    scmInfo                  := Some(
       ScmInfo(
         url("https://github.com/yoohaemin/decrel/"),
         "scm:git:git@github.com:yoohaemin/decrel.git"
@@ -233,7 +233,7 @@ lazy val docs = project
     scalacOptions -= "-Xfatal-warnings",
     mdocJS             := Some(jsdocs),
     crossScalaVersions := List(V.scala213),
-    mdocVariables := Map(
+    mdocVariables      := Map(
       "SNAPSHOTVERSION" -> version.value,
       "RELEASEVERSION"  -> version.value.takeWhile(_ != '+')
     )

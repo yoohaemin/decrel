@@ -134,8 +134,8 @@ trait reifiedRelation { this: access =>
           .applyMultiple(in)
           .flatMap { (leftOuts: Coll[Option[LeftOut]]) =>
             type X[+A] = Coll[Option[A]]
-            val inputs: Coll[Option[RightIn]] = ev.liftCo[X](leftOuts)
-            val flat: Iterable[RightIn]       = inputs.flatten
+            val inputs: Coll[Option[RightIn]]       = ev.liftCo[X](leftOuts)
+            val flat: Iterable[RightIn]             = inputs.flatten
             val results: Access[Iterable[RightOut]] =
               right.applyMultiple(flat)
             results.map { resultsIterable =>
