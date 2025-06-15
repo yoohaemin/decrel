@@ -42,6 +42,10 @@ lazy val root = project
     coreJVM,
     coreJS,
     // coreNative,
+    kyoJVM,
+    kyoJS,
+    kyoBatchJVM,
+    kyoBatchJS,
     zqueryJVM,
     zqueryJS,
     fetchJVM,
@@ -132,6 +136,32 @@ lazy val fetch = crossProject(JSPlatform, JVMPlatform)
 lazy val fetchJVM = fetch.jvm.settings(crossScalaVersions := V.scalaAll)
 lazy val fetchJS  = fetch.js.settings(crossScalaVersions := List(V.scala213))
 
+lazy val kyoBatch = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
+  .withoutSuffixFor(JVMPlatform)
+  .in(file("kyo-batch"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(name := "decrel-kyo-batch")
+  .settings(commonSettings)
+  .settings(
+    buildInfoKeys := Seq[BuildInfoKey](
+      "scalaPartialVersion" -> CrossVersion.partialVersion(scalaVersion.value)
+    ),
+    buildInfoPackage := "decrel.kyo.batch",
+    buildInfoObject  := "BuildInfo"
+  )
+  .settings(
+    libraryDependencies ++= Seq(
+      "io.getkyo" %%% "kyo-prelude" % V.kyo
+    )
+  )
+  .dependsOn(kyo)
+
+lazy val kyoBatchJVM =
+  kyoBatch.jvm.settings(crossScalaVersions := List(V.scala3Next), scalaVersion := V.scala3Next)
+lazy val kyoBatchJS =
+  kyoBatch.js.settings(crossScalaVersions := List(V.scala3Next), scalaVersion := V.scala3Next)
+
 ///////////////////////// Generator datatypes
 
 lazy val ziotest = crossProject(JSPlatform, JVMPlatform)
@@ -209,6 +239,36 @@ lazy val cats = crossProject(JSPlatform, JVMPlatform)
 lazy val catsJVM = cats.jvm
 lazy val catsJS  = cats.js
 
+lazy val kyo = crossProject(JSPlatform, JVMPlatform)
+  .withoutSuffixFor(JVMPlatform)
+  .crossType(CrossType.Pure)
+  .in(file("kyo"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(name := "decrel-kyo")
+  .settings(commonSettings)
+  .settings(
+    buildInfoKeys := Seq[BuildInfoKey](
+      "scalaPartialVersion" -> CrossVersion.partialVersion(scalaVersion.value)
+    ),
+    buildInfoPackage := "decrel.kyo",
+    buildInfoObject  := "BuildInfo"
+  )
+  .settings(
+    libraryDependencies ++= Seq(
+      "io.getkyo" %%% "kyo-prelude" % V.kyo
+    )
+  )
+  .dependsOn(core)
+
+lazy val kyoJVM = kyo.jvm.settings(
+  scalaVersion       := V.scala3Next,
+  crossScalaVersions := Seq(V.scala3Next)
+)
+lazy val kyoJS = kyo.js.settings(
+  scalaVersion       := V.scala3Next,
+  crossScalaVersions := Seq(V.scala3Next)
+)
+
 ///////////////////////// docs
 
 lazy val jsdocs = project
@@ -279,10 +339,12 @@ lazy val commonSettings = Def.settings(
 )
 
 lazy val V = new {
-  val scala213 = "2.13.14"
-  val scala3   = "3.3.3"
-  val scalaAll = scala213 :: scala3 :: Nil
+  val scala213   = "2.13.14"
+  val scala3LTS  = "3.3.3"
+  val scala3Next = "3.7.1"
+  val scalaAll   = scala213 :: scala3LTS :: Nil
 
+  val kyo          = "0.19.0"
   val cats         = "2.12.0"
   val zio          = "2.0.22"
   val zioQuery     = "0.6.1"
