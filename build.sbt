@@ -6,7 +6,7 @@ inThisBuild(
     homepage                 := Some(url("https://github.com/yoohaemin/decrel")),
     licenses                 := List("MPL-2.0" -> url("https://www.mozilla.org/MPL/2.0/")),
     Test / parallelExecution := true,
-    scmInfo := Some(
+    scmInfo                  := Some(
       ScmInfo(
         url("https://github.com/yoohaemin/decrel/"),
         "scm:git:git@github.com:yoohaemin/decrel.git"
@@ -233,7 +233,7 @@ lazy val docs = project
     scalacOptions -= "-Xfatal-warnings",
     mdocJS             := Some(jsdocs),
     crossScalaVersions := List(V.scala213),
-    mdocVariables := Map(
+    mdocVariables      := Map(
       "SNAPSHOTVERSION" -> version.value,
       "RELEASEVERSION"  -> version.value.takeWhile(_ != '+')
     )
@@ -284,12 +284,12 @@ lazy val V = new {
   val scalaAll = scala213 :: scala3 :: Nil
 
   val cats         = "2.13.0"
-  val zio          = "2.1.17"
+  val zio          = "2.1.19"
   val zioQuery     = "0.7.7"
   val fetch        = "3.1.2"
   val izumiReflect = "3.0.2"
   val scalacheck   = "1.18.1"
-  val scalajsDom   = "2.3.0"
+  val scalajsDom   = "2.4.0"
 }
 
 lazy val ciSettings = List(
