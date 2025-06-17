@@ -376,29 +376,30 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
    * Syntax for Relation values
    */
   implicit class FetchRelationOps[Rel, In, Out](private val rel: Rel & Relation[In, Out]) { // TODO add AnyVal
-    def toF(in: In)(implicit
+
+    def startingFrom(in: In)(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out],
       clock: Clock[F]
     ): F[Out] =
-      Fetch.run(toFetch(in))
+      Fetch.run(startingFromFetch(in))
 
-    def toF(in: In, cache: Cache)(implicit
+    def startingFrom(in: In, cache: Cache)(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out],
       clock: Clock[F]
     ): F[Out] =
       toFetchCacheImpl(cache).flatMap { cache =>
-        Fetch.run(toFetch(in), cache)
+        Fetch.run(startingFromFetch(in), cache)
       }
 
-    def toFMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def startingFrom[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out],
       clock: Clock[F]
     ): F[Coll[Out]] =
-      Fetch.run(toFetchMany(in))
+      Fetch.run(startingFromFetch(in))
 
-    def toFMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def startingFrom[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In],
       cache: Cache
     )(implicit
@@ -406,64 +407,20 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
       clock: Clock[F]
     ): F[Coll[Out]] =
       toFetchCacheImpl(cache).flatMap { cache =>
-        Fetch.run(toFetchMany(in), cache)
+        Fetch.run(startingFromFetch(in), cache)
       }
 
-    def toFetch(in: In)(implicit
+    def startingFromFetch(in: In)(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out]
     ): Fetch[F, Out] =
       proof.reify(in)
 
-    def toFetchMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def startingFromFetch[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out]
     ): Fetch[F, Coll[Out]] =
       proof.reify.applyMultiple(in)
-  }
-
-  /**
-   * Syntax for Relation values
-   */
-  implicit class FetchReifiedRelationOps[In, Out](
-    private val rel: ReifiedRelation[In, Out]
-  ) { // TODO add AnyVal
-    def toF(in: In)(implicit
-      clock: Clock[F]
-    ): F[Out] =
-      Fetch.run(toFetch(in))
-
-    def toF(in: In, cache: Cache)(implicit
-      clock: Clock[F]
-    ): F[Out] =
-      toFetchCacheImpl(cache).flatMap { cache =>
-        Fetch.run(toFetch(in), cache)
-      }
-
-    def toFMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-      in: Coll[In]
-    )(implicit
-      clock: Clock[F]
-    ): F[Coll[Out]] =
-      Fetch.run(toFetchMany(in))
-
-    def toFMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-      in: Coll[In],
-      cache: Cache
-    )(implicit
-      clock: Clock[F]
-    ): F[Coll[Out]] =
-      toFetchCacheImpl(cache).flatMap { cache =>
-        Fetch.run(toFetchMany(in), cache)
-      }
-
-    def toFetch(in: In): Fetch[F, Out] =
-      rel(in)
-
-    def toFetchMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-      in: Coll[In]
-    ): Fetch[F, Coll[Out]] =
-      rel.applyMultiple(in)
   }
 
   implicit class RefCacheOps(private val refCache: Ref[F, Cache]) {
