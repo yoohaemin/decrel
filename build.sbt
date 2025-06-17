@@ -373,7 +373,8 @@ lazy val ciSettings = List(
     )
   ),
   githubWorkflowGeneratedUploadSteps := {
-    val skipCache = List("fetch/.js", "jsdocs", "mdoc")
+    val skipCache =
+      List("fetch/.js", "jsdocs", "mdoc", "kyo/.js", "kyo/.jvm", "kyo-batch/.js", "kyo-batch/.jvm")
 
     githubWorkflowGeneratedUploadSteps.value match {
       case (run: WorkflowStep.Run) :: t if run.commands.head.startsWith("tar cf") =>
@@ -387,5 +388,5 @@ lazy val ciSettings = List(
         ) :: t
       case l => l
     }
-  },
+  }
 )
