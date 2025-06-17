@@ -345,6 +345,7 @@ lazy val V = new {
   val scalaAll   = scala213 :: scala3LTS :: Nil
 
   val cats         = "2.13.0"
+  val kyo          = "0.19.0"
   val zio          = "2.1.19"
   val zioQuery     = "0.7.7"
   val fetch        = "3.1.2"
