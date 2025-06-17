@@ -81,8 +81,14 @@ lazy val core = crossProject(JSPlatform, JVMPlatform)
       )
   )
 
-lazy val coreJVM = core.jvm
-lazy val coreJS  = core.js
+lazy val coreJVM = core.jvm.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
+lazy val coreJS = core.js.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
 
 ///////////////////////// Haxl based datatypes
 
@@ -109,8 +115,14 @@ lazy val zquery = crossProject(JSPlatform, JVMPlatform)
   )
   .dependsOn(core)
 
-lazy val zqueryJVM = zquery.jvm
-lazy val zqueryJS  = zquery.js
+lazy val zqueryJVM = zquery.jvm.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
+lazy val zqueryJS = zquery.js.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
 
 lazy val fetch = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
@@ -133,8 +145,14 @@ lazy val fetch = crossProject(JSPlatform, JVMPlatform)
   )
   .dependsOn(cats)
 
-lazy val fetchJVM = fetch.jvm.settings(crossScalaVersions := V.scalaAll)
-lazy val fetchJS  = fetch.js.settings(crossScalaVersions := List(V.scala213))
+lazy val fetchJVM = fetch.jvm.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
+lazy val fetchJS = fetch.js.settings(
+  crossScalaVersions := Seq(V.scala213),
+  scalaVersion       := V.scala213
+)
 
 lazy val kyoBatch = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
@@ -186,8 +204,14 @@ lazy val ziotest = crossProject(JSPlatform, JVMPlatform)
   )
   .dependsOn(core)
 
-lazy val ziotestJVM = ziotest.jvm
-lazy val ziotestJS  = ziotest.js
+lazy val ziotestJVM = ziotest.jvm.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
+lazy val ziotestJS = ziotest.js.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
 
 lazy val scalacheck = crossProject(JSPlatform, JVMPlatform)
   .withoutSuffixFor(JVMPlatform)
@@ -210,8 +234,14 @@ lazy val scalacheck = crossProject(JSPlatform, JVMPlatform)
   )
   .dependsOn(core)
 
-lazy val scalacheckJVM = scalacheck.jvm
-lazy val scalacheckJS  = scalacheck.js
+lazy val scalacheckJVM = scalacheck.jvm.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
+lazy val scalacheckJS = scalacheck.js.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
 
 ///////////////////////// General purpose datatypes
 
@@ -236,8 +266,14 @@ lazy val cats = crossProject(JSPlatform, JVMPlatform)
   )
   .dependsOn(core)
 
-lazy val catsJVM = cats.jvm
-lazy val catsJS  = cats.js
+lazy val catsJVM = cats.jvm.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
+lazy val catsJS = cats.js.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
 
 lazy val kyo = crossProject(JSPlatform, JVMPlatform)
   .withoutSuffixFor(JVMPlatform)
@@ -342,7 +378,7 @@ lazy val V = new {
   val scala213   = "2.13.16"
   val scala3LTS  = "3.3.6"
   val scala3Next = "3.7.1"
-  val scalaAll   = scala213 :: scala3LTS :: Nil
+  val scalaAll   = scala213 :: scala3LTS :: scala3Next :: Nil
 
   val cats         = "2.13.0"
   val kyo          = "0.19.0"
@@ -356,7 +392,7 @@ lazy val V = new {
 
 lazy val ciSettings = List(
   githubWorkflowPublishTargetBranches := List(RefPredicate.Equals(Ref.Branch("master"))),
-  githubWorkflowJavaVersions          := Seq(JavaSpec.temurin("11")),
+  githubWorkflowJavaVersions          := Seq(JavaSpec.zulu("17")),
   githubWorkflowUseSbtThinClient      := false,
   githubWorkflowBuild                 := Seq(WorkflowStep.Sbt(List("++${{ matrix.scala }} test"))),
   githubWorkflowPublishTargetBranches += RefPredicate.StartsWith(Ref.Tag("v")),
