@@ -42,6 +42,10 @@ lazy val root = project
     coreJVM,
     coreJS,
     // coreNative,
+    kyoJVM,
+    kyoJS,
+    kyoBatchJVM,
+    kyoBatchJS,
     zqueryJVM,
     zqueryJS,
     fetchJVM,
@@ -77,8 +81,14 @@ lazy val core = crossProject(JSPlatform, JVMPlatform)
       )
   )
 
-lazy val coreJVM = core.jvm
-lazy val coreJS  = core.js
+lazy val coreJVM = core.jvm.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
+lazy val coreJS = core.js.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
 
 ///////////////////////// Haxl based datatypes
 
@@ -105,8 +115,14 @@ lazy val zquery = crossProject(JSPlatform, JVMPlatform)
   )
   .dependsOn(core)
 
-lazy val zqueryJVM = zquery.jvm
-lazy val zqueryJS  = zquery.js
+lazy val zqueryJVM = zquery.jvm.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
+lazy val zqueryJS = zquery.js.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
 
 lazy val fetch = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
@@ -129,8 +145,40 @@ lazy val fetch = crossProject(JSPlatform, JVMPlatform)
   )
   .dependsOn(cats)
 
-lazy val fetchJVM = fetch.jvm.settings(crossScalaVersions := V.scalaAll)
-lazy val fetchJS  = fetch.js.settings(crossScalaVersions := List(V.scala213))
+lazy val fetchJVM = fetch.jvm.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
+lazy val fetchJS = fetch.js.settings(
+  crossScalaVersions := Seq(V.scala213),
+  scalaVersion       := V.scala213
+)
+
+lazy val kyoBatch = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
+  .withoutSuffixFor(JVMPlatform)
+  .in(file("kyo-batch"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(name := "decrel-kyo-batch")
+  .settings(commonSettings)
+  .settings(
+    buildInfoKeys := Seq[BuildInfoKey](
+      "scalaPartialVersion" -> CrossVersion.partialVersion(scalaVersion.value)
+    ),
+    buildInfoPackage := "decrel.kyo.batch",
+    buildInfoObject  := "BuildInfo"
+  )
+  .settings(
+    libraryDependencies ++= Seq(
+      "io.getkyo" %%% "kyo-prelude" % V.kyo
+    )
+  )
+  .dependsOn(kyo)
+
+lazy val kyoBatchJVM =
+  kyoBatch.jvm.settings(crossScalaVersions := List(V.scala3Next), scalaVersion := V.scala3Next)
+lazy val kyoBatchJS =
+  kyoBatch.js.settings(crossScalaVersions := List(V.scala3Next), scalaVersion := V.scala3Next)
 
 ///////////////////////// Generator datatypes
 
@@ -156,8 +204,14 @@ lazy val ziotest = crossProject(JSPlatform, JVMPlatform)
   )
   .dependsOn(core)
 
-lazy val ziotestJVM = ziotest.jvm
-lazy val ziotestJS  = ziotest.js
+lazy val ziotestJVM = ziotest.jvm.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
+lazy val ziotestJS = ziotest.js.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
 
 lazy val scalacheck = crossProject(JSPlatform, JVMPlatform)
   .withoutSuffixFor(JVMPlatform)
@@ -180,8 +234,14 @@ lazy val scalacheck = crossProject(JSPlatform, JVMPlatform)
   )
   .dependsOn(core)
 
-lazy val scalacheckJVM = scalacheck.jvm
-lazy val scalacheckJS  = scalacheck.js
+lazy val scalacheckJVM = scalacheck.jvm.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
+lazy val scalacheckJS = scalacheck.js.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
 
 ///////////////////////// General purpose datatypes
 
@@ -206,8 +266,44 @@ lazy val cats = crossProject(JSPlatform, JVMPlatform)
   )
   .dependsOn(core)
 
-lazy val catsJVM = cats.jvm
-lazy val catsJS  = cats.js
+lazy val catsJVM = cats.jvm.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
+lazy val catsJS = cats.js.settings(
+  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
+  scalaVersion       := V.scala213
+)
+
+lazy val kyo = crossProject(JSPlatform, JVMPlatform)
+  .withoutSuffixFor(JVMPlatform)
+  .crossType(CrossType.Pure)
+  .in(file("kyo"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(name := "decrel-kyo")
+  .settings(commonSettings)
+  .settings(
+    buildInfoKeys := Seq[BuildInfoKey](
+      "scalaPartialVersion" -> CrossVersion.partialVersion(scalaVersion.value)
+    ),
+    buildInfoPackage := "decrel.kyo",
+    buildInfoObject  := "BuildInfo"
+  )
+  .settings(
+    libraryDependencies ++= Seq(
+      "io.getkyo" %%% "kyo-prelude" % V.kyo
+    )
+  )
+  .dependsOn(core)
+
+lazy val kyoJVM = kyo.jvm.settings(
+  scalaVersion       := V.scala3Next,
+  crossScalaVersions := Seq(V.scala3Next)
+)
+lazy val kyoJS = kyo.js.settings(
+  scalaVersion       := V.scala3Next,
+  crossScalaVersions := Seq(V.scala3Next)
+)
 
 ///////////////////////// docs
 
@@ -251,8 +347,8 @@ lazy val commonSettings = Def.settings(
     "-language:existentials",
     "-unchecked",
     "-Xfatal-warnings"
-  ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
-    case Some((2, 13)) =>
+  ) ++ (scalaVersion.value match {
+    case V.scala213 =>
       Seq(
         "-Xsource:3",
         "-Xlint:-byname-implicit",
@@ -261,12 +357,16 @@ lazy val commonSettings = Def.settings(
         "-Vtype-diffs",
         "-P:kind-projector:underscore-placeholders"
       )
-    case Some((3, _)) =>
+    case V.scala3LTS =>
       Seq(
         "-no-indent",
         "-Ykind-projector"
       )
-    case _ => Nil
+    case V.scala3Next =>
+      Seq(
+        "-no-indent",
+        "-Xkind-projector"
+      )
   }),
   Test / fork := false,
   run / fork  := true,
@@ -279,11 +379,13 @@ lazy val commonSettings = Def.settings(
 )
 
 lazy val V = new {
-  val scala213 = "2.13.16"
-  val scala3   = "3.3.6"
-  val scalaAll = scala213 :: scala3 :: Nil
+  val scala213   = "2.13.16"
+  val scala3LTS  = "3.3.6"
+  val scala3Next = "3.7.1"
+  val scalaAll   = scala213 :: scala3LTS :: scala3Next :: Nil
 
   val cats         = "2.13.0"
+  val kyo          = "0.19.0"
   val zio          = "2.1.19"
   val zioQuery     = "0.7.7"
   val fetch        = "3.1.2"
@@ -294,7 +396,7 @@ lazy val V = new {
 
 lazy val ciSettings = List(
   githubWorkflowPublishTargetBranches := List(RefPredicate.Equals(Ref.Branch("master"))),
-  githubWorkflowJavaVersions          := Seq(JavaSpec.temurin("11")),
+  githubWorkflowJavaVersions          := Seq(JavaSpec.zulu("17")),
   githubWorkflowUseSbtThinClient      := false,
   githubWorkflowBuild                 := Seq(WorkflowStep.Sbt(List("++${{ matrix.scala }} test"))),
   githubWorkflowPublishTargetBranches += RefPredicate.StartsWith(Ref.Tag("v")),
@@ -311,7 +413,8 @@ lazy val ciSettings = List(
     )
   ),
   githubWorkflowGeneratedUploadSteps := {
-    val skipCache = List("fetch/.js", "jsdocs", "mdoc")
+    val skipCache =
+      List("fetch/.js", "jsdocs", "mdoc", "kyo/.js", "kyo/.jvm", "kyo-batch/.js", "kyo-batch/.jvm")
 
     githubWorkflowGeneratedUploadSteps.value match {
       case (run: WorkflowStep.Run) :: t if run.commands.head.startsWith("tar cf") =>
@@ -325,5 +428,5 @@ lazy val ciSettings = List(
         ) :: t
       case l => l
     }
-  },
+  }
 )
