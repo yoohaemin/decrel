@@ -347,8 +347,8 @@ lazy val commonSettings = Def.settings(
     "-language:existentials",
     "-unchecked",
     "-Xfatal-warnings"
-  ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
-    case Some((2, 13)) =>
+  ) ++ (scalaVersion.value match {
+    case V.scala213 =>
       Seq(
         "-Xsource:3",
         "-Xlint:-byname-implicit",
@@ -357,12 +357,16 @@ lazy val commonSettings = Def.settings(
         "-Vtype-diffs",
         "-P:kind-projector:underscore-placeholders"
       )
-    case Some((3, _)) =>
+    case V.scala3LTS =>
       Seq(
         "-no-indent",
         "-Ykind-projector"
       )
-    case _ => Nil
+    case V.scala3Next =>
+      Seq(
+        "-no-indent",
+        "-Xkind-projector"
+      )
   }),
   Test / fork := false,
   run / fork  := true,
