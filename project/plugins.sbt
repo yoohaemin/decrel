@@ -6,7 +6,7 @@ addSbtPlugin("org.scalameta"      % "sbt-scalafmt"                  % "2.5.5")
 addSbtPlugin("com.github.sbt"     % "sbt-ci-release"                % "1.11.1")
 addSbtPlugin("com.eed3si9n"       % "sbt-buildinfo"                 % "0.13.1")
 addSbtPlugin("org.scalameta"      % "sbt-mdoc"                      % "2.7.2")
-addSbtPlugin("com.github.sbt"     % "sbt-github-actions"            % "0.25.0")
+addSbtPlugin("com.github.sbt"     % "sbt-github-actions"            % "0.27.0")
 addSbtPlugin("de.heikoseeberger"  % "sbt-header"                    % "5.10.0")
 addSbtPlugin("io.chrisdavenport"  % "sbt-no-publish"                % "0.1.0")
 
