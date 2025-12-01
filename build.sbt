@@ -372,16 +372,16 @@ lazy val commonSettings = Def.settings(
   run / fork  := true,
   libraryDependencies ++= {
     if (scalaVersion.value.startsWith("2.13"))
-      List(compilerPlugin("org.typelevel" % "kind-projector" % "0.13.3" cross CrossVersion.full))
+      List(compilerPlugin("org.typelevel" % "kind-projector" % "0.13.4" cross CrossVersion.full))
     else
       Nil
   }
 )
 
 lazy val V = new {
-  val scala213   = "2.13.16"
+  val scala213   = "2.13.18"
   val scala3LTS  = "3.3.7"
-  val scala3Next = "3.7.2"
+  val scala3Next = "3.7.4"
   val scalaAll   = scala213 :: scala3LTS :: scala3Next :: Nil
 
   val cats         = "2.13.0"
@@ -389,8 +389,8 @@ lazy val V = new {
   val zio          = "2.1.23"
   val zioQuery     = "0.7.7"
   val fetch        = "3.1.2"
-  val izumiReflect = "3.0.5"
-  val scalacheck   = "1.18.1"
+  val izumiReflect = "3.0.7"
+  val scalacheck   = "1.19.0"
   val scalajsDom   = "2.4.0"
 }
 
