@@ -372,7 +372,7 @@ lazy val commonSettings = Def.settings(
   run / fork  := true,
   libraryDependencies ++= {
     if (scalaVersion.value.startsWith("2.13"))
-      List(compilerPlugin("org.typelevel" % "kind-projector" % "0.13.3" cross CrossVersion.full))
+      List(compilerPlugin("org.typelevel" % "kind-projector" % "0.13.4" cross CrossVersion.full))
     else
       Nil
   }
