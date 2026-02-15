@@ -248,6 +248,56 @@ object zqueryProofSpec extends ZIOSpecDefault {
             assertZIO(result)(equalTo(Chunk(rental1))) &&
             assertZIO(proofs.calls.get)(equalTo(Calls(User.currentRentals -> Chunk(user1))))
           }
+        },
+        test(".head - Optional relation existing") {
+          proofs.flatMap { proofs =>
+            import proofs.*
+            val relation = Book.currentRental.head
+            val result   = relation.toZIO(book1)
+
+            assertZIO(result)(equalTo(rental1))
+          }
+        },
+        test(".head - Optional relation missing") {
+          proofs.flatMap { proofs =>
+            import proofs.*
+            val relation = Book.currentRental.head
+            val result = relation.toZIO(book4).either.map {
+              case Left(detail: HeadMissingDetail[_]) =>
+                detail.input == book4 &&
+                detail.sourceKind == HeadMissingSourceKind.OptionalNone &&
+                detail.relationType.contains("Book.currentRental")
+              case _ =>
+                false
+            }
+
+            assertZIO(result)(isTrue)
+          }
+        },
+        test(".head - Many relation existing") {
+          proofs.flatMap { proofs =>
+            import proofs.*
+            val relation = User.currentRentals.head
+            val result   = relation.toZIO(user1)
+
+            assertZIO(result)(equalTo(rental1))
+          }
+        },
+        test(".head - Many relation missing") {
+          proofs.flatMap { proofs =>
+            import proofs.*
+            val relation = User.currentRentals.head
+            val result = relation.toZIO(user3).either.map {
+              case Left(detail: HeadMissingDetail[_]) =>
+                detail.input == user3 &&
+                detail.sourceKind == HeadMissingSourceKind.ManyEmpty &&
+                detail.relationType.contains("User.currentRentals")
+              case _ =>
+                false
+            }
+
+            assertZIO(result)(isTrue)
+          }
         }
       ),
       suite("Composed relations")(

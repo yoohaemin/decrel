@@ -9,7 +9,9 @@
 package decrel.reify.monofunctor
 
 import decrel.*
+import decrel.reify.{ HeadMissingDetail, HeadMissingSourceKind }
 import izumi.reflect.TagK
+import izumi.reflect.Tag
 
 import scala.collection.{ BuildFrom, IterableOps }
 
@@ -434,6 +436,96 @@ trait proof { this: access & reifiedRelation =>
     ] {
       override def reify: ReifiedRelation[LeftIn, ZOR] =
         new ReifiedRelation.Zipped(leftProof.reify, rightProof.reify)
+    }
+
+    implicit def headOptionalProof[
+      Tree,
+      In,
+      SourceOut,
+      Out
+    ](implicit
+      proof: Proof[Tree, In, SourceOut],
+      ev: SourceOut <:< Option[Out],
+      tag: Tag[Tree]
+    ): Proof[
+      Relation.HeadOptional[Tree, In, SourceOut, Out],
+      In,
+      Out
+    ] = new Proof[
+      Relation.HeadOptional[Tree, In, SourceOut, Out],
+      In,
+      Out
+    ] {
+      private val relationType = tag.tag.longNameWithPrefix
+
+      override def reify: ReifiedRelation[In, Out] =
+        new ReifiedRelation.Custom[In, Out] {
+          override def apply(in: In): Access[Out] =
+            proof.reify.apply(in).flatMap { sourceOut =>
+              ev(sourceOut) match {
+                case Some(value) =>
+                  succeed(value)
+                case None =>
+                  headMissing(
+                    HeadMissingDetail(
+                      relationType = relationType,
+                      input = in,
+                      sourceKind = HeadMissingSourceKind.OptionalNone
+                    )
+                  ).asInstanceOf[Access[Out]]
+              }
+            }
+
+          override def applyMultiple[Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]](
+            in: Coll[In]
+          ): Access[Coll[Out]] =
+            foreach(in)(apply)
+        }
+    }
+
+    implicit def headManyProof[
+      Tree,
+      In,
+      SourceOut,
+      Out
+    ](implicit
+      proof: Proof[Tree, In, SourceOut],
+      ev: SourceOut <:< Iterable[Out],
+      tag: Tag[Tree]
+    ): Proof[
+      Relation.HeadMany[Tree, In, SourceOut, Out],
+      In,
+      Out
+    ] = new Proof[
+      Relation.HeadMany[Tree, In, SourceOut, Out],
+      In,
+      Out
+    ] {
+      private val relationType = tag.tag.longNameWithPrefix
+
+      override def reify: ReifiedRelation[In, Out] =
+        new ReifiedRelation.Custom[In, Out] {
+          override def apply(in: In): Access[Out] =
+            proof.reify.apply(in).flatMap { sourceOut =>
+              ev(sourceOut).headOption match {
+                case Some(value) =>
+                  succeed(value)
+                case None =>
+                  headMissing(
+                    HeadMissingDetail(
+                      relationType = relationType,
+                      input = in,
+                      sourceKind = HeadMissingSourceKind.ManyEmpty
+                    )
+                  ).asInstanceOf[Access[Out]]
+              }
+            }
+
+          override def applyMultiple[Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]](
+            in: Coll[In]
+          ): Access[Coll[Out]] =
+            foreach(in)(apply)
+        }
     }
   }
 

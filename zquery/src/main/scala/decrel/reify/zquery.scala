@@ -15,7 +15,8 @@ import zio.query.{ CompletedRequestMap, DataSource, ZQuery }
 
 import scala.collection.{ mutable, BuildFrom, IterableOps }
 
-trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
+trait zquery[R, MissingHeadError]
+    extends bifunctor.module[ZQuery[R, +*, +*], MissingHeadError] {
 
   // ****** Implementations for Required Operations **************************
 
@@ -412,4 +413,8 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
   }
 }
 
-object zquery extends zquery[Any]
+object zquery extends zquery[Any, Any] {
+
+  override protected def headMissing[In](detail: HeadMissingDetail[In]): ZQuery[Any, Any, Nothing] =
+    ZQuery.fail(detail)
+}

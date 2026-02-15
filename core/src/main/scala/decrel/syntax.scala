@@ -190,6 +190,34 @@ trait syntax {
       Relation.Custom(self)
   }
 
+  implicit final class OptionalHeadSyntax[Tree, In, Out](
+    private val self: Tree & Relation[In, Option[Out]]
+  ) {
+
+    def head: Relation.HeadOptional[
+      Tree & Relation[In, Option[Out]],
+      In,
+      Option[Out],
+      Out
+    ] =
+      Relation.HeadOptional(self)
+  }
+
+  implicit final class ManyHeadSyntax[Tree, In, SourceOut](
+    private val self: Tree & Relation[In, SourceOut]
+  ) {
+
+    def head[Out](implicit
+      ev: SourceOut <:< Iterable[Out]
+    ): Relation.HeadMany[
+      Tree & Relation[In, SourceOut],
+      In,
+      SourceOut,
+      Out
+    ] =
+      Relation.HeadMany(self)
+  }
+
 }
 
 object syntax extends syntax

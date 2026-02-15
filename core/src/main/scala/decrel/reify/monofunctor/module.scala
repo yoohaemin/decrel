@@ -8,8 +8,9 @@
 
 package decrel.reify.monofunctor
 
-trait module[F[_]] extends access with proof with reifiedRelation {
+trait module[F[_], MissingHeadError0] extends access with proof with reifiedRelation {
 
   override type Access[A] = F[A]
+  override type MissingHeadError = MissingHeadError0
 
 }

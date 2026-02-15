@@ -9,13 +9,14 @@
 package decrel.ziotest
 
 import decrel.Relation
+import decrel.reify.HeadMissingDetail
 import decrel.reify.monofunctor.*
 import zio.*
 import zio.test.{ Gen, Sized }
 
 import scala.collection.IterableOps
 
-trait gen[R] extends module[Gen[R, *]] {
+trait gen[R] extends module[Gen[R, *], Nothing] {
 
   //////// Basic premises
 
@@ -27,6 +28,13 @@ trait gen[R] extends module[Gen[R, *]] {
 
   override protected def succeed[A](a: A): Gen[R, A] =
     Gen.const(a)
+
+  override protected def headMissing[In](detail: HeadMissingDetail[In]): Gen[R, Nothing] =
+    Gen.const(
+      throw new NoSuchElementException(
+        s".head failed for relation ${detail.relationType} with input ${detail.input}"
+      )
+    )
 
   //////// Syntax for implementing relations
 

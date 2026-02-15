@@ -8,7 +8,7 @@
 
 package decrel.reify
 
-trait either extends bifunctor.module[Either] {
+trait either extends bifunctor.module[Either, Any] {
 
   override protected def flatMap[E, A, B](access: Either[E, A])(
     f: A => Either[E, B]
@@ -20,6 +20,9 @@ trait either extends bifunctor.module[Either] {
 
   override protected def succeed[A](a: A): Either[Nothing, A] =
     Right(a)
+
+  override protected def headMissing[In](detail: HeadMissingDetail[In]): Either[Any, Nothing] =
+    Left(detail)
 
 }
 

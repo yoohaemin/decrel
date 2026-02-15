@@ -96,6 +96,44 @@ object RelationSpec extends ZIOSpecDefault {
 
           assertCompletes
         },
+        test("optional head") {
+          val composed: Relation.HeadOptional[
+            Baz.foo.type & Relation.Optional[Baz, Foo],
+            Baz,
+            Option[Foo],
+            Foo
+          ] = Baz.foo.head
+
+          val _: Relation[Baz, Foo] = composed
+
+          assertCompletes
+        },
+        test("many head") {
+          val composed: Relation.HeadMany[
+            Bar.foo.type & Relation.Many[Bar, List, Foo],
+            Bar,
+            List[Foo],
+            Foo
+          ] = Bar.foo.head
+
+          val _: Relation[Bar, Foo] = composed
+
+          assertCompletes
+        },
+        test("composed optional head") {
+          val composed = (Foo.baz >>: Baz.foo).head
+
+          val _: Relation[Foo, Foo] = composed
+
+          assertCompletes
+        },
+        test("composed many head") {
+          val composed = (Bar.foo >>: Foo.baz).head
+
+          val _: Relation[Bar, Baz] = composed
+
+          assertCompletes
+        },
         test("one to optional, zipped") {
           val composed: Composed.Optional[
             Baz.foo.type & Relation.Optional[Baz, Foo],

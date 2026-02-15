@@ -8,8 +8,9 @@
 
 package decrel.reify.bifunctor
 
-trait module[F[+_, +_]] extends access with proof with reifiedRelation {
+trait module[F[+_, +_], MissingHeadError0] extends access with proof with reifiedRelation {
 
   override type Access[+A, +B] = F[A, B]
+  override type MissingHeadError = MissingHeadError0
 
 }

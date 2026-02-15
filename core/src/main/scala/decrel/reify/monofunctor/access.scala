@@ -8,6 +8,8 @@
 
 package decrel.reify.monofunctor
 
+import decrel.reify.HeadMissingDetail
+
 import scala.collection.{ mutable, BuildFrom }
 
 trait access { self =>
@@ -17,6 +19,8 @@ trait access { self =>
    * The datatype needs to be monadic for the derivation mechanism to work.
    */
   type Access[A]
+
+  type MissingHeadError
 
   /**
    * Good ol' `flatMap`.
@@ -38,6 +42,8 @@ trait access { self =>
    * aka `pure`, `point`, ...
    */
   protected def succeed[A](a: A): Access[A]
+
+  protected def headMissing[In](detail: HeadMissingDetail[In]): Access[Nothing]
 
   /**
    * aka `traverse`.

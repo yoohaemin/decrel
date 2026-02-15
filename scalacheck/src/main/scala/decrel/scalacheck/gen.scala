@@ -9,13 +9,14 @@
 package decrel.scalacheck
 
 import decrel.Relation
+import decrel.reify.HeadMissingDetail
 import decrel.reify.monofunctor.*
 import org.scalacheck.Gen
 import org.scalacheck.util.Buildable
 
 import scala.collection.IterableOps
 
-trait gen extends module[Gen] {
+trait gen extends module[Gen, Nothing] {
 
   //////// Basic premises
 
@@ -27,6 +28,13 @@ trait gen extends module[Gen] {
 
   override protected def succeed[A](a: A): Gen[A] =
     Gen.const(a)
+
+  override protected def headMissing[In](detail: HeadMissingDetail[In]): Gen[Nothing] =
+    Gen.const(
+      throw new NoSuchElementException(
+        s".head failed for relation ${detail.relationType} with input ${detail.input}"
+      )
+    )
 
   //////// Syntax for implementing relations
 

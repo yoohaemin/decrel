@@ -46,6 +46,14 @@ object Relation {
     relation: Tree & Relation[In, Out]
   ) extends Relation[In, Out]
 
+  final case class HeadOptional[Tree, In, SourceOut, Out](
+    relation: Tree & Relation[In, SourceOut]
+  ) extends Relation[In, Out]
+
+  final case class HeadMany[Tree, In, SourceOut, Out](
+    relation: Tree & Relation[In, SourceOut]
+  ) extends Relation[In, Out]
+
   sealed trait Composed[
     LeftTree,
     LeftIn,

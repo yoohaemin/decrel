@@ -8,6 +8,8 @@
 
 package decrel.reify.bifunctor
 
+import decrel.reify.HeadMissingDetail
+
 import scala.collection.{ mutable, BuildFrom }
 
 trait access { self =>
@@ -20,6 +22,8 @@ trait access { self =>
    * but does not place any assumption on the meaning of the first type parameter.
    */
   type Access[+E, +A]
+
+  type MissingHeadError
 
   /**
    * Good ol' `flatMap`.
@@ -41,6 +45,8 @@ trait access { self =>
    * aka `pure`, `point`, ...
    */
   protected def succeed[A](a: A): Access[Nothing, A]
+
+  protected def headMissing[In](detail: HeadMissingDetail[In]): Access[MissingHeadError, Nothing]
 
   /**
    * aka `traverse`.
