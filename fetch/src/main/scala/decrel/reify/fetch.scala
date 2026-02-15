@@ -25,7 +25,7 @@ import scala.util.control.NoStackTrace
  *
  * @tparam F Underlying effect type, usually `cats.effect.IO` or similar.
  */
-trait fetch[F[_], MissingHeadError] extends catsMonad[Fetch[F, *], MissingHeadError] { self =>
+trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
   // ****** Implementations for Required Operations **************************
 

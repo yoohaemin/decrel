@@ -20,8 +20,6 @@ trait access { self =>
    */
   type Access[A]
 
-  type MissingHeadError
-
   /**
    * Good ol' `flatMap`.
    *

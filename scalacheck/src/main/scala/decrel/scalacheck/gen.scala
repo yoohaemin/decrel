@@ -16,7 +16,7 @@ import org.scalacheck.util.Buildable
 
 import scala.collection.IterableOps
 
-trait gen extends module[Gen, Nothing] {
+trait gen extends module[Gen] {
 
   //////// Basic premises
 

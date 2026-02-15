@@ -8,7 +8,7 @@
 
 package decrel.reify
 
-trait catsMonad[F[_], MissingHeadError] extends monofunctor.module[F, MissingHeadError] {
+trait catsMonad[F[_]] extends monofunctor.module[F] {
   protected val F: cats.Monad[F]
 
   protected def flatMap[A, B](access: F[A])(f: A => F[B]): F[B] =

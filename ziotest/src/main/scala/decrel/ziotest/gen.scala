@@ -16,7 +16,7 @@ import zio.test.{ Gen, Sized }
 
 import scala.collection.IterableOps
 
-trait gen[R] extends module[Gen[R, *], Nothing] {
+trait gen[R] extends module[Gen[R, *]] {
 
   //////// Basic premises
 

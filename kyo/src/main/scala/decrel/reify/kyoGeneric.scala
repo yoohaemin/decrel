@@ -21,8 +21,7 @@ import scala.util.control.NoStackTrace
  *
  * @tparam Eff Underlying effect type, usually `cats.effect.IO` or similar.
  */
-trait kyoGeneric[Eff, MissingHeadError]
-    extends monofunctor.module[[A] =>> A < Eff, MissingHeadError] { self =>
+trait kyoGeneric[Eff] extends monofunctor.module[[A] =>> A < Eff] { self =>
 
   override final protected def flatMap[A, B](access: A < Eff)(f: A => B < Eff): Access[B] =
     access.flatMap(f)

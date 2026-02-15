@@ -15,8 +15,7 @@ import kyo.*
 import scala.collection.{ BuildFrom, IterableOps }
 import scala.collection.IterableFactory
 
-trait kyoBatch[Eff, MissingHeadError]
-    extends decrel.reify.kyoGeneric[Eff, MissingHeadError] {
+trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
 
   override final protected def foreach[Coll[+T] <: Iterable[T], A, B](
     collection: Coll[A]
