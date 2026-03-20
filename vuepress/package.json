@@ -13,6 +13,7 @@
   },
   "scripts": {
     "docs:dev": "vuepress dev docs",
+    "docs:prepare-api": "./scripts/prepare-api-docs.sh",
     "docs:build": "vuepress build docs"
   }
 }
