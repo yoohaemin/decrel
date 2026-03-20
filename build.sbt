@@ -381,7 +381,7 @@ lazy val commonSettings = Def.settings(
 lazy val V = new {
   val scala213   = "2.13.18"
   val scala3LTS  = "3.3.7"
-  val scala3Next = "3.7.4"
+  val scala3Next = "3.8.2"
   val scalaAll   = scala213 :: scala3LTS :: scala3Next :: Nil
 
   val cats         = "2.13.0"
@@ -399,8 +399,8 @@ lazy val ciSettings = List(
   githubWorkflowJavaVersions          := Seq(JavaSpec.zulu("17")),
   githubWorkflowUseSbtThinClient      := false,
   // Avoid flaky GitHub Actions artifact handoffs between build and publish jobs.
-  githubWorkflowArtifactUpload        := false,
-  githubWorkflowBuild                 := Seq(WorkflowStep.Sbt(List("++${{ matrix.scala }} test"))),
+  githubWorkflowArtifactUpload := false,
+  githubWorkflowBuild          := Seq(WorkflowStep.Sbt(List("++${{ matrix.scala }} test"))),
   githubWorkflowPublishTargetBranches += RefPredicate.StartsWith(Ref.Tag("v")),
   githubWorkflowTargetTags ++= Seq("v*"),
   githubWorkflowPublish := Seq(
