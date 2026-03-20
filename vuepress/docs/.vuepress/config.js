@@ -27,7 +27,7 @@ export default defineUserConfig({
           },
           {
             text: 'API',
-            link: '/api/core/'
+            link: '/reference/api-reference.html'
           }
         ],
         selectLanguageName: 'English',
