@@ -3,182 +3,79 @@ lang: en-US
 title: Defining relations
 ---
 
-# Defining Relations
+# Defining relations
 
-Relations are the core concept in Decrel. They describe how different entities in your domain model connect to each other. This guide explains how to define and use relations effectively.
+Relations live with the domain model. They describe the shape of valid joins in your application.
 
-## Basic Relation Types
+## The three declared relation kinds
 
-Decrel provides three primary types of relations:
+### `Relation.Single`
 
-### 1. Single Relations (`Relation.Single`)
-
-Use this when one entity relates to exactly one other entity.
+Use this when there is exactly one target value.
 
 ```scala
-import decrel.Relation
-
-// An employee has exactly one department
-object Employee {
-  object department extends Relation.Single[Employee, Department]
+object Order {
+  object customer extends Relation.Single[Order, Customer]
 }
 ```
 
-### 2. Optional Relations (`Relation.Optional`)
+### `Relation.Optional`
 
-Use this when an entity may or may not relate to another entity.
+Use this when the target may be absent.
 
 ```scala
-import decrel.Relation
-
-// An employee may have a manager (or not)
-object Employee {
-  object manager extends Relation.Optional[Employee, Employee]
+object User {
+  object activeSubscription extends Relation.Optional[User, Subscription]
 }
 ```
 
-### 3. Many Relations (`Relation.Many`)
+### `Relation.Many`
 
-Use this when one entity relates to multiple entities of the same type.
+Use this when one source value maps to multiple target values.
 
 ```scala
-import decrel.Relation
-
-// A department has multiple employees
-object Department {
-  object employees extends Relation.Many[Department, List, Employee]
+object Order {
+  object items extends Relation.Many[Order, List, OrderItem]
 }
 ```
 
-## Composing Relations
+## `Relation.Self`
 
-Relations can be combined to express complex access patterns:
-
-### Sequential Composition (`<>:`)
-
-To follow one relation and then another:
+`Self` is the identity relation. It is useful when you want to keep the current node while zipping in more data.
 
 ```scala
-import decrel.syntax.relation._
-
-// Get the manager of an employee's department
-val departmentManager = Employee.department <>: Department.manager
-```
-
-### Parallel Composition (`&`)
-
-To retrieve multiple related entities at once:
-
-```scala
-import decrel.syntax.relation._
-
-// Get both the manager and employees of a department
-val departmentInfo = Department.manager & Department.employees
-```
-
-### Combined Composition
-
-You can combine these operators to create complex queries:
-
-```scala
-import decrel.syntax.relation._
-
-// Get the department of an employee, along with that department's manager 
-// and all employees in that department
-val employeeDepartmentInfo = Employee.department <>: (Department.manager & Department.employees)
-```
-
-## Implementing Relations
-
-To use relations for data access, you need to implement them based on your data source:
-
-### With ZQuery
-
-```scala
-import decrel.reify.zquery
-import zio._
-
-// Create a module with your implementation
-object EmployeeRelations extends zquery[Any] {
-  
-  implicit val employeeDepartmentProof: Proof.Single[Employee.department.type, Employee, Nothing, Department] =
-    implementSingleDatasource(Employee.department) { employeeIds =>
-      // Implementation to fetch departments for employees
-      ZIO.succeed(
-        employeeIds.map(id => id -> Department(s"Dept-${id.value}"))
-      )
-    }
-
-  // Other relation implementations...
-}
-```
-
-### With Fetch (cats-effect)
-
-```scala
-import decrel.reify.fetch
-import cats.effect.IO
-
-// Create a module with your implementation
-object EmployeeRelations extends fetch[IO] {
-  
-  implicit val employeeDepartmentProof: Proof.Single[Employee.department.type, Employee, Department] =
-    implementSingleDatasource(Employee.department) { employeeIds =>
-      // Implementation to fetch departments for employees
-      IO.pure(
-        employeeIds.map(id => id -> Department(s"Dept-${id.value}"))
-      )
-    }
-
-  // Other relation implementations...
-}
-```
-
-## Advanced Patterns
-
-### Contramap
-
-Sometimes you need to adapt existing relations to work with different input types:
-
-```scala
-import decrel.Relation
-
-// Existing relation
-object Department {
-  object manager extends Relation.Single[Department, Employee]
+object Order {
+  object self extends Relation.Self[Order]
 }
 
-// Adapt to work with department ID instead of department object
-val departmentIdToManager = contramapOneProof(
-  departmentManagerProof,
-  Department.manager,
-  (id: Department.Id) => Department(id)
-)
+val orderWithCustomer = Order.self & Order.customer
 ```
 
-### Custom Relations
+## Best practices for declaration
 
-For specialized cases, you can create custom relations:
+- Put declared relations next to the model they start from.
+- Name them in domain language, not datasource language.
+- Keep each declared relation narrow and obvious.
+- Build larger traversals by composition instead of declaring giant all-in-one relations.
+
+## Custom relations
+
+Sometimes you want to treat a composed relation as its own reusable value.
 
 ```scala
-import decrel.Relation
-
-val customRelation = Relation.Custom(
-  // Reference to existing relation or custom implementation
-)
+val checkoutView =
+  (Order.customer & Order.items).customImpl
 ```
 
-## Best Practices
+`customImpl` turns an existing relation value into `Relation.Custom[...]`, which can then receive its own proof or datasource implementation.
 
-1. **Domain-Driven Design**: Define relations that match your domain model's natural language
-2. **Composition Over Implementation**: Focus on composing relations first, implement later
-3. **Batch Fetching**: Always implement batch fetching to avoid N+1 problems
-4. **Single Responsibility**: Each relation should represent one clear relationship
+## The real goal of relation declarations
 
-## Next Steps
+A declared relation is not yet executable. It is a typed join edge in your domain graph.
 
-After defining your relations, you'll want to:
+That separation is important:
 
-1. Implement data access using ZQuery or Fetch 
-2. Use your relations in your application code
-3. Consider adding automated testing with ScalaCheck or ZIO Test
+- the domain declares what can be joined
+- proofs declare how to realize those joins in a specific runtime
+
+The next page covers how those declared relations combine into larger traversals.

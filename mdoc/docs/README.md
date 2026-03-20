@@ -2,63 +2,77 @@
 lang: en-US
 home: true
 heroText: decrel
-tagline: Declarative data relation library for Scala
-actionText: Get Started →
-actionLink: /guide/getting-started
+tagline: Compose joins declaratively, then execute them efficiently.
+actionText: Start Here ->
+actionLink: /guide/getting-started.html
 features:
-- title: Declarative
-  details: Define relationships between data types once and reuse them across your application. Let decrel handle the implementation details.
-- title: Efficient by Default
-  details: Automatically batch multiple queries and run independent operations in parallel. No more N+1 query problems.
-- title: Ecosystem Integration
-  details: Works with both ZIO and cats-effect. Use with ZQuery, Fetch, or extend to your own effect system.
-- title: Type-Safe
-  details: Leverage Scala's type system for compile-time guarantees about your data access patterns.
-- title: Composition-First
-  details: Build complex data access patterns by composing simple relations with intuitive operators.
-- title: Testable
-  details: The same relations used for data fetching can generate test data with ScalaCheck or ZIO Test.
-footer: MPL-2.0 Licensed | Copyright © 2022-2025 Haemin Yoo
+- title: Composition of Joins
+  details: Model joins and traversals as reusable relations, then compose them with operators instead of hand-writing fetch choreography in services.
+- title: Production-Focused
+  details: decrel supports Scala 2.13 and 3, JVM and JS, ships published modules, and is tested for batching, deduplication, caching, and composition semantics.
+- title: App-Level Payoff
+  details: Relations keep business logic centered on the data shape you want, while integrations such as ZQuery and Fetch handle batching and parallelism.
+- title: Multiple Integrations
+  details: Use decrel with ZIO, cats-effect and Fetch, ScalaCheck, ZIO Test, Kyo, or custom monadic integrations.
+- title: Advanced Control
+  details: Reach for proofs, custom relations, contramap helpers, and cache injection when the simple path is not enough.
+- title: Precise Reference
+  details: Narrative guides live next to generated Scaladoc so you can move from concept to exact API quickly.
+footer: MPL-2.0 Licensed | Copyright © 2022-2026 Haemin Yoo
 ---
 
-# decrel - Declarative Data Relations in Scala
+# decrel
 
-**decrel** allows you to model relationships between your domain entities and efficiently fetch interconnected data with automatic batching and parallelism.
+`decrel` is a Scala library for modeling relations in your domain and composing joins declaratively.
+
+The core idea is simple:
+
+- define a relation once
+- compose it with other relations
+- execute the composition with batching, caching, and parallelism handled by the integration layer
+
+That shifts application code from "how do I orchestrate these fetches?" to "what connected data shape do I need here?"
+
+## The problem decrel solves
+
+Most applications repeatedly solve the same problem:
+
+- start from one entity
+- follow several joins
+- keep optional or one-to-many branches straight
+- avoid N+1 queries
+- preserve readable service code
+
+Without a dedicated abstraction, that logic leaks into services, repositories, and controllers. The result is usually a mix of nested `flatMap`, ad hoc batching, and duplicated fetch orchestration.
+
+decrel treats those joins as first-class values.
+
+## Why this is useful in application code
+
+Relations compose directly into the shape your service needs:
 
 ```scala
-// Define your domain model relations
-object Post {
-  object author extends Relation.Single[Post, Author]
-  object comments extends Relation.Many[Post, List, Comment]
-}
-
-// Create a complex query
-val postWithDetails = Post.author & Post.comments
-
-// Execute the query efficiently
-for {
-  post <- getPost(postId)
-  (author, comments) <- postWithDetails.toZIO(post)
-  // Use author and comments...
-} yield ()
+val checkoutView =
+  Order.customer & (Order.items <>: (OrderItem.product & OrderItem.price))
 ```
 
-## Why decrel?
-
-- **Solve N+1 Query Problems**: Automatically batch and parallelize data fetches
-- **Reuse Access Patterns**: Define relations once, use them anywhere
-- **Improve Maintainability**: Keep your domain model and data access cleanly separated
-- **Scale Efficiently**: As your application grows, your data access remains optimized
+That relation can then be executed efficiently by an integration module, while the service keeps expressing business intent instead of fetch plumbing.
 
 ## Quick Links
 
-- [Introduction](/guide/)
-- [Getting Started](/guide/getting-started)
-- [Defining Relations](/guide/defining-relations)
-- [Example Showcase](/showcase/)
+- [Why decrel](guide/README.md)
+- [Production readiness](guide/production-readiness.md)
+- [Getting started](guide/getting-started.md)
+- [Composition of joins](guide/composition-of-joins.md)
+- [Example app and dependency injection](example-app/README.md)
+- [Module matrix](reference/module-matrix.md)
+- [API reference](reference/api-reference.md)
 
-## Community
+## What you will find in these docs
 
-- [GitHub Repository](https://github.com/yoohaemin/decrel)
-- [Discussion Forum](https://github.com/yoohaemin/decrel/discussions)
-
+- a conceptual explanation of "composition of joins"
+- evidence-backed production-readiness guidance
+- tutorials for defining relations and implementing proofs
+- cache, custom relation, and contramap coverage
+- an example app shown in both ZIO and cats-effect styles
+- generated Scaladoc for the public modules

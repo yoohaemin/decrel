@@ -1,61 +1,87 @@
 ---
 lang: en-US
-title: Introduction
+title: Why decrel
 ---
 
-# Hey there :)
+# Why decrel
 
-Welcome to the documentation of **decrel**!
+decrel is built around one idea:
 
-I appreciate your interest in the library, and I hope you will learn what you want to know on these pages.
+> joins are a domain concept, not just a query-planning detail.
 
-If something is unclear, or if you have a suggestion, please don't hesitate to point it out in the
-[discussions section](https://github.com/yoohaemin/decrel/discussions) in Github, or [email me](mailto:haemin2142@zzz.pe.kr).
+Applications constantly need to answer questions like:
 
-## Objective
+- given an `Order`, get its `Customer`
+- given that `Order`, get all `OrderItem`
+- for each `OrderItem`, get the `Product` and current `Price`
 
-The implicit knowledge of **relation**s, usually present in the domain of an application,
-are rarely directly used when building applications in Scala.
+In ordinary application code, those joins are often spread across:
 
-In fact, in my experience, they are rarely even documented.
+- service methods
+- repository calls
+- effect sequencing
+- batching utilities
+- cache lookups
 
-decrel aims to change the status quo; it is a library that allows the definition and utilization of relations between data.
+The problem is not only performance. The larger problem is that the shape of the data you want and the steps needed to fetch it are tangled together.
 
-## What is it suitable for?
+## Composition of joins
 
-You will be able to create a value that represents something like:
-
-- I have an Employee object
-- Give me the *Department* object of that employee
-    - Also give me the *Employee* object of the *manager* of that department
-    - Also give me the *list of Employees* of that department
-
-For this imaginary example, the expression would look something like this:
+decrel makes joins explicit as relations:
 
 ```scala
-val query = Employee.department <>: (Department.manager & Department.employees)
+object Order {
+  object customer extends Relation.Single[Order, Customer]
+  object items extends Relation.Many[Order, List, OrderItem]
+}
+
+object OrderItem {
+  object product extends Relation.Single[OrderItem, Product]
+  object price extends Relation.Single[OrderItem, Price]
+}
 ```
 
-Now, this query can exist in two completely different contexts, namely:
-- Fetching data from a datasource
-- Generating mock data
+Once they exist, you compose them:
 
-The above query can be used in both contexts, unmodified!
+```scala
+val checkoutView =
+  Order.customer & (Order.items <>: (OrderItem.product & OrderItem.price))
+```
 
-## Anything else?
+That expression is the business-level join structure. It is reusable, testable, and independent of how the data is fetched.
 
-I gave a talk at the Functional Scala 2022 conference.
+## Why this is better than hand-written orchestration
 
-Due to time constraints, the talk is mostly focused on the motivation, and is rather light on the specific details.
+The imperative alternative typically grows like this:
 
-You can watch it here:
+1. fetch one thing
+2. inspect it
+3. fetch dependent things
+4. manually batch or parallelize the independent branches
+5. add cache lookups
+6. repeat the same pattern in another service
 
-<iframe width="560" height="315"
-src="https://www.youtube.com/embed/kcYgrYIbHM0"
-frameborder="0"
-allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-allowfullscreen></iframe>
+decrel keeps the service focused on the shape of the data it needs:
 
-Everything I said is still relevant, except for two details:
-- `decrel-core` now also depends on `izumi-reflect,` apart from Scala stdlib
-- `:>:` was renamed to `<>:` ([Reason](https://github.com/yoohaemin/decrel/pull/37))
+```scala
+val checkoutView =
+  Order.customer & (Order.items <>: (OrderItem.product & OrderItem.price))
+
+service.load(orderId, checkoutView)
+```
+
+The relation itself becomes part of the application vocabulary.
+
+## Where the payoff shows up
+
+decrel is most useful when:
+
+- your application repeatedly traverses the same domain graph
+- batching and deduplication matter
+- service code is turning into fetch choreography
+- you want one description of a relation graph that can be reused in runtime code and tests
+
+The next pages show two things in parallel:
+
+- why this model is operationally credible
+- how to use the APIs from simple relations up to custom proofs and cache-aware execution
