@@ -398,6 +398,8 @@ lazy val ciSettings = List(
   githubWorkflowPublishTargetBranches := List(RefPredicate.Equals(Ref.Branch("master"))),
   githubWorkflowJavaVersions          := Seq(JavaSpec.zulu("17")),
   githubWorkflowUseSbtThinClient      := false,
+  // Avoid flaky GitHub Actions artifact handoffs between build and publish jobs.
+  githubWorkflowArtifactUpload        := false,
   githubWorkflowBuild                 := Seq(WorkflowStep.Sbt(List("++${{ matrix.scala }} test"))),
   githubWorkflowPublishTargetBranches += RefPredicate.StartsWith(Ref.Tag("v")),
   githubWorkflowTargetTags ++= Seq("v*"),

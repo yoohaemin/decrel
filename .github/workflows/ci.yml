@@ -48,15 +48,6 @@ jobs:
 
       - run: sbt '++ ${{ matrix.scala }}' '++${{ matrix.scala }} test'
 
-      - name: Compress target directories
-        run: tar cf targets.tar  target   ziotest/.jvm/target  ziotest/.js/target  core/.js/target   scalacheck/.jvm/target fetch/.jvm/target cats/.jvm/target core/.jvm/target cats/.js/target zquery/.js/target zquery/.jvm/target scalacheck/.js/target project/target
-
-      - name: Upload target directories
-        uses: actions/upload-artifact@v5
-        with:
-          name: target-${{ matrix.os }}-${{ matrix.scala }}-${{ matrix.java }}
-          path: targets.tar
-
   publish:
     name: Publish Artifacts
     needs: [build]
@@ -83,36 +74,6 @@ jobs:
 
       - name: Setup sbt
         uses: sbt/setup-sbt@v1
-
-      - name: Download target directories (2.13.18)
-        uses: actions/download-artifact@v6
-        with:
-          name: target-${{ matrix.os }}-2.13.18-${{ matrix.java }}
-
-      - name: Inflate target directories (2.13.18)
-        run: |
-          tar xf targets.tar
-          rm targets.tar
-
-      - name: Download target directories (3.3.7)
-        uses: actions/download-artifact@v6
-        with:
-          name: target-${{ matrix.os }}-3.3.7-${{ matrix.java }}
-
-      - name: Inflate target directories (3.3.7)
-        run: |
-          tar xf targets.tar
-          rm targets.tar
-
-      - name: Download target directories (3.7.4)
-        uses: actions/download-artifact@v6
-        with:
-          name: target-${{ matrix.os }}-3.7.4-${{ matrix.java }}
-
-      - name: Inflate target directories (3.7.4)
-        run: |
-          tar xf targets.tar
-          rm targets.tar
 
       - env:
           PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
