@@ -1,7 +1,7 @@
 package decrel.examples.zio.ecommerce.stores.implementation
 
 import decrel.examples.zio.ecommerce.data._
-import decrel.examples.zio.ecommerce.stores.interface.{ ExampleError, ReadStore, StoreCall }
+import decrel.examples.zio.ecommerce.stores.interface.{ ReadStore, StoreCall }
 import decrel.examples.zio.ecommerce.stores.interface.ReadStore.{ ItemFilter, OrderFilter }
 import zio.{ Chunk, IO, Ref, UIO, URLayer, ZIO, ZLayer }
 
@@ -17,24 +17,24 @@ object InMemoryReadStore {
     ref: Ref[Chunk[StoreCall]],
     data: SampleData
   ) extends ReadStore {
-    import ExampleError._
+    import Error._
 
-    override def customers(ids: Chunk[Customer.Id]): IO[ExampleError, Chunk[(Customer.Id, Customer)]] =
+    override def customers(ids: Chunk[Customer.Id]): IO[Error, Chunk[(Customer.Id, Customer)]] =
       fetch("customers", ids.map(_.value), ids, data.customers, "Customer")
 
-    override def loyaltyTiers(ids: Chunk[LoyaltyTier.Id]): IO[ExampleError, Chunk[(LoyaltyTier.Id, LoyaltyTier)]] =
+    override def loyaltyTiers(ids: Chunk[LoyaltyTier.Id]): IO[Error, Chunk[(LoyaltyTier.Id, LoyaltyTier)]] =
       fetch("loyaltyTiers", ids.map(_.value), ids, data.loyaltyTiers, "LoyaltyTier")
 
-    override def orders(ids: Chunk[Order.Id]): IO[ExampleError, Chunk[(Order.Id, Order)]] =
+    override def orders(ids: Chunk[Order.Id]): IO[Error, Chunk[(Order.Id, Order)]] =
       fetch("orders", ids.map(_.value), ids, data.orders, "Order")
 
-    override def products(ids: Chunk[Product.Id]): IO[ExampleError, Chunk[(Product.Id, Product)]] =
+    override def products(ids: Chunk[Product.Id]): IO[Error, Chunk[(Product.Id, Product)]] =
       fetch("products", ids.map(_.value), ids, data.products, "Product")
 
-    override def prices(ids: Chunk[Price.Id]): IO[ExampleError, Chunk[(Price.Id, Price)]] =
+    override def prices(ids: Chunk[Price.Id]): IO[Error, Chunk[(Price.Id, Price)]] =
       fetch("prices", ids.map(_.value), ids, data.prices, "Price")
 
-    override def shipments(ids: Chunk[Shipment.Id]): IO[ExampleError, Chunk[(Shipment.Id, Shipment)]] =
+    override def shipments(ids: Chunk[Shipment.Id]): IO[Error, Chunk[(Shipment.Id, Shipment)]] =
       fetch("shipments", ids.map(_.value), ids, data.shipments, "Shipment")
 
     override def listOrders(
@@ -84,7 +84,7 @@ object InMemoryReadStore {
       ids: Chunk[Id],
       source: Map[Id, A],
       entity: String
-    ): IO[ExampleError, Chunk[(Id, A)]] =
+    ): IO[Error, Chunk[(Id, A)]] =
       record(name, keys) *>
         ZIO.foreach(ids.distinct) { id =>
           source.get(id) match {

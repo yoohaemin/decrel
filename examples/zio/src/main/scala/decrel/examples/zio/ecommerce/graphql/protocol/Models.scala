@@ -52,35 +52,3 @@ final case class Customer(
   loyaltyTier: TaskQuery[Option[LoyaltyTier]],
   orders: TaskQuery[Chunk[Order]]
 ) derives Schema.SemiAuto
-
-final case class CheckoutLine(
-  itemId: String,
-  quantity: Int,
-  product: Product,
-  price: Price
-) derives Schema.SemiAuto
-
-final case class CheckoutView(
-  orderId: String,
-  reference: String,
-  customer: Customer,
-  loyaltyTier: Option[LoyaltyTier],
-  lines: Chunk[CheckoutLine],
-  shipment: Option[Shipment]
-) derives Schema.SemiAuto
-
-final case class AdminLine(
-  itemId: String,
-  quantity: Int,
-  product: Product,
-  price: Price
-) derives Schema.SemiAuto
-
-final case class AdminOrderView(
-  orderId: String,
-  reference: String,
-  customer: Customer,
-  customerOrders: Chunk[Order],
-  lines: Chunk[AdminLine],
-  shipment: Option[Shipment]
-) derives Schema.SemiAuto

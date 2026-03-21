@@ -4,12 +4,12 @@ import decrel.examples.zio.ecommerce.data._
 import zio.{ Chunk, IO, UIO }
 
 trait ReadStore {
-  def customers(ids: Chunk[Customer.Id]): IO[ExampleError, Chunk[(Customer.Id, Customer)]]
-  def loyaltyTiers(ids: Chunk[LoyaltyTier.Id]): IO[ExampleError, Chunk[(LoyaltyTier.Id, LoyaltyTier)]]
-  def orders(ids: Chunk[Order.Id]): IO[ExampleError, Chunk[(Order.Id, Order)]]
-  def products(ids: Chunk[Product.Id]): IO[ExampleError, Chunk[(Product.Id, Product)]]
-  def prices(ids: Chunk[Price.Id]): IO[ExampleError, Chunk[(Price.Id, Price)]]
-  def shipments(ids: Chunk[Shipment.Id]): IO[ExampleError, Chunk[(Shipment.Id, Shipment)]]
+  def customers(ids: Chunk[Customer.Id]): IO[Error, Chunk[(Customer.Id, Customer)]]
+  def loyaltyTiers(ids: Chunk[LoyaltyTier.Id]): IO[Error, Chunk[(LoyaltyTier.Id, LoyaltyTier)]]
+  def orders(ids: Chunk[Order.Id]): IO[Error, Chunk[(Order.Id, Order)]]
+  def products(ids: Chunk[Product.Id]): IO[Error, Chunk[(Product.Id, Product)]]
+  def prices(ids: Chunk[Price.Id]): IO[Error, Chunk[(Price.Id, Price)]]
+  def shipments(ids: Chunk[Shipment.Id]): IO[Error, Chunk[(Shipment.Id, Shipment)]]
 
   def listOrders(
     cursor: Option[Order.Id],

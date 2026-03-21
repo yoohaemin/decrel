@@ -1,7 +1,7 @@
 package decrel.examples.zio.ecommerce.api.rest
 
 import decrel.examples.zio.ecommerce.data
-import decrel.examples.zio.ecommerce.stores.interface.ExampleError
+import decrel.examples.zio.ecommerce.data.Error
 import decrel.examples.zio.ecommerce.stores.interface.Proofs
 import decrel.syntax._
 import zio.{ IO, URLayer, ZIO, ZLayer }
@@ -16,12 +16,12 @@ object ViewRoutes {
 final class ViewRoutes(proofs: Proofs) {
   import proofs.given
 
-  private def fetchOrder(id: data.Order.Id): IO[ExampleError, Option[data.Order]] =
+  private def fetchOrder(id: data.Order.Id): IO[Error, Option[data.Order]] =
     data.Order.fetch.toZIO(id).map(Some(_)).catchSome {
-      case _: ExampleError.NotFound => ZIO.none
+      case _: Error.NotFound => ZIO.none
     }
 
-  private def checkoutView(id: data.Order.Id): IO[ExampleError, Option[CheckoutView]] =
+  private def checkoutView(id: data.Order.Id): IO[Error, Option[CheckoutView]] =
     fetchOrder(id).flatMap {
       case Some(order) =>
         ((data.Order.customer <>: data.Customer.loyaltyTier) &
@@ -34,7 +34,7 @@ final class ViewRoutes(proofs: Proofs) {
         ZIO.none
     }
 
-  private def adminOrderView(id: data.Order.Id): IO[ExampleError, Option[AdminOrderView]] =
+  private def adminOrderView(id: data.Order.Id): IO[Error, Option[AdminOrderView]] =
     fetchOrder(id).flatMap {
       case Some(order) =>
         ((data.Order.customer <>: data.Customer.orders) &
@@ -47,10 +47,10 @@ final class ViewRoutes(proofs: Proofs) {
         ZIO.none
     }
 
-  private def toResponse[A](effect: IO[ExampleError, Option[A]])(encode: A => Response) =
+  private def toResponse[A](effect: IO[Error, Option[A]])(encode: A => Response) =
     effect.fold(
       {
-        case _: ExampleError.NotFound => Response.status(Status.NotFound)
+        case _: Error.NotFound => Response.status(Status.NotFound)
       },
       {
         case Some(value) => encode(value)

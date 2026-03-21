@@ -10,9 +10,7 @@ final class GraphQLApi(queryImplementations: QueryImplementations) {
 
   final case class Queries(
     customer: String => protocol.TaskQuery[Option[protocol.Customer]],
-    order: String => protocol.TaskQuery[Option[protocol.Order]],
-    checkoutView: String => protocol.TaskQuery[Option[protocol.CheckoutView]],
-    adminOrderView: String => protocol.TaskQuery[Option[protocol.AdminOrderView]]
+    order: String => protocol.TaskQuery[Option[protocol.Order]]
   )
 
   object Queries {
@@ -22,7 +20,7 @@ final class GraphQLApi(queryImplementations: QueryImplementations) {
   val api: GraphQL[Any] =
     graphQL(
       RootResolver(
-        Queries(customer, order, checkoutView, adminOrderView)
+        Queries(customer, order)
       )
     )
 }

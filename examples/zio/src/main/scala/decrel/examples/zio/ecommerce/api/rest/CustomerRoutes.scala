@@ -1,7 +1,7 @@
 package decrel.examples.zio.ecommerce.api.rest
 
 import decrel.examples.zio.ecommerce.data
-import decrel.examples.zio.ecommerce.stores.interface.ExampleError
+import decrel.examples.zio.ecommerce.data.Error
 import decrel.examples.zio.ecommerce.stores.interface.Proofs
 import decrel.syntax._
 import zio.{ IO, URLayer, ZIO, ZLayer }
@@ -16,15 +16,15 @@ object CustomerRoutes {
 final class CustomerRoutes(proofs: Proofs) {
   import proofs.given
 
-  private def fetchCustomer(id: data.Customer.Id): IO[ExampleError, Option[data.Customer]] =
+  private def fetchCustomer(id: data.Customer.Id): IO[Error, Option[data.Customer]] =
     data.Customer.fetch.toZIO(id).map(Some(_)).catchSome {
-      case _: ExampleError.NotFound => ZIO.none
+      case _: Error.NotFound => ZIO.none
     }
 
-  private def toResponse[A](effect: IO[ExampleError, Option[A]])(encode: A => Response) =
+  private def toResponse[A](effect: IO[Error, Option[A]])(encode: A => Response) =
     effect.fold(
       {
-        case _: ExampleError.NotFound => Response.status(Status.NotFound)
+        case _: Error.NotFound => Response.status(Status.NotFound)
       },
       {
         case Some(value) => encode(value)
