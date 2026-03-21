@@ -58,6 +58,7 @@ lazy val root = project
     // scalacheckNative,
     catsJVM,
     catsJS,
+    exampleZio,
     // catsNative,
     docs
   )
@@ -337,6 +338,34 @@ lazy val docs = project
   .dependsOn(coreJVM, zqueryJVM, fetchJVM, ziotestJVM, scalacheckJVM)
   .enablePlugins(NoPublishPlugin)
 
+lazy val exampleZio = project
+  .in(file("examples/zio"))
+  .settings(commonSettings)
+  .settings(
+    name               := "decrel-example-zio",
+    moduleName         := name.value,
+    scalaVersion       := V.scala3Example,
+    crossScalaVersions := Seq(V.scala3Example),
+    Compile / unmanagedSourceDirectories ++= Seq(
+      (ThisBuild / baseDirectory).value / "core" / "src" / "main" / "scala",
+      (ThisBuild / baseDirectory).value / "zquery" / "src" / "main" / "scala"
+    ),
+    scalacOptions += "-old-syntax",
+    libraryDependencies ++= Seq(
+      "dev.zio"              %% "zio"            % V.zio,
+      "dev.zio"              %% "izumi-reflect"  % V.izumiReflect,
+      "dev.zio"              %% "zio-query"      % V.zioQuery,
+      "dev.zio"              %% "zio-json"       % V.zioJson,
+      "dev.zio"              %% "zio-http"       % V.zioHttp,
+      "com.github.ghostdogpr" %% "caliban-quick" % V.calibanQuick,
+      "io.scalaland"         %% "chimney"        % V.chimney,
+      "dev.zio"              %% "zio-test"       % V.zio % Test,
+      "dev.zio"              %% "zio-test-sbt"   % V.zio % Test
+    ),
+    Test / fork := false
+  )
+  .enablePlugins(NoPublishPlugin)
+
 lazy val commonSettings = Def.settings(
   scalacOptions ++= Seq(
     "-deprecation",
@@ -362,7 +391,7 @@ lazy val commonSettings = Def.settings(
         "-no-indent",
         "-Ykind-projector"
       )
-    case V.scala3Next =>
+    case V.scala3Next | V.scala3Example =>
       Seq(
         "-no-indent",
         "-Xkind-projector"
@@ -382,12 +411,17 @@ lazy val V = new {
   val scala213   = "2.13.18"
   val scala3LTS  = "3.3.7"
   val scala3Next = "3.7.4"
+  val scala3Example = "3.8.1"
   val scalaAll   = scala213 :: scala3LTS :: scala3Next :: Nil
 
   val cats         = "2.13.0"
   val kyo          = "0.19.0"
   val zio          = "2.1.24"
+  val zioJson      = "0.9.0"
+  val zioHttp      = "3.10.1"
   val zioQuery     = "0.7.7"
+  val calibanQuick = "3.0.0"
+  val chimney      = "1.8.1"
   val fetch        = "3.2.1"
   val izumiReflect = "3.0.9"
   val scalacheck   = "1.19.0"

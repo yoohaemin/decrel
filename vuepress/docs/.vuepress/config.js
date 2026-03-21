@@ -1,9 +1,16 @@
 import { viteBundler } from '@vuepress/bundler-vite'
+import { markdownTabPlugin } from '@vuepress/plugin-markdown-tab'
 import { defaultTheme } from '@vuepress/theme-default'
 import { defineUserConfig } from 'vuepress'
 
 export default defineUserConfig({
   bundler: viteBundler(),
+  plugins: [
+    markdownTabPlugin({
+      codeTabs: true,
+      tabs: true
+    })
+  ],
   theme: defaultTheme({
     repo: 'yoohaemin/decrel',
     locales: {
@@ -19,11 +26,11 @@ export default defineUserConfig({
           },
           {
             text: 'Example App',
-            link: '/example-app/'
+            link: '/example-app/index.html'
           },
           {
             text: 'Reference',
-            link: '/reference/'
+            link: '/reference/index.html'
           },
           {
             text: 'API',

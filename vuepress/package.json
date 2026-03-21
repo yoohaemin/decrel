@@ -9,7 +9,8 @@
   "devDependencies": {
     "vuepress": "^2.0.0-rc.9",
     "@vuepress/theme-default": "^2.0.0-rc.9",
-    "@vuepress/bundler-vite": "^2.0.0-rc.9"
+    "@vuepress/bundler-vite": "^2.0.0-rc.9",
+    "@vuepress/plugin-markdown-tab": "^2.0.0-rc.9"
   },
   "scripts": {
     "docs:dev": "vuepress dev docs",
