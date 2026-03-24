@@ -362,8 +362,7 @@ lazy val commonSettings = Def.settings(
     "-feature",
     "-language:higherKinds",
     "-language:existentials",
-    "-unchecked",
-    "-Xfatal-warnings"
+    "-unchecked"
   ) ++ (scalaVersion.value match {
     case V.scala213 =>
       Seq(
@@ -372,17 +371,20 @@ lazy val commonSettings = Def.settings(
         "-explaintypes",
         "-Vimplicits",
         "-Vtype-diffs",
-        "-P:kind-projector:underscore-placeholders"
+        "-P:kind-projector:underscore-placeholders",
+        "-Xfatal-warnings"
       )
     case V.scala3LTS =>
       Seq(
         "-no-indent",
-        "-Ykind-projector"
+        "-Ykind-projector",
+        "-Xfatal-warnings"
       )
     case V.scala3Next =>
       Seq(
         "-no-indent",
-        "-Xkind-projector"
+        "-Xkind-projector",
+        "-Werror"
       )
   }),
   Test / fork := false,
