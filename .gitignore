@@ -31,3 +31,5 @@ project/project/
 
 # Mill
 **/out/
+
+.claude/
