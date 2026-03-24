@@ -159,6 +159,22 @@ object zqueryNextSyntaxSpec extends ZIOSpecDefault {
           )
         }
       },
+      test("expandQuery returns zquery for single relation") {
+        proofs.flatMap { proofs =>
+          import proofs.*
+
+          for {
+            query  <- ZIO.succeed(book1.id.expandQuery(Book.fetch))
+            before <- proofs.calls.get
+            result <- query.run
+            after  <- proofs.calls.get
+          } yield assertTrue(
+            before == Calls(),
+            result == book1,
+            after == Calls(Book.fetch -> Chunk(book1.id))
+          )
+        }
+      },
       test("zqueryNext keeps base zquery syntax") {
         proofs.flatMap { proofs =>
           import proofs.*
