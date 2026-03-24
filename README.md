@@ -180,6 +180,7 @@ Add Decrel to your build:
 ```scala
 // For ZIO users
 "com.yoohaemin" %% "decrel-zquery" % "x.y.z"
+"com.yoohaemin" %% "decrel-zquery-next" % "x.y.z" // Scala 3.8.2+ overlay for .expand
 
 // For Cats Effect users
 "com.yoohaemin" %% "decrel-fetch" % "x.y.z"
@@ -187,6 +188,22 @@ Add Decrel to your build:
 // For testing
 "com.yoohaemin" %% "decrel-scalacheck" % "x.y.z" % Test
 "com.yoohaemin" %% "decrel-ziotest" % "x.y.z" % Test
+```
+
+For Scala 3.8.2 users who want `expand`, mix `zqueryNextSyntax` into your `zquery` object:
+
+```scala
+import decrel.reify.{ zquery, zqueryNextSyntax }
+
+object BookRelations extends zquery[Any] with zqueryNextSyntax[Any]
+
+import BookRelations.*
+
+val bookId: Book.Id = ???
+
+for {
+  book <- bookId.expand(Book.fetch)
+} yield book
 ```
 
 ## Documentation

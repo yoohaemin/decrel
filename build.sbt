@@ -1,6 +1,6 @@
 inThisBuild(
   List(
-    scalaVersion             := V.scala213,
+    scalaVersion             := V.scala3LTS,
     crossScalaVersions       := V.scalaAll,
     organization             := "com.yoohaemin",
     homepage                 := Some(url("https://github.com/yoohaemin/decrel")),
@@ -48,6 +48,8 @@ lazy val root = project
     kyoBatchJS,
     zqueryJVM,
     zqueryJS,
+    zqueryNextJVM,
+    zqueryNextJS,
     fetchJVM,
     fetchJS,
     ziotestJVM,
@@ -83,11 +85,9 @@ lazy val core = crossProject(JSPlatform, JVMPlatform)
 
 lazy val coreJVM = core.jvm.settings(
   crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-  scalaVersion       := V.scala213
 )
 lazy val coreJS = core.js.settings(
   crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-  scalaVersion       := V.scala213
 )
 
 ///////////////////////// Haxl based datatypes
@@ -117,11 +117,32 @@ lazy val zquery = crossProject(JSPlatform, JVMPlatform)
 
 lazy val zqueryJVM = zquery.jvm.settings(
   crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-  scalaVersion       := V.scala213
 )
 lazy val zqueryJS = zquery.js.settings(
   crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-  scalaVersion       := V.scala213
+)
+
+lazy val zqueryNext = crossProject(JSPlatform, JVMPlatform)
+  .withoutSuffixFor(JVMPlatform)
+  .crossType(CrossType.Pure)
+  .in(file("zquery-next"))
+  .settings(name := "decrel-zquery-next")
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % V.zio % Test,
+      "dev.zio" %%% "zio-test-sbt" % V.zio % Test
+    )
+  )
+  .dependsOn(zquery)
+
+lazy val zqueryNextJVM = zqueryNext.jvm.settings(
+  scalaVersion       := V.scala3Next,
+  crossScalaVersions := Seq(V.scala3Next),
+)
+lazy val zqueryNextJS = zqueryNext.js.settings(
+  scalaVersion       := V.scala3Next,
+  crossScalaVersions := Seq(V.scala3Next),
 )
 
 lazy val fetch = crossProject(JSPlatform, JVMPlatform)
@@ -206,11 +227,9 @@ lazy val ziotest = crossProject(JSPlatform, JVMPlatform)
 
 lazy val ziotestJVM = ziotest.jvm.settings(
   crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-  scalaVersion       := V.scala213
 )
 lazy val ziotestJS = ziotest.js.settings(
   crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-  scalaVersion       := V.scala213
 )
 
 lazy val scalacheck = crossProject(JSPlatform, JVMPlatform)
@@ -236,11 +255,9 @@ lazy val scalacheck = crossProject(JSPlatform, JVMPlatform)
 
 lazy val scalacheckJVM = scalacheck.jvm.settings(
   crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-  scalaVersion       := V.scala213
 )
 lazy val scalacheckJS = scalacheck.js.settings(
   crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-  scalaVersion       := V.scala213
 )
 
 ///////////////////////// General purpose datatypes
@@ -268,11 +285,9 @@ lazy val cats = crossProject(JSPlatform, JVMPlatform)
 
 lazy val catsJVM = cats.jvm.settings(
   crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-  scalaVersion       := V.scala213
 )
 lazy val catsJS = cats.js.settings(
   crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-  scalaVersion       := V.scala213
 )
 
 lazy val kyo = crossProject(JSPlatform, JVMPlatform)
@@ -310,6 +325,7 @@ lazy val kyoJS = kyo.js.settings(
 lazy val jsdocs = project
   .settings(
     libraryDependencies += "org.scala-js" %%% "scalajs-dom" % V.scalajsDom,
+    scalaVersion                           := V.scala213,
     crossScalaVersions                     := List(V.scala213)
   )
   .dependsOn(coreJS, zqueryJS, fetchJS, ziotestJS, scalacheckJS)
@@ -328,6 +344,7 @@ lazy val docs = project
     run / fork := false,
     scalacOptions -= "-Xfatal-warnings",
     mdocJS             := Some(jsdocs),
+    scalaVersion       := V.scala213,
     crossScalaVersions := List(V.scala213),
     mdocVariables      := Map(
       "SNAPSHOTVERSION" -> version.value,
@@ -372,7 +389,10 @@ lazy val commonSettings = Def.settings(
   run / fork  := true,
   libraryDependencies ++= {
     if (scalaVersion.value.startsWith("2.13"))
-      List(compilerPlugin("org.typelevel" % "kind-projector" % "0.13.4" cross CrossVersion.full))
+      List(
+        compilerPlugin("org.typelevel" % "kind-projector"     % "0.13.4" cross CrossVersion.full),
+        compilerPlugin("com.olegpy"   %% "better-monadic-for" % "0.3.1")
+      )
     else
       Nil
   }
@@ -381,7 +401,7 @@ lazy val commonSettings = Def.settings(
 lazy val V = new {
   val scala213   = "2.13.18"
   val scala3LTS  = "3.3.7"
-  val scala3Next = "3.7.4"
+  val scala3Next = "3.8.2"
   val scalaAll   = scala213 :: scala3LTS :: scala3Next :: Nil
 
   val cats         = "2.13.0"

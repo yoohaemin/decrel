@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sbtn:*)",
+      "Bash(bloop clean:*)",
+      "Bash(bloop test:*)",
+      "Bash(bloop compile:*)",
+      "Bash(bloop projects:*)",
+      "Bash(cat:*)",
+      "Bash(scala-cli run:*)",
+      "Bash(sbt:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
