@@ -73,7 +73,7 @@ object zqueryNextSyntaxSpec extends ZIOSpecDefault {
   class proofs(state: State, val calls: Ref[Calls]) {
 
     implicit val bookFetch: Proof.Single[
-      Book.fetch.type & Relation.Single[Book.Id, Book],
+      Book.fetch.type,
       Book.Id,
       TestError,
       Book
@@ -88,7 +88,7 @@ object zqueryNextSyntaxSpec extends ZIOSpecDefault {
     }
 
     implicit val userFetch: Proof.Single[
-      User.fetch.type & Relation.Single[User.Id, User],
+      User.fetch.type,
       User.Id,
       TestError,
       User
@@ -103,7 +103,7 @@ object zqueryNextSyntaxSpec extends ZIOSpecDefault {
     }
 
     implicit val userCurrentRentals: Proof.Many[
-      User.currentRentals.type & Relation.Many[User, Chunk, Rental],
+      User.currentRentals.type,
       User,
       Nothing,
       Chunk,
@@ -118,7 +118,7 @@ object zqueryNextSyntaxSpec extends ZIOSpecDefault {
       }
 
     implicit val rentalBook: Proof.Single[
-      Rental.book.type & Relation.Single[Rental, Book],
+      Rental.book.type,
       Rental,
       TestError,
       Book
