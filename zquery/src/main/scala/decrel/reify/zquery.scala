@@ -15,7 +15,7 @@ import zio.query.{ CompletedRequestMap, DataSource, ZQuery }
 
 import scala.collection.{ mutable, BuildFrom, IterableOps }
 
-trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
+trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R] {
 
   // ****** Implementations for Required Operations **************************
 
@@ -257,7 +257,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
             in: Coll[B]
           ): Access[E, Coll[Option[Out]]] =
             // TODO how to optimize?
-            ZQuery.foreachPar(in)(b => apply(b))
+            ZQuery.foreachBatched(in)(b => apply(b))
         }
     }
 
@@ -285,7 +285,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
             in: Coll[B]
           ): Access[E, Coll[CC[Out]]] =
             // TODO how to optimize?
-            ZQuery.foreachPar(in) { b =>
+            ZQuery.foreachBatched(in) { b =>
               proof.reify.applyMultiple(f(b))
             }
         }
@@ -298,7 +298,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
       toZQueryCacheImpl(cache)
   }
 
-  private def toZQueryCacheImpl(cache: Cache)(implicit trace: zio.Trace): UIO[zio.query.Cache] =
+  override protected def toZQueryCacheImpl(cache: Cache)(implicit trace: zio.Trace): UIO[zio.query.Cache] =
     zio.query.Cache.empty.flatMap { zCache =>
       ZIO.foldLeft(cache.entries)(zCache) { case (zCache, (_, v)) =>
         val k: v.key.type                               = v.key
@@ -319,88 +319,6 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] {
     }
 
   // ****** Syntax ************************************
-
-  /**
-   * Syntax for Relation values
-   */
-  implicit class ZQueryRelationOps[Rel, In, E, Out](private val rel: Rel & Relation[In, Out]) { // TODO add AnyVal
-    def toZIO(in: In)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, E, Out]
-    ): ZIO[R, E, Out] =
-      toQuery(in).run
-
-    def toZIO(in: In, cache: Cache)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, E, Out]
-    ): ZIO[R, E, Out] =
-      toZQueryCacheImpl(cache).flatMap { zCache =>
-        toQuery(in).runCache(zCache)
-      }
-
-    def toZIOMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-      in: Coll[In]
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, E, Out]
-    ): ZIO[R, E, Coll[Out]] =
-      toQueryMany(in).run
-
-    def toZIOMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-      in: Coll[In],
-      cache: Cache
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, E, Out]
-    ): ZIO[R, E, Coll[Out]] =
-      toZQueryCacheImpl(cache).flatMap { zCache =>
-        toQueryMany(in).runCache(zCache)
-      }
-
-    def toQuery(in: In)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, E, Out]
-    ): ZQuery[R, E, Out] =
-      proof.reify.apply(in)
-
-    def toQueryMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-      in: Coll[In]
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, E, Out]
-    ): ZQuery[R, E, Coll[Out]] =
-      proof.reify.applyMultiple(in)
-  }
-
-  /**
-   * Syntax for Relation values
-   */
-  implicit class ZQueryReifiedRelationOps[In, E, Out](
-    private val rel: ReifiedRelation[In, E, Out]
-  ) { // TODO add AnyVal
-    def toZIO(in: In): ZIO[R, E, Out] =
-      toQuery(in).run
-
-    def toZIO(in: In, cache: Cache): ZIO[R, E, Out] =
-      toZQueryCacheImpl(cache).flatMap { zCache =>
-        toQuery(in).runCache(zCache)
-      }
-
-    def toZIOMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-      in: Coll[In]
-    ): ZIO[R, E, Coll[Out]] =
-      toQueryMany(in).run
-
-    def toZIOMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-      in: Coll[In],
-      cache: Cache
-    ): ZIO[R, E, Coll[Out]] =
-      toZQueryCacheImpl(cache).flatMap { zCache =>
-        toQueryMany(in).runCache(zCache)
-      }
-
-    def toQuery(in: In): ZQuery[R, E, Out] =
-      rel(in)
-
-    def toQueryMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-      in: Coll[In]
-    ): ZQuery[R, E, Coll[Out]] =
-      rel.applyMultiple(in)
-  }
 
   implicit class RefCacheOps(private val refCache: Ref[Cache]) {
 
