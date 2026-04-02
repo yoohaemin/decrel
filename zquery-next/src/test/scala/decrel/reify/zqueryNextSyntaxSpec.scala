@@ -15,7 +15,7 @@ import zio.test.*
 
 object zqueryNextSyntaxSpec extends ZIOSpecDefault {
 
-  object syntax extends decrel.reify.zquery[Any] with zqueryNextSyntax[Any]
+  object syntax extends testZQuery[Any] with zqueryNextSyntax[Any]
   import syntax.*
 
   case class Rental(id: Rental.Id, bookId: Book.Id, userId: User.Id)

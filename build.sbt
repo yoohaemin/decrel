@@ -90,6 +90,32 @@ lazy val coreJS = core.js.settings(
   crossScalaVersions := Seq(V.scala213, V.scala3LTS),
 )
 
+lazy val coreNext = crossProject(JSPlatform, JVMPlatform)
+  .withoutSuffixFor(JVMPlatform)
+  .crossType(CrossType.Pure)
+  .in(file("core"))
+  .settings(name := "decrel-core-next")
+  .settings(target := baseDirectory.value / s".${thisProject.value.id}-target")
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++=
+      Seq(
+        "dev.zio" %%% "izumi-reflect" % V.izumiReflect,
+        "dev.zio" %%% "zio-test"      % V.zio % Test,
+        "dev.zio" %%% "zio-test-sbt"  % V.zio % Test
+      )
+  )
+  .enablePlugins(NoPublishPlugin)
+
+lazy val coreNextJVM = coreNext.jvm.settings(
+  scalaVersion       := V.scala3Next,
+  crossScalaVersions := Seq(V.scala3Next),
+)
+lazy val coreNextJS = coreNext.js.settings(
+  scalaVersion       := V.scala3Next,
+  crossScalaVersions := Seq(V.scala3Next),
+)
+
 ///////////////////////// Haxl based datatypes
 
 lazy val zquery = crossProject(JSPlatform, JVMPlatform)
@@ -130,11 +156,12 @@ lazy val zqueryNext = crossProject(JSPlatform, JVMPlatform)
   .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-query"    % V.zioQuery,
       "dev.zio" %%% "zio-test"     % V.zio % Test,
       "dev.zio" %%% "zio-test-sbt" % V.zio % Test
     )
   )
-  .dependsOn(zquery)
+  .dependsOn(coreNext)
 
 lazy val zqueryNextJVM = zqueryNext.jvm.settings(
   scalaVersion       := V.scala3Next,
