@@ -36,9 +36,9 @@ addCommandAlias(
 
 //TODO uncomment native crossbuilds when ZIO published against native 0.4.8+ is out
 //Related: https://github.com/scala-native/scala-native/issues/2858
-lazy val stableScalaVersions = Seq(V.scala213, V.scala3LTS)
-lazy val nextScalaVersions   = Seq(V.scala3Next)
-lazy val zqueryScalaVersions = stableScalaVersions :+ V.scala3Next
+lazy val stableScalaVersions                   = Seq(V.scala213, V.scala3LTS)
+lazy val nextScalaVersions                     = Seq(V.scala3Next)
+lazy val zqueryScalaVersions                   = stableScalaVersions :+ V.scala3Next
 lazy val rootAggregates: Seq[ProjectReference] =
   core.projectRefs ++
     kyo.projectRefs ++
