@@ -33,3 +33,6 @@ project/project/
 **/out/
 
 .claude/
+*.sjsir
+**/.js/
+**/.jvm/
