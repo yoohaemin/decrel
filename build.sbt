@@ -38,7 +38,6 @@ addCommandAlias(
 //Related: https://github.com/scala-native/scala-native/issues/2858
 lazy val stableScalaVersions                   = Seq(V.scala213, V.scala3LTS)
 lazy val nextScalaVersions                     = Seq(V.scala3Next)
-lazy val zqueryScalaVersions                   = stableScalaVersions :+ V.scala3Next
 lazy val rootAggregates: Seq[ProjectReference] =
   core.projectRefs ++
     kyo.projectRefs ++
@@ -70,8 +69,8 @@ lazy val core = (projectMatrix in file("core"))
         "dev.zio" %%% "zio-test-sbt"  % V.zio % Test
       )
   )
-  .jvmPlatform(scalaVersions = zqueryScalaVersions)
-  .jsPlatform(scalaVersions = zqueryScalaVersions)
+  .jvmPlatform(scalaVersions = stableScalaVersions)
+  .jsPlatform(scalaVersions = stableScalaVersions)
 
 ///////////////////////// Haxl based datatypes
 
@@ -94,8 +93,8 @@ lazy val zquery = (projectMatrix in file("zquery"))
     )
   )
   .dependsOn(core)
-  .jvmPlatform(scalaVersions = zqueryScalaVersions)
-  .jsPlatform(scalaVersions = zqueryScalaVersions)
+  .jvmPlatform(scalaVersions = stableScalaVersions)
+  .jsPlatform(scalaVersions = stableScalaVersions)
 
 lazy val zqueryNext = (projectMatrix in file("zquery-next"))
   .settings(name := "decrel-zquery-next")
@@ -106,9 +105,16 @@ lazy val zqueryNext = (projectMatrix in file("zquery-next"))
       "dev.zio" %%% "zio-test-sbt" % V.zio % Test
     )
   )
-  .dependsOn(zquery)
-  .jvmPlatform(scalaVersions = nextScalaVersions)
-  .jsPlatform(scalaVersions = nextScalaVersions)
+  .jvmPlatform(
+    scalaVersions = nextScalaVersions,
+    axisValues = Nil,
+    configure = _.dependsOn(zquery.jvm(V.scala3LTS))
+  )
+  .jsPlatform(
+    scalaVersions = nextScalaVersions,
+    axisValues = Nil,
+    configure = _.dependsOn(zquery.js(V.scala3LTS))
+  )
 
 lazy val fetch = (projectMatrix in file("fetch"))
   .enablePlugins(BuildInfoPlugin)
@@ -231,9 +237,16 @@ lazy val kyo = (projectMatrix in file("kyo"))
       "io.getkyo" %%% "kyo-prelude" % V.kyo
     )
   )
-  .dependsOn(core)
-  .jvmPlatform(scalaVersions = nextScalaVersions)
-  .jsPlatform(scalaVersions = nextScalaVersions)
+  .jvmPlatform(
+    scalaVersions = nextScalaVersions,
+    axisValues = Nil,
+    configure = _.dependsOn(core.jvm(V.scala3LTS))
+  )
+  .jsPlatform(
+    scalaVersions = nextScalaVersions,
+    axisValues = Nil,
+    configure = _.dependsOn(core.js(V.scala3LTS))
+  )
 
 ///////////////////////// docs
 
