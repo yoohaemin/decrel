@@ -32,32 +32,130 @@ trait gen[R] extends module[Gen[R, *]] {
 
   implicit final class GenObjectOps(private val gen: Gen.type) {
 
+    def relationSingle[Rel, In, Out, Filter](
+      relation: Rel & Relation.Single[In, Out]
+    )(
+      f: (In, Option[Filter]) => Gen[R, Option[Out]]
+    )(implicit d: DummyImplicit): Proof.Single[Rel & Relation.Single[In, Out], In, Out, Filter] =
+      new Proof.Single[Rel & Relation.Single[In, Out], In, Out, Filter] {
+        override private[decrel] def reifyRelation(
+          relationValue: (Rel & Relation.Single[In, Out]) & Relation[In, Out]
+        ): ReifiedRelation[In, Out] =
+          reifyFiltered(relationValue, None)
+
+        override private[decrel] def reifyFiltered(
+          relationKey: Any,
+          filter: Option[Filter]
+        ): ReifiedRelation[In, Out] =
+          new ReifiedRelation.Custom[In, Out] {
+            override def apply(in: In): Gen[R, Out] =
+              reifyFilteredOptional(relationKey, filter).apply(in).map {
+                case Some(out) => out
+                case None =>
+                  throw new IllegalStateException(
+                    s"Single relation implementation returned None for unfiltered access: $relationKey"
+                  )
+              }
+
+            override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+              ins: Coll[In]
+            ): Gen[R, Coll[Out]] =
+              reifyFilteredOptional(relationKey, filter).applyMultiple(ins).map(
+                _.map {
+                  case Some(out) => out
+                  case None =>
+                    throw new IllegalStateException(
+                      s"Single relation implementation returned None for unfiltered access: $relationKey"
+                    )
+                }
+              )
+          }
+
+        override private[decrel] def reifyFilteredOptional(
+          relationKey: Any,
+          filter: Option[Filter]
+        ): ReifiedRelation[In, Option[Out]] =
+          reifiedRelation(f(_, filter))
+      }
+
     def relationSingle[Rel, In, Out](
       relation: Rel & Relation.Single[In, Out]
     )(
-      f: In => Gen[R, Out]
-    ): Proof.Single[Rel & Relation.Single[In, Out], In, Out] =
-      new Proof.Single[Rel & Relation.Single[In, Out], In, Out] {
-        override val reify: ReifiedRelation[In, Out] = reifiedRelation(f)
+      f: (In, Option[Nothing]) => Gen[R, Out]
+    ): Proof.Single[Rel & Relation.Single[In, Out], In, Out, Nothing] =
+      new Proof.Single[Rel & Relation.Single[In, Out], In, Out, Nothing] {
+        override private[decrel] def reifyRelation(
+          relationValue: (Rel & Relation.Single[In, Out]) & Relation[In, Out]
+        ): ReifiedRelation[In, Out] =
+          reifyFiltered(relationValue, None)
+
+        override private[decrel] def reifyFiltered(
+          relationKey: Any,
+          filter: Option[Nothing]
+        ): ReifiedRelation[In, Out] =
+          reifiedRelation(f(_, filter))
+      }
+
+    def relationOptional[Rel, In, Out, Filter](
+      relation: Rel & Relation.Optional[In, Out]
+    )(
+      f: (In, Option[Filter]) => Gen[R, Option[Out]]
+    )(implicit d: DummyImplicit): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out, Filter] =
+      new Proof.Optional[Rel & Relation.Optional[In, Out], In, Out, Filter] {
+        override private[decrel] def reifyRelation(
+          relationValue: (Rel & Relation.Optional[In, Out]) & Relation[In, Option[Out]]
+        ): ReifiedRelation[In, Option[Out]] =
+          reifyFiltered(relationValue, None)
+
+        override private[decrel] def reifyFiltered(
+          relationKey: Any,
+          filter: Option[Filter]
+        ): ReifiedRelation[In, Option[Out]] =
+          reifiedRelation(f(_, filter))
       }
 
     def relationOptional[Rel, In, Out](
       relation: Rel & Relation.Optional[In, Out]
     )(
-      f: In => Gen[R, Option[Out]]
-    ): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out] =
-      new Proof.Optional[Rel & Relation.Optional[In, Out], In, Out] {
-        override val reify: ReifiedRelation[In, Option[Out]] = reifiedRelation(f)
+      f: (In, Option[Nothing]) => Gen[R, Option[Out]]
+    ): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out, Nothing] =
+      relationOptional[Rel, In, Out, Nothing](relation)(f)
+
+    def relationMany[
+      Rel,
+      In,
+      Out,
+      CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]],
+      Filter
+    ](
+      relation: Rel & Relation.Many[In, CC, Out]
+    )(
+      f: (In, Option[Filter]) => Gen[R, CC[Out]]
+    )(implicit d: DummyImplicit): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out, Filter] =
+      new Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out, Filter] {
+        override private[decrel] def reifyRelation(
+          relationValue: (Rel & Relation.Many[In, CC, Out]) & Relation[In, CC[Out]]
+        ): ReifiedRelation[In, CC[Out]] =
+          reifyFiltered(relationValue, None)
+
+        override private[decrel] def reifyFiltered(
+          relationKey: Any,
+          filter: Option[Filter]
+        ): ReifiedRelation[In, CC[Out]] =
+          reifiedRelation(f(_, filter))
       }
 
-    def relationMany[Rel, In, Out, CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]](
-      relation: Rel & Relation.Many[In, List, Out]
+    def relationMany[
+      Rel,
+      In,
+      Out,
+      CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]
+    ](
+      relation: Rel & Relation.Many[In, CC, Out]
     )(
-      f: In => Gen[R, CC[Out]]
-    ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] =
-      new Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] {
-        override val reify: ReifiedRelation[In, CC[Out]] = reifiedRelation(f)
-      }
+      f: (In, Option[Nothing]) => Gen[R, CC[Out]]
+    ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out, Nothing] =
+      relationMany[Rel, In, Out, CC, Nothing](relation)(f)
   }
 
   private def reifiedRelation[In, Out](f: In => Gen[R, Out]): ReifiedRelation[In, Out] =
@@ -78,8 +176,8 @@ trait gen[R] extends module[Gen[R, *]] {
   implicit final class GenOps[A](private val gen: Gen[R, A]) {
 
     def expand[Rel, B](rel: Rel & Relation[A, B])(implicit
-      proof: Proof[Rel & Relation[A, B], A, B]
-    ): Gen[R, B] = gen.flatMap(rel.reify(proof).apply)
+      proof: Proof[Rel & Relation[A, B], A, B, Nothing]
+    ): Gen[R, B] = gen.flatMap(proof.reify(rel).apply)
 
   }
 }

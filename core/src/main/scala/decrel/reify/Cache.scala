@@ -9,7 +9,6 @@
 package decrel.reify
 
 import decrel.Relation
-import izumi.reflect.Tag
 
 /**
  * Simple cache implementation that is reusable across various integrations
@@ -18,10 +17,8 @@ final case class Cache(
   entries: Map[Cache.Key[?, ?, ?], Cache.Entry[?, ?, ?]]
 ) {
 
-  def add[Rel, A, B](relation: Rel & Relation[A, B], key: A, value: B)(implicit
-    tag: Tag[Rel]
-  ): Cache = {
-    val k = Cache.Key(relation, Tag[Rel], key)
+  def add[Rel, A, B](relation: Rel & Relation[A, B], key: A, value: B): Cache = {
+    val k = Cache.Key(relation, key)
     new Cache(entries + (k -> Cache.Entry(k, value)))
   }
 
@@ -34,7 +31,6 @@ object Cache {
 
   final case class Key[Rel, A, B](
     relation: Rel & Relation[A, B],
-    tag: Tag[Rel],
     key: A
   ) {
     type R      = Rel

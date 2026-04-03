@@ -42,6 +42,8 @@ object zqueryProofSpec extends ZIOSpecDefault {
     case object currentRentals extends Relation.Many[User, Chunk, Rental]
   }
 
+  private val customBookFetch = Book.fetch.customImpl
+
   case class State(rentals: Chunk[Rental], books: Chunk[Book], users: Chunk[User])
   object State {
     val empty: State = State(Chunk.empty, Chunk.empty, Chunk.empty)
@@ -50,7 +52,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
   case class Calls(
     value: Chunk[(?, Chunk[?])] = Chunk.empty
   ) {
-    def add[Rel, From, To](rel: Rel & Relation.Declared[From, To], request: Chunk[From]): Calls =
+    def add[Rel, From, To](rel: Rel & Relation[From, To], request: Chunk[From]): Calls =
       Calls(value.appended((rel, request)))
   }
   object Calls {
@@ -61,6 +63,7 @@ object zqueryProofSpec extends ZIOSpecDefault {
   }
 
   case class TestError(msg: String = "")
+  case class BookFilter(prefix: String)
 
   private val rental1 = Rental(Rental.Id("rental1"), Book.Id("book1"), User.Id("user1"))
   private val rental2 = Rental(Rental.Id("rental2"), Book.Id("book2"), User.Id("user2"))
@@ -90,9 +93,10 @@ object zqueryProofSpec extends ZIOSpecDefault {
       Rental.fetch.type & Relation.Single[Rental.Id, Rental],
       Rental.Id,
       TestError,
-      Rental
+      Rental,
+      Nothing
     ] =
-      implementSingleDatasource(Rental.fetch) { ins =>
+      implementSingleDatasource[Rental.fetch.type, Rental.Id, TestError, Rental](Rental.fetch) { (ins, _: Option[Nothing]) =>
         calls.update(_.add(Rental.fetch, ins)).flatMap { _ =>
           ZIO.foreach(
             ins.map(id => id -> state.rentals.find(_.id == id))
@@ -106,8 +110,9 @@ object zqueryProofSpec extends ZIOSpecDefault {
       Book.fetch.type & Relation.Single[Book.Id, Book],
       Book.Id,
       TestError,
-      Book
-    ] = implementSingleDatasource(Book.fetch) { ins =>
+      Book,
+      Nothing
+    ] = implementSingleDatasource[Book.fetch.type, Book.Id, TestError, Book](Book.fetch) { (ins, _: Option[Nothing]) =>
       calls.update(_.add(Book.fetch, ins)).flatMap { _ =>
         ZIO.foreach(
           ins.map(id => id -> state.books.find(_.id == id))
@@ -121,8 +126,9 @@ object zqueryProofSpec extends ZIOSpecDefault {
       User.fetch.type & Relation.Single[User.Id, User],
       User.Id,
       TestError,
-      User
-    ] = implementSingleDatasource(User.fetch) { ins =>
+      User,
+      Nothing
+    ] = implementSingleDatasource[User.fetch.type, User.Id, TestError, User](User.fetch) { (ins, _: Option[Nothing]) =>
       calls.update(_.add(User.fetch, ins)).flatMap { _ =>
         ZIO.foreach(
           ins.map(id => id -> state.users.find(_.id == id))
@@ -136,22 +142,41 @@ object zqueryProofSpec extends ZIOSpecDefault {
       Rental.book.type & Relation.Single[Rental, Book],
       Rental,
       TestError,
-      Book
-    ] = contramapOneProof(bookFetch, Rental.book, _.bookId)
+      Book,
+      Nothing
+    ] = contramapOneProof[
+      Book.fetch.type & Relation.Single[Book.Id, Book],
+      Rental.book.type & Relation.Single[Rental, Book],
+      Book.Id,
+      TestError,
+      Book,
+      Rental,
+      Nothing
+    ](bookFetch, Rental.book, _.bookId)
 
     implicit val rentalUser: Proof.Single[
       Rental.user.type & Relation.Single[Rental, User],
       Rental,
       TestError,
-      User
-    ] = contramapOneProof(userFetch, Rental.user, _.userId)
+      User,
+      Nothing
+    ] = contramapOneProof[
+      User.fetch.type & Relation.Single[User.Id, User],
+      Rental.user.type & Relation.Single[Rental, User],
+      User.Id,
+      TestError,
+      User,
+      Rental,
+      Nothing
+    ](userFetch, Rental.user, _.userId)
 
     implicit val bookCurrentRental: Proof.Optional[
       Book.currentRental.type & Relation.Optional[Book, Rental],
       Book,
       Nothing,
-      Rental
-    ] = implementOptionalDatasource(Book.currentRental) { ins =>
+      Rental,
+      Nothing
+    ] = implementOptionalDatasource[Book.currentRental.type, Book, Nothing, Rental](Book.currentRental) { (ins, _: Option[Nothing]) =>
       calls.update(_.add(Book.currentRental, ins)).map { _ =>
         ins.map(book =>
           book -> state.rentals.collectFirst {
@@ -166,13 +191,31 @@ object zqueryProofSpec extends ZIOSpecDefault {
       User,
       Nothing,
       Chunk,
-      Rental
+      Rental,
+      Nothing
     ] =
-      implementManyDatasource(User.currentRentals) { ins =>
+      implementManyDatasource[User.currentRentals.type, User, Nothing, Chunk, Rental](User.currentRentals) { (ins, _: Option[Nothing]) =>
         calls.update(_.add(User.currentRentals, ins)).map { _ =>
           ins.map(user =>
             user -> state.rentals.collect { case rental if rental.userId == user.id => rental }
           )
+        }
+      }
+
+    implicit val customBookFetchProof: Proof[
+      Relation.Custom[Book.fetch.type & Relation.Single[Book.Id, Book], Book.Id, Book],
+      Book.Id,
+      TestError,
+      Book,
+      Nothing
+    ] =
+      implementCustomDatasource[Book.fetch.type & Relation.Single[Book.Id, Book], Book.Id, TestError, Book](customBookFetch) { (ins, _: Option[Nothing]) =>
+        calls.update(_.add(customBookFetch, ins)).flatMap { _ =>
+          ZIO.foreach(
+            ins.map(id => id -> state.books.find(_.id == id))
+          ) { case (id, book) =>
+            ZIO.fromOption(book).map(id -> _).mapError(_ => TestError(s"$id not found"))
+          }
         }
       }
   }
@@ -356,6 +399,82 @@ object zqueryProofSpec extends ZIOSpecDefault {
             } yield assertTrue(
               result == Chunk(rental2, rental3),
               calls == Calls()
+            )
+          }
+        },
+        test("Custom relation - implemented for itself") {
+          proofs.flatMap { proofs =>
+            import proofs.*
+
+            for {
+              result <- customBookFetch.startingFrom(book1.id)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == book1,
+              calls == Calls(customBookFetch -> Chunk(book1.id))
+            )
+          }
+        },
+        test("Single relation receives filters and still works unfiltered") {
+          sealed trait BaseBookFilter
+          case class ExactBookFilter(prefix: String) extends BaseBookFilter
+
+          for {
+            seenFilters <- Ref.make(Chunk.empty[Option[BaseBookFilter]])
+            result <- {
+              implicit val filteredBookFetch: Proof.Single[
+                Book.fetch.type & Relation.Single[Book.Id, Book],
+                Book.Id,
+                TestError,
+                Book,
+                BaseBookFilter
+              ] =
+                implementSingleDatasource[Book.fetch.type, Book.Id, TestError, Book, BaseBookFilter](Book.fetch) { (ins, filter: Option[BaseBookFilter]) =>
+                  seenFilters.update(_ :+ filter) *>
+                    ZIO.foreach(
+                      ins.map(id => id -> state.books.find(_.id == id))
+                    ) { case (id, book) =>
+                      ZIO.succeed(id -> book)
+                    }
+                }
+
+              for {
+                filtered   <- Book.fetch.filter(ExactBookFilter("book")).startingFrom(book1.id)
+                unfiltered <- Book.fetch.startingFrom(book2.id)
+              } yield (filtered, unfiltered)
+            }
+            filters <- seenFilters.get
+          } yield assertTrue(
+            result == (Some(book1), book2),
+            filters == Chunk(Some(ExactBookFilter("book")), None)
+          )
+        },
+        test("Filtered single composes like an optional relation") {
+          sealed trait BaseBookFilter
+          case class ExactBookFilter(prefix: String) extends BaseBookFilter
+
+          proofs.flatMap { proofs =>
+            import proofs.*
+
+            implicit val filteredBookFetch: Proof.Single[
+              Book.fetch.type & Relation.Single[Book.Id, Book],
+              Book.Id,
+              TestError,
+              Book,
+              BaseBookFilter
+            ] =
+              implementSingleDatasource[Book.fetch.type, Book.Id, TestError, Book, BaseBookFilter](Book.fetch) { (ins, _) =>
+                proofs.calls.update(_.add(Book.fetch, ins)).as(ins.map(_ -> None))
+              }
+
+            val relation = Book.fetch.filter(ExactBookFilter("book")) >>: Book.currentRental
+
+            for {
+              result <- relation.startingFrom(book1.id)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == None,
+              calls == Calls(Book.fetch -> Chunk(book1.id))
             )
           }
         }

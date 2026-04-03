@@ -19,15 +19,15 @@ trait zqueryNextSyntax[R] {
     def expand[Rel, E, Out](
       rel: Rel & Relation[In, Out]
     )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, E, Out]
+      proof: Proof[Rel & Relation[In, Out], In, E, Out, Nothing]
     ): ZIO[R, E, Out] =
       expandQuery(rel).run
 
     def expandQuery[Rel, E, Out](
       rel: Rel & Relation[In, Out]
     )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, E, Out]
+      proof: Proof[Rel & Relation[In, Out], In, E, Out, Nothing]
     ): ZQuery[R, E, Out] =
-      proof.reify.apply(in)
+      proof.reify(rel).apply(in)
   }
 }

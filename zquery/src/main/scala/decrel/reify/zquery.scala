@@ -9,7 +9,6 @@
 package decrel.reify
 
 import decrel.Relation
-import izumi.reflect.Tag
 import zio.*
 import zio.query.{ CompletedRequestMap, DataSource, ZQuery }
 
@@ -41,25 +40,28 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
 
   // ****** Datasource Implementations ************************************
 
-  private case class RelationRequest[Rel, Id, E, Result](
-    rel: Rel & Relation[Id, Result],
+  private case class RelationRequest[Id, E, Result](
+    relationKey: Any,
     id: Id
   ) extends zio.query.Request[E, Result]
 
-  private def buildDatasource[Rel: Tag, In, E, Out](
-    rel: Rel
+  private def datasourceIdentifier(relationKey: Any): String =
+    "RelationDatasource:" + relationKey.getClass.getName
+
+  private def buildDatasource[In, E, Out](
+    relationKey: Any
   )(
     batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, Out)]]
-  ): DataSource[R, RelationRequest[Rel, In, E, Out]] =
-    new DataSource.Batched[R, RelationRequest[Rel, In, E, Out]] {
-      override val identifier: String = "RelationDatasource:" + Tag[Rel].tag.longNameInternalSymbol
+  ): DataSource[R, RelationRequest[In, E, Out]] =
+    new DataSource.Batched[R, RelationRequest[In, E, Out]] {
+      override val identifier: String = datasourceIdentifier(relationKey)
 
       override def run(
-        requests: Chunk[RelationRequest[Rel, In, E, Out]]
+        requests: Chunk[RelationRequest[In, E, Out]]
       )(implicit
         trace: Trace
       ): ZIO[R, Nothing, CompletedRequestMap] = {
-        val deduplicated = requests.distinctBy(_.id)
+        val deduplicated = requests.distinctBy(request => (request.relationKey, request.id))
 
         batchExecute(deduplicated.map(_.id)).flatMap { results =>
           val mapBuilder = mutable.Map.newBuilder[In, Exit[E, Out]]
@@ -72,7 +74,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
             )
 
           ZIO.succeed(
-            CompletedRequestMap.fromIterableWith[E, RelationRequest[Rel, In, E, Out], Out](
+            CompletedRequestMap.fromIterableWith[E, RelationRequest[In, E, Out], Out](
               requests
             )(
               (a: zio.query.Request[E, Out]) => a,
@@ -88,67 +90,157 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
       }
     }
 
+  private def singleReifiedRelation[In, E, Out, Filter](
+    relationKey: Any,
+    filter: Option[Filter]
+  )(
+    batchExecute: (Chunk[In], Option[Filter]) => ZIO[R, E, Chunk[(In, Out)]]
+  ): ReifiedRelation[In, E, Out] = {
+    val ds = buildDatasource[In, E, Out](relationKey)(ins => batchExecute(ins, filter))
+
+    new ReifiedRelation.Custom[In, E, Out] {
+      override def apply(in: In): ZQuery[R, E, Out] =
+        applyMultiple(List(in)).map(_.head)
+
+      override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+        ins: Coll[In]
+      ): ZQuery[R, E, Coll[Out]] =
+        ZQuery.foreachPar(ins) { in =>
+          ZQuery.fromRequest[R, E, RelationRequest[In, E, Out], Out](
+            RelationRequest(relationKey, in)
+          )(ds)
+        }
+    }
+  }
+
+  private def requiredSingleReifiedRelation[In, E, Out](
+    relationKey: Any,
+    relation: ReifiedRelation[In, E, Option[Out]]
+  ): ReifiedRelation[In, E, Out] =
+    new ReifiedRelation.Custom[In, E, Out] {
+      override def apply(in: In): ZQuery[R, E, Out] =
+        relation.apply(in).map {
+          case Some(out) => out
+          case None =>
+            throw new IllegalStateException(
+              s"Single relation implementation returned None for unfiltered access: $relationKey"
+            )
+        }
+
+      override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+        ins: Coll[In]
+      ): ZQuery[R, E, Coll[Out]] =
+        relation.applyMultiple(ins).map(
+          _.map {
+            case Some(out) => out
+            case None =>
+              throw new IllegalStateException(
+                s"Single relation implementation returned None for unfiltered access: $relationKey"
+              )
+          }
+        )
+    }
+
   // batchExecute should return a list of results that contains all of the identifiers of the provided list
   // Failing to do so will result in fiber death
   // order does not matter
-  def implementSingleDatasource[Rel: Tag, In, E, Out](
+  def implementSingleDatasource[Rel, In, E, Out, Filter](
     relation: Rel & Relation.Single[In, Out]
   )(
-    // Also should allow exception per request, so when failing we can give back what we fetched so far
-    batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, Out)]]
-  )(implicit
-    tag: Tag[Out]
-  ): Proof.Single[Rel & Relation.Single[In, Out], In, E, Out] =
-    new Proof.Single[Rel & Relation.Single[In, Out], In, E, Out] {
+    batchExecute: (Chunk[In], Option[Filter]) => ZIO[R, E, Chunk[(In, Option[Out])]]
+  )(implicit d: DummyImplicit): Proof.Single[Rel & Relation.Single[In, Out], In, E, Out, Filter] =
+    new Proof.Single[Rel & Relation.Single[In, Out], In, E, Out, Filter] {
+      override private[decrel] def reifyRelation(
+        relationValue: (Rel & Relation.Single[In, Out]) & Relation[In, Out]
+      ): ReifiedRelation[In, E, Out] =
+        reifyFiltered(relationValue, None)
 
-      private val ds = buildDatasource[Rel, In, E, Out](relation)(batchExecute)
+      override private[decrel] def reifyFiltered(
+        relationKey: Any,
+        filter: Option[Filter]
+      ): ReifiedRelation[In, E, Out] =
+        requiredSingleReifiedRelation(
+          filter.fold[Any](relation)(_ => relationKey),
+          reifyFilteredOptional(relationKey, filter)
+        )
 
-      override val reify: ReifiedRelation[In, E, Out] =
-        new ReifiedRelation.Custom[In, E, Out] {
-          override def apply(in: In): ZQuery[R, E, Out] =
-            applyMultiple(List(in)).map(_.head) // TODO add tests for this
-
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-            ins: Coll[In]
-          ): ZQuery[R, E, Coll[Out]] =
-            ZQuery.foreachPar(ins) { in =>
-              ZQuery.fromRequest[R, E, RelationRequest[Rel, In, E, Out], Out](
-                RelationRequest[Rel, In, E, Out](relation, in)
-              )(ds)
-            }
-        }
+      override private[decrel] def reifyFilteredOptional(
+        relationKey: Any,
+        filter: Option[Filter]
+      ): ReifiedRelation[In, E, Option[Out]] =
+        singleReifiedRelation(filter.fold[Any](relation)(_ => relationKey), filter)(batchExecute)
     }
 
-  def implementOptionalDatasource[Rel: Tag, In, E, Out](
+  def implementSingleDatasource[Rel, In, E, Out](
+    relation: Rel & Relation.Single[In, Out]
+  )(
+    batchExecute: (Chunk[In], Option[Nothing]) => ZIO[R, E, Chunk[(In, Out)]]
+  ): Proof.Single[Rel & Relation.Single[In, Out], In, E, Out, Nothing] =
+    new Proof.Single[Rel & Relation.Single[In, Out], In, E, Out, Nothing] {
+      override private[decrel] def reifyRelation(
+        relationValue: (Rel & Relation.Single[In, Out]) & Relation[In, Out]
+      ): ReifiedRelation[In, E, Out] =
+        reifyFiltered(relationValue, None)
+
+      override private[decrel] def reifyFiltered(
+        relationKey: Any,
+        filter: Option[Nothing]
+      ): ReifiedRelation[In, E, Out] =
+        singleReifiedRelation(filter.fold[Any](relation)(_ => relationKey), filter)(batchExecute)
+    }
+
+  def implementOptionalDatasource[Rel, In, E, Out, Filter](
     relation: Rel & Relation.Optional[In, Out]
   )(
-    // Also should allow exception per request, so when failing we can give back what we fetched so far
-    batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, Option[Out])]]
-  )(implicit
-    tag: Tag[Out]
-  ): Proof.Optional[Rel & Relation.Optional[In, Out], In, E, Out] =
-    new Proof.Optional[Rel & Relation.Optional[In, Out], In, E, Out] {
+    batchExecute: (Chunk[In], Option[Filter]) => ZIO[R, E, Chunk[(In, Option[Out])]]
+  )(implicit d: DummyImplicit): Proof.Optional[Rel & Relation.Optional[In, Out], In, E, Out, Filter] =
+    new Proof.Optional[Rel & Relation.Optional[In, Out], In, E, Out, Filter] {
+      override private[decrel] def reifyRelation(
+        relationValue: (Rel & Relation.Optional[In, Out]) & Relation[In, Option[Out]]
+      ): ReifiedRelation[In, E, Option[Out]] =
+        reifyFiltered(relationValue, None)
 
-      private val ds = buildDatasource[Rel, In, E, Option[Out]](relation)(batchExecute)
+      override private[decrel] def reifyFiltered(
+        relationKey: Any,
+        filter: Option[Filter]
+      ): ReifiedRelation[In, E, Option[Out]] =
+        singleReifiedRelation(filter.fold[Any](relation)(_ => relationKey), filter)(batchExecute)
+    }
 
-      override val reify: ReifiedRelation[In, E, Option[Out]] =
-        new ReifiedRelation.Custom[In, E, Option[Out]] {
-          override def apply(in: In): ZQuery[R, E, Option[Out]] =
-            applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
+  def implementOptionalDatasource[Rel, In, E, Out](
+    relation: Rel & Relation.Optional[In, Out]
+  )(
+    batchExecute: (Chunk[In], Option[Nothing]) => ZIO[R, E, Chunk[(In, Option[Out])]]
+  ): Proof.Optional[Rel & Relation.Optional[In, Out], In, E, Out, Nothing] =
+    implementOptionalDatasource[Rel, In, E, Out, Nothing](relation)(batchExecute)
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-            ins: Coll[In]
-          ): ZQuery[R, E, Coll[Option[Out]]] =
-            ZQuery.foreachPar(ins) { in =>
-              ZQuery.fromRequest[R, E, RelationRequest[Rel, In, E, Option[Out]], Option[Out]](
-                RelationRequest(relation, in)
-              )(ds)
-            }
-        }
+  def implementManyDatasource[
+    Rel,
+    In,
+    E,
+    CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]],
+    Out,
+    Filter
+  ](
+    relation: Rel & Relation.Many[In, CC, Out]
+  )(
+    batchExecute: (Chunk[In], Option[Filter]) => ZIO[R, E, Chunk[(In, CC[Out])]]
+  )(implicit d: DummyImplicit): Proof.Many[Rel & Relation.Many[In, CC, Out], In, E, CC, Out, Filter] =
+    new Proof.Many[Rel & Relation.Many[In, CC, Out], In, E, CC, Out, Filter] {
+      override private[decrel] def reifyRelation(
+        relationValue: (Rel & Relation.Many[In, CC, Out]) & Relation[In, CC[Out]]
+      ): ReifiedRelation[In, E, CC[Out]] =
+        reifyFiltered(relationValue, None)
+
+      override private[decrel] def reifyFiltered(
+        relationKey: Any,
+        filter: Option[Filter]
+      ): ReifiedRelation[In, E, CC[Out]] =
+        singleReifiedRelation(filter.fold[Any](relation)(_ => relationKey), filter)(batchExecute)
     }
 
   def implementManyDatasource[
-    Rel: Tag,
+    Rel,
     In,
     E,
     CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]],
@@ -156,29 +248,32 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
   ](
     relation: Rel & Relation.Many[In, CC, Out]
   )(
-    // Also should allow exception per request, so when failing we can give back what we fetched so far
-    batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, CC[Out])]]
-  )(implicit
-    tag: Tag[CC[Out]]
-  ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, E, CC, Out] =
-    new Proof.Many[Rel & Relation.Many[In, CC, Out], In, E, CC, Out] {
+    batchExecute: (Chunk[In], Option[Nothing]) => ZIO[R, E, Chunk[(In, CC[Out])]]
+  ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, E, CC, Out, Nothing] =
+    implementManyDatasource[Rel, In, E, CC, Out, Nothing](relation)(batchExecute)
 
-      private val ds = buildDatasource[Rel, In, E, CC[Out]](relation)(batchExecute)
+  def implementCustomDatasource[
+    Tree,
+    In,
+    E,
+    Out,
+    Filter
+  ](
+    relation: Relation.Custom[Tree, In, Out]
+  )(
+    batchExecute: (Chunk[In], Option[Filter]) => ZIO[R, E, Chunk[(In, Out)]]
+  )(implicit d: DummyImplicit): Proof[Relation.Custom[Tree, In, Out], In, E, Out, Filter] =
+    new Proof[Relation.Custom[Tree, In, Out], In, E, Out, Filter] {
+      override private[decrel] def reifyRelation(
+        relationValue: Relation.Custom[Tree, In, Out] & Relation[In, Out]
+      ): ReifiedRelation[In, E, Out] =
+        reifyFiltered(relationValue, None)
 
-      override val reify: ReifiedRelation[In, E, CC[Out]] =
-        new ReifiedRelation.Custom[In, E, CC[Out]] {
-          override def apply(in: In): ZQuery[R, E, CC[Out]] =
-            applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
-
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-            ins: Coll[In]
-          ): ZQuery[R, E, Coll[CC[Out]]] =
-            ZQuery.foreachPar(ins) { in =>
-              ZQuery.fromRequest[R, E, RelationRequest[Rel, In, E, CC[Out]], CC[Out]](
-                RelationRequest(relation, in)
-              )(ds)
-            }
-        }
+      override private[decrel] def reifyFiltered(
+        relationKey: Any,
+        filter: Option[Filter]
+      ): ReifiedRelation[In, E, Out] =
+        singleReifiedRelation(filter.fold[Any](relation)(_ => relationKey), filter)(batchExecute)
     }
 
   def implementCustomDatasource[
@@ -189,48 +284,47 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
   ](
     relation: Relation.Custom[Tree, In, Out]
   )(
-    // Also should allow exception per request, so when failing we can give back what we fetched so far
-    batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, Out)]]
-  )(implicit
-    tag: Tag[Relation.Custom[Tree, In, Out]]
-  ): Proof[Relation.Custom[Tree, In, Out], In, E, Out] =
-    new Proof[Relation.Custom[Tree, In, Out], In, E, Out] {
-      private val ds = buildDatasource(relation)(batchExecute)
+    batchExecute: (Chunk[In], Option[Nothing]) => ZIO[R, E, Chunk[(In, Out)]]
+  ): Proof[Relation.Custom[Tree, In, Out], In, E, Out, Nothing] =
+    implementCustomDatasource[Tree, In, E, Out, Nothing](relation)(batchExecute)
 
-      override val reify: ReifiedRelation[In, E, Out] =
-        new ReifiedRelation.Custom[In, E, Out] {
-          override def apply(in: In): ZQuery[R, E, Out] =
-            applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
-
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-            ins: Coll[In]
-          ): ZQuery[R, E, Coll[Out]] =
-            ZQuery.foreachPar(ins) { in =>
-              ZQuery.fromRequest[R, E, RelationRequest[
-                Relation.Custom[Tree, In, Out],
-                In,
-                E,
-                Out
-              ], Out](RelationRequest(relation, in))(ds)
-            }
-        }
-    }
-
-  def contramapOneProof[Rel, NewRel, In, E, Out, B](
-    proof: Proof[Rel, In, E, Out],
+  def contramapOneProof[Rel <: Relation[In, Out], NewRel, In, E, Out, B, Filter](
+    proof: Proof.Single[Rel, In, E, Out, Filter],
     rel: NewRel & Relation.Single[B, Out],
     f: B => In
-  ): Proof.Single[NewRel & Relation.Single[B, Out], B, E, Out] =
-    new Proof.Single[NewRel & Relation.Single[B, Out], B, E, Out] {
-      override val reify: ReifiedRelation[B, E, Out] =
+  ): Proof.Single[NewRel & Relation.Single[B, Out], B, E, Out, Filter] =
+    new Proof.Single[NewRel & Relation.Single[B, Out], B, E, Out, Filter] {
+      override private[decrel] def reifyRelation(
+        relation: (NewRel & Relation.Single[B, Out]) & Relation[B, Out]
+      ): ReifiedRelation[B, E, Out] =
+        reifyFiltered(relation, None)
+
+      override private[decrel] def reifyFiltered(
+        relationKey: Any,
+        filter: Option[Filter]
+      ): ReifiedRelation[B, E, Out] =
         new ReifiedRelation.Custom[B, E, Out] {
           override def apply(in: B): ZQuery[R, E, Out] =
-            proof.reify.apply(f(in))
+            proof.reifyFiltered(relationKey, filter).apply(f(in))
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             in: Coll[B]
           ): Access[E, Coll[Out]] =
-            proof.reify.applyMultiple[Coll](in.map(f))
+            proof.reifyFiltered(relationKey, filter).applyMultiple[Coll](in.map(f))
+        }
+
+      override private[decrel] def reifyFilteredOptional(
+        relationKey: Any,
+        filter: Option[Filter]
+      ): ReifiedRelation[B, E, Option[Out]] =
+        new ReifiedRelation.Custom[B, E, Option[Out]] {
+          override def apply(in: B): ZQuery[R, E, Option[Out]] =
+            proof.reifyFilteredOptional(relationKey, filter).apply(f(in))
+
+          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+            in: Coll[B]
+          ): Access[E, Coll[Option[Out]]] =
+            proof.reifyFilteredOptional(relationKey, filter).applyMultiple[Coll](in.map(f))
         }
     }
 
@@ -240,23 +334,31 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
     In,
     E,
     Out,
-    B
+    B,
+    Filter
   ](
-    proof: Proof[Rel, In, E, Out],
+    proof: Proof[Rel, In, E, Out, Filter],
     rel: NewRel & Relation.Optional[B, Out],
     f: B => Option[In]
-  ): Proof.Optional[NewRel & Relation.Optional[B, Out], B, E, Out] =
-    new Proof.Optional[NewRel & Relation.Optional[B, Out], B, E, Out] {
-      override val reify: ReifiedRelation[B, E, Option[Out]] =
+  ): Proof.Optional[NewRel & Relation.Optional[B, Out], B, E, Out, Filter] =
+    new Proof.Optional[NewRel & Relation.Optional[B, Out], B, E, Out, Filter] {
+      override private[decrel] def reifyRelation(
+        relation: (NewRel & Relation.Optional[B, Out]) & Relation[B, Option[Out]]
+      ): ReifiedRelation[B, E, Option[Out]] =
+        reifyFiltered(relation, None)
+
+      override private[decrel] def reifyFiltered(
+        relationKey: Any,
+        filter: Option[Filter]
+      ): ReifiedRelation[B, E, Option[Out]] =
         new ReifiedRelation.Custom[B, E, Option[Out]] {
 
           override def apply(in: B): ZQuery[R, E, Option[Out]] =
-            proof.reify.applyMultiple(f(in).toList).map(_.headOption)
+            proof.reifyFiltered(relationKey, filter).applyMultiple(f(in).toList).map(_.headOption)
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             in: Coll[B]
           ): Access[E, Coll[Option[Out]]] =
-            // TODO how to optimize?
             ZQuery.foreachBatched(in)(b => apply(b))
         }
     }
@@ -268,25 +370,33 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
     E,
     Out,
     B,
-    CC[+T] <: Iterable[T] & IterableOps[T, CC, CC[T]]
+    CC[+T] <: Iterable[T] & IterableOps[T, CC, CC[T]],
+    Filter
   ](
-    proof: Proof[Rel, In, E, Out],
+    proof: Proof[Rel, In, E, Out, Filter],
     rel: NewRel & Relation.Many[B, CC, Out],
     f: B => CC[In]
-  ): Proof.Many[NewRel & Relation.Many[B, CC, Out], B, E, CC, Out] =
-    new Proof.Many[NewRel & Relation.Many[B, CC, Out], B, E, CC, Out] {
-      override val reify: ReifiedRelation[B, E, CC[Out]] =
+  ): Proof.Many[NewRel & Relation.Many[B, CC, Out], B, E, CC, Out, Filter] =
+    new Proof.Many[NewRel & Relation.Many[B, CC, Out], B, E, CC, Out, Filter] {
+      override private[decrel] def reifyRelation(
+        relation: (NewRel & Relation.Many[B, CC, Out]) & Relation[B, CC[Out]]
+      ): ReifiedRelation[B, E, CC[Out]] =
+        reifyFiltered(relation, None)
+
+      override private[decrel] def reifyFiltered(
+        relationKey: Any,
+        filter: Option[Filter]
+      ): ReifiedRelation[B, E, CC[Out]] =
         new ReifiedRelation.Custom[B, E, CC[Out]] {
 
           override def apply(in: B): ZQuery[R, E, CC[Out]] =
-            proof.reify.applyMultiple(f(in))
+            proof.reifyFiltered(relationKey, filter).applyMultiple(f(in))
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             in: Coll[B]
           ): Access[E, Coll[CC[Out]]] =
-            // TODO how to optimize?
             ZQuery.foreachBatched(in) { b =>
-              proof.reify.applyMultiple(f(b))
+              proof.reifyFiltered(relationKey, filter).applyMultiple(f(b))
             }
         }
     }
@@ -301,16 +411,16 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
   override protected def toZQueryCacheImpl(cache: Cache)(implicit trace: zio.Trace): UIO[zio.query.Cache] =
     zio.query.Cache.empty.flatMap { zCache =>
       ZIO.foldLeft(cache.entries)(zCache) { case (zCache, (_, v)) =>
-        val k: v.key.type                               = v.key
+        val k: v.key.type                                = v.key
         val relation: k.R & Relation[k.Input, k.Result] = k.relationEv(k._relation)
-        val key: k.Input                                = k._key
-        val value: k.Result                             = v.valueEv(v._value)
+        val key: k.Input                                 = k._key
+        val value: k.Result                              = v.valueEv(v._value)
         Promise
           .make[Nothing, k.Result]
           .flatMap { promise =>
             promise.succeed(value) *>
               zCache.put(
-                RelationRequest[k.R, k.Input, Nothing, k.Result](relation, key),
+                RelationRequest[k.Input, Nothing, k.Result](relation, key),
                 promise
               )
           }
@@ -322,9 +432,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
 
   implicit class RefCacheOps(private val refCache: Ref[Cache]) {
 
-    def add[Rel, A, B](relation: Rel & Relation[A, B], key: A, value: B)(implicit
-      tag: Tag[Rel]
-    ): UIO[Unit] =
+    def add[Rel, A, B](relation: Rel & Relation[A, B], key: A, value: B): UIO[Unit] =
       refCache.update(_.add[Rel, A, B](relation, key, value))
 
   }

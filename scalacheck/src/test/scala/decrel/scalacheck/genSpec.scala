@@ -15,6 +15,8 @@ import org.scalacheck.Prop.forAll
 
 object genSpec extends Properties("Relations") {
 
+  case class RentalFilter(label: String)
+
   // Relation descriptions
   case class Rental(id: Rental.Id, bookId: Book.Id, userId: User.Id)
 
@@ -60,8 +62,9 @@ object genSpec extends Properties("Relations") {
   implicit val rentalFetch: Proof.Single[
     Rental.fetch.type & Relation.Single[Rental.Id, Rental],
     Rental.Id,
-    Rental
-  ] = Gen.relationSingle(Rental.fetch) { id =>
+    Rental,
+    Nothing
+  ] = Gen.relationSingle[Rental.fetch.type, Rental.Id, Rental](Rental.fetch) { (id, _: Option[Nothing]) =>
     for {
       bookId <- gen.bookId
       userId <- gen.userId
@@ -71,16 +74,18 @@ object genSpec extends Properties("Relations") {
   implicit val rentalBook: Proof.Single[
     Rental.book.type & Relation.Single[Rental, Book],
     Rental,
-    Book
-  ] = Gen.relationSingle(Rental.book) { rental =>
+    Book,
+    Nothing
+  ] = Gen.relationSingle[Rental.book.type, Rental, Book](Rental.book) { (rental, _: Option[Nothing]) =>
     Gen.const(Book(rental.bookId, Some(rental.id)))
   }
 
   implicit val rentalUser: Proof.Single[
     Rental.user.type & Relation.Single[Rental, User],
     Rental,
-    User
-  ] = Gen.relationSingle(Rental.user) { rental =>
+    User,
+    Nothing
+  ] = Gen.relationSingle[Rental.user.type, Rental, User](Rental.user) { (rental, _: Option[Nothing]) =>
     Gen.const(User(rental.userId, List(rental.id)))
   }
 
@@ -88,8 +93,9 @@ object genSpec extends Properties("Relations") {
     User.currentRentals.type & Relation.Many[User, List, Rental],
     User,
     List,
-    Rental
-  ] = Gen.relationMany(User.currentRentals) { user =>
+    Rental,
+    Nothing
+  ] = Gen.relationMany[User.currentRentals.type, User, Rental, List](User.currentRentals) { (user, _: Option[Nothing]) =>
     Gen
       // Use `expand` even when implementing other relations
       .listOf(gen.rentalId.expand(Rental.fetch))
@@ -105,6 +111,26 @@ object genSpec extends Properties("Relations") {
     Gen.const(staticRentalId).expand(relation)
   } { rental =>
     rental.id == staticRentalId
+  }
+
+  property("relation builders receive the filter") = {
+    var sawFilter = false
+
+    implicit val localRentalFetch: Proof.Single[
+      Rental.fetch.type & Relation.Single[Rental.Id, Rental],
+      Rental.Id,
+      Rental,
+      RentalFilter
+    ] = Gen.relationSingle[Rental.fetch.type, Rental.Id, Rental, RentalFilter](Rental.fetch) { (id, filter: Option[RentalFilter]) =>
+      sawFilter = filter.contains(RentalFilter("exact"))
+      Gen.const(Some(Rental(id, Book.Id("book"), User.Id("user"))))
+    }
+
+    forAll {
+      Gen.const(staticRentalId).expand(Rental.fetch.filter(RentalFilter("exact")))
+    } { rental =>
+      sawFilter && rental.contains(Rental(staticRentalId, Book.Id("book"), User.Id("user")))
+    }
   }
 
   property("Composing with &") = forAll {

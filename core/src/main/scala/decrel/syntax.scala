@@ -190,6 +190,50 @@ trait syntax {
       Relation.Custom(self)
   }
 
+  implicit final class SingleFilterSyntax[Tree, In, Out](
+    private val self: Tree & Relation.Single[In, Out]
+  ) {
+    def filter[Filter](filter: Filter): Relation.Filtered.Single[
+      Tree,
+      In,
+      Out,
+      Filter
+    ] =
+      Relation.Filtered.Single(self, filter)
+  }
+
+  implicit final class OptionalFilterSyntax[Tree, In, Out](
+    private val self: Tree & Relation.Optional[In, Out]
+  ) {
+    def filter[Filter](filter: Filter): Relation.Filtered.Optional[
+      Tree,
+      In,
+      Out,
+      Filter
+    ] =
+      Relation.Filtered.Optional(self, filter)
+  }
+
+  implicit final class ManyFilterSyntax[Tree, In, CC[+A], Out](
+    private val self: Tree & Relation.Many[In, CC, Out]
+  ) {
+    def filter[Filter](filter: Filter): Relation.Filtered.Many[
+      Tree,
+      In,
+      CC,
+      Out,
+      Filter
+    ] =
+      Relation.Filtered.Many(self, filter)
+  }
+
+  implicit final class CustomFilterSyntax[Tree, In, Out](
+    private val self: Relation.Custom[Tree, In, Out]
+  ) {
+    def filter[Filter](filter: Filter): Relation.Filtered.Custom[Tree, In, Out, Filter] =
+      Relation.Filtered.Custom(self, filter)
+  }
+
 }
 
 object syntax extends syntax

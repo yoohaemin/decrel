@@ -76,8 +76,9 @@ object zqueryNextSyntaxSpec extends ZIOSpecDefault {
       Book.fetch.type,
       Book.Id,
       TestError,
-      Book
-    ] = implementSingleDatasource(Book.fetch) { ins =>
+      Book,
+      Nothing
+    ] = implementSingleDatasource[Book.fetch.type, Book.Id, TestError, Book](Book.fetch) { (ins, _: Option[Nothing]) =>
       calls.update(_.add(Book.fetch, ins)).flatMap { _ =>
         ZIO.foreach(
           ins.map(id => id -> state.books.find(_.id == id))
@@ -91,8 +92,9 @@ object zqueryNextSyntaxSpec extends ZIOSpecDefault {
       User.fetch.type,
       User.Id,
       TestError,
-      User
-    ] = implementSingleDatasource(User.fetch) { ins =>
+      User,
+      Nothing
+    ] = implementSingleDatasource[User.fetch.type, User.Id, TestError, User](User.fetch) { (ins, _: Option[Nothing]) =>
       calls.update(_.add(User.fetch, ins)).flatMap { _ =>
         ZIO.foreach(
           ins.map(id => id -> state.users.find(_.id == id))
@@ -107,9 +109,10 @@ object zqueryNextSyntaxSpec extends ZIOSpecDefault {
       User,
       Nothing,
       Chunk,
-      Rental
+      Rental,
+      Nothing
     ] =
-      implementManyDatasource(User.currentRentals) { ins =>
+      implementManyDatasource[User.currentRentals.type, User, Nothing, Chunk, Rental](User.currentRentals) { (ins, _: Option[Nothing]) =>
         calls.update(_.add(User.currentRentals, ins)).map { _ =>
           ins.map(user =>
             user -> state.rentals.collect { case rental if rental.userId == user.id => rental }
@@ -121,8 +124,17 @@ object zqueryNextSyntaxSpec extends ZIOSpecDefault {
       Rental.book.type,
       Rental,
       TestError,
-      Book
-    ] = contramapOneProof(bookFetch, Rental.book, _.bookId)
+      Book,
+      Nothing
+    ] = contramapOneProof[
+      Book.fetch.type,
+      Rental.book.type,
+      Book.Id,
+      TestError,
+      Book,
+      Rental,
+      Nothing
+    ](bookFetch, Rental.book, _.bookId)
   }
 
   private val proofs = Ref.make(Calls()).map(new proofs(state, _))

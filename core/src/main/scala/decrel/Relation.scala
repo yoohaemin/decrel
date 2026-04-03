@@ -46,6 +46,43 @@ object Relation {
     relation: Tree & Relation[In, Out]
   ) extends Relation[In, Out]
 
+  sealed trait Filtered[Tree, BaseOut, -In, +Out, +Filter] extends Relation[In, Out] {
+    def relation: Tree & Relation[In, BaseOut]
+    def filter: Filter
+  }
+
+  object Filtered {
+    final case class Single[Tree, In, Out, Filter](
+      relation: Tree & Relation.Single[In, Out],
+      filter: Filter
+    ) extends Relation.Optional[In, Out]
+        with Filtered[Tree, Out, In, Option[Out], Filter]
+
+    final case class Optional[Tree, In, Out, Filter](
+      relation: Tree & Relation.Optional[In, Out],
+      filter: Filter
+    ) extends Relation.Optional[In, Out]
+        with Filtered[Tree, Option[Out], In, Option[Out], Filter]
+
+    final case class Many[
+      Tree,
+      In,
+      CC[+A],
+      Out,
+      Filter
+    ](
+      relation: Tree & Relation.Many[In, CC, Out],
+      filter: Filter
+    ) extends Relation.Many[In, CC, Out]
+        with Filtered[Tree, CC[Out], In, CC[Out], Filter]
+
+    final case class Custom[Tree, In, Out, Filter](
+      relation: Relation.Custom[Tree, In, Out],
+      filter: Filter
+    ) extends Relation[In, Out]
+        with Filtered[Relation.Custom[Tree, In, Out], Out, In, Out, Filter]
+  }
+
   sealed trait Composed[
     LeftTree,
     LeftIn,
