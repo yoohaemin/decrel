@@ -69,7 +69,7 @@ trait access { self =>
         )((builder, a) => zipWith(builder, f(a))(_ += _))
     )(_.result())
 
-  private[this] def zipWith[E, A, B, C](left: => Access[E, A], right: => Access[E, B])(
+  private def zipWith[E, A, B, C](left: => Access[E, A], right: => Access[E, B])(
     f: (A, B) => C
   ): Access[E, C] =
     flatMap(left)(a => map(right)(b => f(a, b)))
