@@ -15,8 +15,6 @@ import zio.test.*
 
 object zqueryNextSyntaxSpec extends ZIOSpecDefault {
 
-  private given Trace = Trace.empty
-
   object syntax extends decrel.reify.zquery[Any] with zqueryNextSyntax[Any]
   import syntax.*
 
