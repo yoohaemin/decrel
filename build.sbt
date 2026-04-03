@@ -1,6 +1,6 @@
 inThisBuild(
   List(
-    scalaVersion             := V.scala213,
+    scalaVersion             := V.scala3LTS,
     crossScalaVersions       := V.scalaAll,
     organization             := "com.yoohaemin",
     homepage                 := Some(url("https://github.com/yoohaemin/decrel")),
@@ -36,42 +36,30 @@ addCommandAlias(
 
 //TODO uncomment native crossbuilds when ZIO published against native 0.4.8+ is out
 //Related: https://github.com/scala-native/scala-native/issues/2858
+lazy val stableScalaVersions = Seq(V.scala213, V.scala3LTS)
+lazy val nextScalaVersions   = Seq(V.scala3Next)
+lazy val zqueryScalaVersions = stableScalaVersions :+ V.scala3Next
+lazy val rootAggregates: Seq[ProjectReference] =
+  core.projectRefs ++
+    kyo.projectRefs ++
+    kyoBatch.projectRefs ++
+    zquery.projectRefs ++
+    zqueryNext.projectRefs ++
+    fetch.projectRefs ++
+    ziotest.projectRefs ++
+    scalacheck.projectRefs ++
+    cats.projectRefs ++
+    Seq(LocalProject("docs"))
+
 lazy val root = project
   .in(file("."))
-  .aggregate(
-    coreJVM,
-    coreJS,
-    // coreNative,
-    kyoJVM,
-    kyoJS,
-    kyoBatchJVM,
-    kyoBatchJS,
-    zqueryJVM,
-    zqueryJS,
-    zqueryNextJVM,
-    zqueryNextJS,
-    fetchJVM,
-    fetchJS,
-    ziotestJVM,
-    ziotestJS,
-    // ziotestNative,
-    scalacheckJVM,
-    scalacheckJS,
-    // scalacheckNative,
-    catsJVM,
-    catsJS,
-    // catsNative,
-    docs
-  )
+  .aggregate(rootAggregates: _*)
   .settings(
     crossScalaVersions := Nil
   )
   .enablePlugins(NoPublishPlugin)
 
-lazy val core = crossProject(JSPlatform, JVMPlatform)
-  .withoutSuffixFor(JVMPlatform)
-  .crossType(CrossType.Pure)
-  .in(file("core"))
+lazy val core = (projectMatrix in file("core"))
   .settings(name := "decrel-core")
   .settings(commonSettings)
   .settings(
@@ -82,46 +70,12 @@ lazy val core = crossProject(JSPlatform, JVMPlatform)
         "dev.zio" %%% "zio-test-sbt"  % V.zio % Test
       )
   )
-
-lazy val coreJVM = core.jvm.settings(
-  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-)
-lazy val coreJS = core.js.settings(
-  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-)
-
-lazy val coreNext = crossProject(JSPlatform, JVMPlatform)
-  .withoutSuffixFor(JVMPlatform)
-  .crossType(CrossType.Pure)
-  .in(file("core"))
-  .settings(name := "decrel-core-next")
-  .settings(target := baseDirectory.value / s".${thisProject.value.id}-target")
-  .settings(commonSettings)
-  .settings(
-    libraryDependencies ++=
-      Seq(
-        "dev.zio" %%% "izumi-reflect" % V.izumiReflect,
-        "dev.zio" %%% "zio-test"      % V.zio % Test,
-        "dev.zio" %%% "zio-test-sbt"  % V.zio % Test
-      )
-  )
-  .enablePlugins(NoPublishPlugin)
-
-lazy val coreNextJVM = coreNext.jvm.settings(
-  scalaVersion       := V.scala3Next,
-  crossScalaVersions := Seq(V.scala3Next),
-)
-lazy val coreNextJS = coreNext.js.settings(
-  scalaVersion       := V.scala3Next,
-  crossScalaVersions := Seq(V.scala3Next),
-)
+  .jvmPlatform(scalaVersions = zqueryScalaVersions)
+  .jsPlatform(scalaVersions = zqueryScalaVersions)
 
 ///////////////////////// Haxl based datatypes
 
-lazy val zquery = crossProject(JSPlatform, JVMPlatform)
-  .withoutSuffixFor(JVMPlatform)
-  .crossType(CrossType.Pure)
-  .in(file("zquery"))
+lazy val zquery = (projectMatrix in file("zquery"))
   .enablePlugins(BuildInfoPlugin)
   .settings(name := "decrel-zquery")
   .settings(commonSettings)
@@ -140,42 +94,23 @@ lazy val zquery = crossProject(JSPlatform, JVMPlatform)
     )
   )
   .dependsOn(core)
+  .jvmPlatform(scalaVersions = zqueryScalaVersions)
+  .jsPlatform(scalaVersions = zqueryScalaVersions)
 
-lazy val zqueryJVM = zquery.jvm.settings(
-  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-)
-lazy val zqueryJS = zquery.js.settings(
-  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-)
-
-lazy val zqueryNext = crossProject(JSPlatform, JVMPlatform)
-  .withoutSuffixFor(JVMPlatform)
-  .crossType(CrossType.Pure)
-  .in(file("zquery-next"))
+lazy val zqueryNext = (projectMatrix in file("zquery-next"))
   .settings(name := "decrel-zquery-next")
   .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-query"    % V.zioQuery,
       "dev.zio" %%% "zio-test"     % V.zio % Test,
       "dev.zio" %%% "zio-test-sbt" % V.zio % Test
     )
   )
-  .dependsOn(coreNext)
+  .dependsOn(zquery)
+  .jvmPlatform(scalaVersions = nextScalaVersions)
+  .jsPlatform(scalaVersions = nextScalaVersions)
 
-lazy val zqueryNextJVM = zqueryNext.jvm.settings(
-  scalaVersion       := V.scala3Next,
-  crossScalaVersions := Seq(V.scala3Next),
-)
-lazy val zqueryNextJS = zqueryNext.js.settings(
-  scalaVersion       := V.scala3Next,
-  crossScalaVersions := Seq(V.scala3Next),
-)
-
-lazy val fetch = crossProject(JSPlatform, JVMPlatform)
-  .crossType(CrossType.Pure)
-  .withoutSuffixFor(JVMPlatform)
-  .in(file("fetch"))
+lazy val fetch = (projectMatrix in file("fetch"))
   .enablePlugins(BuildInfoPlugin)
   .settings(name := "decrel-fetch")
   .settings(commonSettings)
@@ -192,20 +127,10 @@ lazy val fetch = crossProject(JSPlatform, JVMPlatform)
     )
   )
   .dependsOn(cats)
+  .jvmPlatform(scalaVersions = stableScalaVersions)
+  .jsPlatform(scalaVersions = Seq(V.scala213))
 
-lazy val fetchJVM = fetch.jvm.settings(
-  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-  scalaVersion       := V.scala213
-)
-lazy val fetchJS = fetch.js.settings(
-  crossScalaVersions := Seq(V.scala213),
-  scalaVersion       := V.scala213
-)
-
-lazy val kyoBatch = crossProject(JSPlatform, JVMPlatform)
-  .crossType(CrossType.Pure)
-  .withoutSuffixFor(JVMPlatform)
-  .in(file("kyo-batch"))
+lazy val kyoBatch = (projectMatrix in file("kyo-batch"))
   .enablePlugins(BuildInfoPlugin)
   .settings(name := "decrel-kyo-batch")
   .settings(commonSettings)
@@ -222,18 +147,12 @@ lazy val kyoBatch = crossProject(JSPlatform, JVMPlatform)
     )
   )
   .dependsOn(kyo)
-
-lazy val kyoBatchJVM =
-  kyoBatch.jvm.settings(crossScalaVersions := List(V.scala3Next), scalaVersion := V.scala3Next)
-lazy val kyoBatchJS =
-  kyoBatch.js.settings(crossScalaVersions := List(V.scala3Next), scalaVersion := V.scala3Next)
+  .jvmPlatform(scalaVersions = nextScalaVersions)
+  .jsPlatform(scalaVersions = nextScalaVersions)
 
 ///////////////////////// Generator datatypes
 
-lazy val ziotest = crossProject(JSPlatform, JVMPlatform)
-  .withoutSuffixFor(JVMPlatform)
-  .crossType(CrossType.Pure)
-  .in(file("ziotest"))
+lazy val ziotest = (projectMatrix in file("ziotest"))
   .enablePlugins(BuildInfoPlugin)
   .settings(name := "decrel-ziotest")
   .settings(commonSettings)
@@ -251,18 +170,10 @@ lazy val ziotest = crossProject(JSPlatform, JVMPlatform)
     )
   )
   .dependsOn(core)
+  .jvmPlatform(scalaVersions = stableScalaVersions)
+  .jsPlatform(scalaVersions = stableScalaVersions)
 
-lazy val ziotestJVM = ziotest.jvm.settings(
-  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-)
-lazy val ziotestJS = ziotest.js.settings(
-  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-)
-
-lazy val scalacheck = crossProject(JSPlatform, JVMPlatform)
-  .withoutSuffixFor(JVMPlatform)
-  .crossType(CrossType.Pure)
-  .in(file("scalacheck"))
+lazy val scalacheck = (projectMatrix in file("scalacheck"))
   .enablePlugins(BuildInfoPlugin)
   .settings(name := "decrel-scalacheck")
   .settings(commonSettings)
@@ -279,20 +190,12 @@ lazy val scalacheck = crossProject(JSPlatform, JVMPlatform)
     )
   )
   .dependsOn(core)
-
-lazy val scalacheckJVM = scalacheck.jvm.settings(
-  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-)
-lazy val scalacheckJS = scalacheck.js.settings(
-  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-)
+  .jvmPlatform(scalaVersions = stableScalaVersions)
+  .jsPlatform(scalaVersions = stableScalaVersions)
 
 ///////////////////////// General purpose datatypes
 
-lazy val cats = crossProject(JSPlatform, JVMPlatform)
-  .withoutSuffixFor(JVMPlatform)
-  .crossType(CrossType.Pure)
-  .in(file("cats"))
+lazy val cats = (projectMatrix in file("cats"))
   .enablePlugins(BuildInfoPlugin)
   .settings(name := "decrel-cats")
   .settings(commonSettings)
@@ -309,18 +212,10 @@ lazy val cats = crossProject(JSPlatform, JVMPlatform)
     )
   )
   .dependsOn(core)
+  .jvmPlatform(scalaVersions = stableScalaVersions)
+  .jsPlatform(scalaVersions = stableScalaVersions)
 
-lazy val catsJVM = cats.jvm.settings(
-  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-)
-lazy val catsJS = cats.js.settings(
-  crossScalaVersions := Seq(V.scala213, V.scala3LTS),
-)
-
-lazy val kyo = crossProject(JSPlatform, JVMPlatform)
-  .withoutSuffixFor(JVMPlatform)
-  .crossType(CrossType.Pure)
-  .in(file("kyo"))
+lazy val kyo = (projectMatrix in file("kyo"))
   .enablePlugins(BuildInfoPlugin)
   .settings(name := "decrel-kyo")
   .settings(commonSettings)
@@ -337,15 +232,8 @@ lazy val kyo = crossProject(JSPlatform, JVMPlatform)
     )
   )
   .dependsOn(core)
-
-lazy val kyoJVM = kyo.jvm.settings(
-  scalaVersion       := V.scala3Next,
-  crossScalaVersions := Seq(V.scala3Next)
-)
-lazy val kyoJS = kyo.js.settings(
-  scalaVersion       := V.scala3Next,
-  crossScalaVersions := Seq(V.scala3Next)
-)
+  .jvmPlatform(scalaVersions = nextScalaVersions)
+  .jsPlatform(scalaVersions = nextScalaVersions)
 
 ///////////////////////// docs
 
@@ -355,7 +243,13 @@ lazy val jsdocs = project
     scalaVersion                           := V.scala213,
     crossScalaVersions                     := List(V.scala213)
   )
-  .dependsOn(coreJS, zqueryJS, fetchJS, ziotestJS, scalacheckJS)
+  .dependsOn(
+    core.js(V.scala213),
+    zquery.js(V.scala213),
+    fetch.js(V.scala213),
+    ziotest.js(V.scala213),
+    scalacheck.js(V.scala213)
+  )
   .enablePlugins(ScalaJSPlugin)
   .enablePlugins(NoPublishPlugin)
 
@@ -378,7 +272,13 @@ lazy val docs = project
       "RELEASEVERSION"  -> version.value.takeWhile(_ != '+')
     )
   )
-  .dependsOn(coreJVM, zqueryJVM, fetchJVM, ziotestJVM, scalacheckJVM)
+  .dependsOn(
+    core.jvm(V.scala213),
+    zquery.jvm(V.scala213),
+    fetch.jvm(V.scala213),
+    ziotest.jvm(V.scala213),
+    scalacheck.jvm(V.scala213)
+  )
   .enablePlugins(NoPublishPlugin)
 
 lazy val commonSettings = Def.settings(
@@ -448,8 +348,8 @@ lazy val ciSettings = List(
   githubWorkflowJavaVersions          := Seq(JavaSpec.zulu("17")),
   githubWorkflowUseSbtThinClient      := false,
   // Avoid flaky GitHub Actions artifact handoffs between build and publish jobs.
-  githubWorkflowArtifactUpload        := false,
-  githubWorkflowBuild                 := Seq(WorkflowStep.Sbt(List("++${{ matrix.scala }} test"))),
+  githubWorkflowArtifactUpload := false,
+  githubWorkflowBuild          := Seq(WorkflowStep.Sbt(List("++${{ matrix.scala }} test"))),
   githubWorkflowPublishTargetBranches += RefPredicate.StartsWith(Ref.Tag("v")),
   githubWorkflowTargetTags ++= Seq("v*"),
   githubWorkflowPublish := Seq(
