@@ -298,7 +298,9 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
       toZQueryCacheImpl(cache)
   }
 
-  override protected def toZQueryCacheImpl(cache: Cache)(implicit trace: zio.Trace): UIO[zio.query.Cache] =
+  override protected def toZQueryCacheImpl(
+    cache: Cache
+  )(implicit trace: zio.Trace): UIO[zio.query.Cache] =
     zio.query.Cache.empty.flatMap { zCache =>
       ZIO.foldLeft(cache.entries)(zCache) { case (zCache, (_, v)) =>
         val k: v.key.type                               = v.key
