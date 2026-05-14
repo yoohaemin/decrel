@@ -343,13 +343,13 @@ lazy val commonSettings = Def.settings(
 lazy val V = new {
   val scala213   = "2.13.18"
   val scala3LTS  = "3.3.7"
-  val scala3Next = "3.8.2"
+  val scala3Next = "3.8.3"
   val scalaAll   = scala213 :: scala3LTS :: scala3Next :: Nil
 
   val cats         = "2.13.0"
   val kyo          = "0.19.0"
   val zio          = "2.1.24"
-  val zioQuery     = "0.7.7"
+  val zioQuery     = "0.7.8"
   val fetch        = "3.2.1"
   val izumiReflect = "3.0.9"
   val scalacheck   = "1.19.0"
