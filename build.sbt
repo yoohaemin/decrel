@@ -341,7 +341,7 @@ lazy val commonSettings = Def.settings(
 )
 
 lazy val V = new {
-  val scala213   = "2.13.18"
+  val scala213   = "3.9.0"
   val scala3LTS  = "3.3.7"
   val scala3Next = "3.8.3"
   val scalaAll   = scala213 :: scala3LTS :: scala3Next :: Nil
