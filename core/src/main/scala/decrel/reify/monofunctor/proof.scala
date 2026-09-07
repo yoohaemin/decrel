@@ -42,6 +42,17 @@ trait proof { this: access & reifiedRelation =>
 
     sealed trait Declared[Rel, In, Out, -Filter] extends Proof[Rel, In, Out, Filter]
 
+    sealed trait FilteredOptional[Rel <: Relation[In, Option[Out]], In, Out, -Filter]
+        extends Proof[Rel, In, Option[Out], Filter]
+
+    sealed trait FilteredMany[
+      Rel <: Relation[In, CC[Out]],
+      In,
+      CC[+_],
+      Out,
+      -Filter
+    ] extends Proof[Rel, In, CC[Out], Filter]
+
     /**
      * Includes both Single and Self.
      */
@@ -422,12 +433,22 @@ trait proof { this: access & reifiedRelation =>
       ProofFilter >: FilterValue
     ](implicit
       proof: Proof.Single[Tree & Relation.Single[In, Out], In, Out, ProofFilter]
-    ): Proof.Optional[Relation.Filtered.Single[Tree, In, Out, FilterValue], In, Out, Nothing] =
-      new Proof.Optional[Relation.Filtered.Single[Tree, In, Out, FilterValue], In, Out, Nothing] {
+    ): Proof.FilteredOptional[
+      Relation.Filtered[Tree, Out, In, Option[Out], FilterValue],
+      In,
+      Out,
+      Nothing
+    ] =
+      new Proof.FilteredOptional[
+        Relation.Filtered[Tree, Out, In, Option[Out], FilterValue],
+        In,
+        Out,
+        Nothing
+      ] {
         override private[decrel] def reifyRelation(
-          relation: Relation.Filtered.Single[Tree, In, Out, FilterValue] & Relation[In, Option[Out]]
+          relation: Relation.Filtered[Tree, Out, In, Option[Out], FilterValue] & Relation[In, Option[Out]]
         ): ReifiedRelation[In, Option[Out]] = {
-          val filtered = relation.asInstanceOf[Relation.Filtered.Single[Tree, In, Out, FilterValue]]
+          val filtered = relation.asInstanceOf[Relation.Filtered[Tree, Out, In, Option[Out], FilterValue]]
           proof.reifyFilteredOptional(filtered, Some(filtered.filter))
         }
       }
@@ -440,12 +461,24 @@ trait proof { this: access & reifiedRelation =>
       ProofFilter >: FilterValue
     ](implicit
       proof: Proof.Optional[Tree & Relation.Optional[In, Out], In, Out, ProofFilter]
-    ): Proof.Optional[Relation.Filtered.Optional[Tree, In, Out, FilterValue], In, Out, Nothing] =
-      new Proof.Optional[Relation.Filtered.Optional[Tree, In, Out, FilterValue], In, Out, Nothing] {
+    ): Proof.FilteredOptional[
+      Relation.Filtered[Tree, Option[Out], In, Option[Out], FilterValue],
+      In,
+      Out,
+      Nothing
+    ] =
+      new Proof.FilteredOptional[
+        Relation.Filtered[Tree, Option[Out], In, Option[Out], FilterValue],
+        In,
+        Out,
+        Nothing
+      ] {
         override private[decrel] def reifyRelation(
-          relation: Relation.Filtered.Optional[Tree, In, Out, FilterValue] & Relation[In, Option[Out]]
+          relation: Relation.Filtered[Tree, Option[Out], In, Option[Out], FilterValue] & Relation[In, Option[Out]]
         ): ReifiedRelation[In, Option[Out]] = {
-          val filtered = relation.asInstanceOf[Relation.Filtered.Optional[Tree, In, Out, FilterValue]]
+          val filtered = relation.asInstanceOf[
+            Relation.Filtered[Tree, Option[Out], In, Option[Out], FilterValue]
+          ]
           proof.reifyFiltered(filtered, Some(filtered.filter))
         }
       }
@@ -459,12 +492,26 @@ trait proof { this: access & reifiedRelation =>
       ProofFilter >: FilterValue
     ](implicit
       proof: Proof.Many[Tree & Relation.Many[In, CC, Out], In, CC, Out, ProofFilter]
-    ): Proof.Many[Relation.Filtered.Many[Tree, In, CC, Out, FilterValue], In, CC, Out, Nothing] =
-      new Proof.Many[Relation.Filtered.Many[Tree, In, CC, Out, FilterValue], In, CC, Out, Nothing] {
+    ): Proof.FilteredMany[
+      Relation.Filtered[Tree, CC[Out], In, CC[Out], FilterValue],
+      In,
+      CC,
+      Out,
+      Nothing
+    ] =
+      new Proof.FilteredMany[
+        Relation.Filtered[Tree, CC[Out], In, CC[Out], FilterValue],
+        In,
+        CC,
+        Out,
+        Nothing
+      ] {
         override private[decrel] def reifyRelation(
-          relation: Relation.Filtered.Many[Tree, In, CC, Out, FilterValue] & Relation[In, CC[Out]]
+          relation: Relation.Filtered[Tree, CC[Out], In, CC[Out], FilterValue] & Relation[In, CC[Out]]
         ): ReifiedRelation[In, CC[Out]] = {
-          val filtered = relation.asInstanceOf[Relation.Filtered.Many[Tree, In, CC, Out, FilterValue]]
+          val filtered = relation.asInstanceOf[
+            Relation.Filtered[Tree, CC[Out], In, CC[Out], FilterValue]
+          ]
           proof.reifyFiltered(filtered, Some(filtered.filter))
         }
       }
@@ -477,12 +524,24 @@ trait proof { this: access & reifiedRelation =>
       ProofFilter >: FilterValue
     ](implicit
       proof: Proof[Relation.Custom[Tree, In, Out], In, Out, ProofFilter]
-    ): Proof[Relation.Filtered.Custom[Tree, In, Out, FilterValue], In, Out, Nothing] =
-      new Proof[Relation.Filtered.Custom[Tree, In, Out, FilterValue], In, Out, Nothing] {
+    ): Proof[
+      Relation.Filtered[Relation.Custom[Tree, In, Out], Out, In, Out, FilterValue],
+      In,
+      Out,
+      Nothing
+    ] =
+      new Proof[
+        Relation.Filtered[Relation.Custom[Tree, In, Out], Out, In, Out, FilterValue],
+        In,
+        Out,
+        Nothing
+      ] {
         override private[decrel] def reifyRelation(
-          relation: Relation.Filtered.Custom[Tree, In, Out, FilterValue] & Relation[In, Out]
+          relation: Relation.Filtered[Relation.Custom[Tree, In, Out], Out, In, Out, FilterValue] & Relation[In, Out]
         ): ReifiedRelation[In, Out] = {
-          val filtered = relation.asInstanceOf[Relation.Filtered.Custom[Tree, In, Out, FilterValue]]
+          val filtered = relation.asInstanceOf[
+            Relation.Filtered[Relation.Custom[Tree, In, Out], Out, In, Out, FilterValue]
+          ]
           proof.reifyFiltered(filtered, Some(filtered.filter))
         }
       }
@@ -591,6 +650,89 @@ trait proof { this: access & reifiedRelation =>
       }
     }
 
+    implicit def composedFilteredOptionalProof[
+      LeftTree,
+      LeftBaseOut,
+      LeftIn,
+      LeftOut,
+      LeftFilter,
+      RightTree,
+      RightIn,
+      RightOut
+    ](implicit
+      leftProof: Proof.FilteredOptional[
+        Relation.Filtered[LeftTree, LeftBaseOut, LeftIn, Option[LeftOut], LeftFilter],
+        LeftIn,
+        LeftOut,
+        Nothing
+      ],
+      rightProof: Proof[RightTree, RightIn, RightOut, Nothing],
+      ev: LeftOut <:< RightIn
+    ): Proof[
+      Relation.Composed.FilteredOptional[
+        LeftTree,
+        LeftBaseOut,
+        LeftIn,
+        LeftOut,
+        LeftFilter,
+        RightTree,
+        RightIn,
+        RightOut
+      ],
+      LeftIn,
+      Option[RightOut],
+      Nothing
+    ] = new Proof[
+      Relation.Composed.FilteredOptional[
+        LeftTree,
+        LeftBaseOut,
+        LeftIn,
+        LeftOut,
+        LeftFilter,
+        RightTree,
+        RightIn,
+        RightOut
+      ],
+      LeftIn,
+      Option[RightOut],
+      Nothing
+    ] {
+      override private[decrel] def reifyRelation(
+        relation: Relation.Composed.FilteredOptional[
+          LeftTree,
+          LeftBaseOut,
+          LeftIn,
+          LeftOut,
+          LeftFilter,
+          RightTree,
+          RightIn,
+          RightOut
+        ] & Relation[LeftIn, Option[RightOut]]
+      ): ReifiedRelation[LeftIn, Option[RightOut]] = {
+        val composed = relation.asInstanceOf[
+          Relation.Composed.FilteredOptional[
+            LeftTree,
+            LeftBaseOut,
+            LeftIn,
+            LeftOut,
+            LeftFilter,
+            RightTree,
+            RightIn,
+            RightOut
+          ]
+        ]
+        new ReifiedRelation.ComposedOptional(
+          leftProof.reify(
+            composed.left.asInstanceOf[
+              Relation.Filtered[LeftTree, LeftBaseOut, LeftIn, Option[LeftOut], LeftFilter] &
+                Relation[LeftIn, Option[LeftOut]]
+            ]
+          ),
+          rightProof.reify(composed.right.asInstanceOf[RightTree & Relation[RightIn, RightOut]])
+        )
+      }
+    }
+
     implicit def composedManyProof[
       LeftTree <: Relation.Many[LeftIn, CC, LeftOut],
       LeftIn,
@@ -639,6 +781,96 @@ trait proof { this: access & reifiedRelation =>
         ]
         new ReifiedRelation.ComposedMany(
           leftProof.reify(composed.left.asInstanceOf[LeftTree & Relation.Many[LeftIn, CC, LeftOut]]),
+          rightProof.reify(composed.right.asInstanceOf[RightTree & Relation[RightIn, RightOut]])
+        )
+      }
+    }
+
+    implicit def composedFilteredManyProof[
+      LeftTree,
+      LeftBaseOut,
+      LeftIn,
+      LeftOut,
+      LeftFilter,
+      RightTree,
+      RightIn,
+      RightOut,
+      CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]
+    ](implicit
+      leftProof: Proof.FilteredMany[
+        Relation.Filtered[LeftTree, LeftBaseOut, LeftIn, CC[LeftOut], LeftFilter],
+        LeftIn,
+        CC,
+        LeftOut,
+        Nothing
+      ],
+      rightProof: Proof[RightTree, RightIn, RightOut, Nothing],
+      ev: LeftOut <:< RightIn,
+      bf: BuildFrom[CC[RightIn], RightOut, CC[RightOut]]
+    ): Proof[
+      Relation.Composed.FilteredMany[
+        LeftTree,
+        LeftBaseOut,
+        LeftIn,
+        LeftOut,
+        LeftFilter,
+        RightTree,
+        RightIn,
+        RightOut,
+        CC
+      ],
+      LeftIn,
+      CC[RightOut],
+      Nothing
+    ] = new Proof[
+      Relation.Composed.FilteredMany[
+        LeftTree,
+        LeftBaseOut,
+        LeftIn,
+        LeftOut,
+        LeftFilter,
+        RightTree,
+        RightIn,
+        RightOut,
+        CC
+      ],
+      LeftIn,
+      CC[RightOut],
+      Nothing
+    ] {
+      override private[decrel] def reifyRelation(
+        relation: Relation.Composed.FilteredMany[
+          LeftTree,
+          LeftBaseOut,
+          LeftIn,
+          LeftOut,
+          LeftFilter,
+          RightTree,
+          RightIn,
+          RightOut,
+          CC
+        ] & Relation[LeftIn, CC[RightOut]]
+      ): ReifiedRelation[LeftIn, CC[RightOut]] = {
+        val composed = relation.asInstanceOf[
+          Relation.Composed.FilteredMany[
+            LeftTree,
+            LeftBaseOut,
+            LeftIn,
+            LeftOut,
+            LeftFilter,
+            RightTree,
+            RightIn,
+            RightOut,
+            CC
+          ]
+        ]
+        new ReifiedRelation.ComposedMany(
+          leftProof.reify(
+            composed.left.asInstanceOf[
+              Relation.Filtered[LeftTree, LeftBaseOut, LeftIn, CC[LeftOut], LeftFilter] &
+                Relation[LeftIn, CC[LeftOut]]
+            ]
+          ),
           rightProof.reify(composed.right.asInstanceOf[RightTree & Relation[RightIn, RightOut]])
         )
       }

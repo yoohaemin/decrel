@@ -477,6 +477,57 @@ object zqueryProofSpec extends ZIOSpecDefault {
               calls == Calls(Book.fetch -> Chunk(book1.id))
             )
           }
+        },
+        test("Filtered many composes like a many relation") {
+          sealed trait RentalFilter
+          case class ExactRentalFilter(id: Rental.Id) extends RentalFilter
+
+          proofs.flatMap { proofs =>
+            import proofs.*
+
+            implicit val filteredCurrentRentals: Proof.Many[
+              User.currentRentals.type & Relation.Many[User, Chunk, Rental],
+              User,
+              Nothing,
+              Chunk,
+              Rental,
+              RentalFilter
+            ] =
+              implementManyDatasource[
+                User.currentRentals.type,
+                User,
+                Nothing,
+                Chunk,
+                Rental,
+                RentalFilter
+              ](User.currentRentals) { (ins, filter) =>
+                proofs.calls.update(_.add(User.currentRentals, ins)).map { _ =>
+                  ins.map(user =>
+                    user -> state.rentals.collect {
+                      case rental
+                          if rental.userId == user.id &&
+                            filter.forall {
+                              case ExactRentalFilter(expected) => rental.id == expected
+                            } =>
+                        rental
+                    }
+                  )
+                }
+              }
+
+            val relation = User.currentRentals.filter(ExactRentalFilter(rental2.id)) >>: Rental.book
+
+            for {
+              result <- relation.startingFrom(user2)
+              calls  <- proofs.calls.get
+            } yield assertTrue(
+              result == Chunk(book2),
+              calls == Calls(
+                User.currentRentals -> Chunk(user2),
+                Book.fetch          -> Chunk(rental2.bookId)
+              )
+            )
+          }
         }
       ),
       suite("Cache operations")(
@@ -659,6 +710,109 @@ object zqueryProofSpec extends ZIOSpecDefault {
               result == (user1, book1)
             )
           }
+        },
+        test("Filtered relations with different filters do not share a datasource") {
+          sealed trait BookFilterById
+          case class ExactBookIdFilter(id: Book.Id) extends BookFilterById
+
+          val filter1 = ExactBookIdFilter(book1.id)
+          val filter2 = ExactBookIdFilter(book2.id)
+
+          for {
+            calls <- Ref.make(Chunk.empty[(Option[BookFilterById], Chunk[Book.Id])])
+            result <- {
+              implicit val filteredBookFetch: Proof.Single[
+                Book.fetch.type & Relation.Single[Book.Id, Book],
+                Book.Id,
+                Nothing,
+                Book,
+                BookFilterById
+              ] =
+                implementSingleDatasource[Book.fetch.type, Book.Id, Nothing, Book, BookFilterById](Book.fetch) { (ins, filter) =>
+                  calls.update(_ :+ (filter -> ins)).as {
+                    ins.flatMap { id =>
+                      filter.collect {
+                        case ExactBookIdFilter(expected) if expected == id =>
+                          id -> Some(state.books.find(_.id == id).get)
+                      }
+                    }
+                  }
+                }
+
+              (
+                Book.fetch.filter(filter1).startingFromQuery(book1.id) <*>
+                  Book.fetch.filter(filter2).startingFromQuery(book2.id)
+              ).run
+            }
+            seenCalls <- calls.get
+          } yield assertTrue(
+            result == (Some(book1), Some(book2)),
+            seenCalls.toSet == Set[(Option[BookFilterById], Chunk[Book.Id])](
+              (Some(filter1), Chunk(book1.id)),
+              (Some(filter2), Chunk(book2.id))
+            )
+          )
+        },
+        test("Distinct custom relations do not share a datasource") {
+          case object LeftFetch  extends Relation.Single[Book.Id, Book]
+          case object RightFetch extends Relation.Single[Book.Id, Book]
+
+          val leftCustom  = LeftFetch.customImpl
+          val rightCustom = RightFetch.customImpl
+
+          for {
+            calls <- Ref.make(Chunk.empty[(Relation.Custom[?, Book.Id, Book], Chunk[Book.Id])])
+            result <- {
+              implicit val leftProof: Proof[
+                Relation.Custom[LeftFetch.type & Relation.Single[Book.Id, Book], Book.Id, Book],
+                Book.Id,
+                Nothing,
+                Book,
+                Nothing
+              ] =
+                implementCustomDatasource[
+                  LeftFetch.type & Relation.Single[Book.Id, Book],
+                  Book.Id,
+                  Nothing,
+                  Book
+                ](leftCustom) { (ins, _: Option[Nothing]) =>
+                  calls.update(_ :+ (leftCustom -> ins)).as {
+                    ins.collect {
+                      case id if id == book1.id => id -> book1
+                    }
+                  }
+                }
+
+              implicit val rightProof: Proof[
+                Relation.Custom[RightFetch.type & Relation.Single[Book.Id, Book], Book.Id, Book],
+                Book.Id,
+                Nothing,
+                Book,
+                Nothing
+              ] =
+                implementCustomDatasource[
+                  RightFetch.type & Relation.Single[Book.Id, Book],
+                  Book.Id,
+                  Nothing,
+                  Book
+                ](rightCustom) { (ins, _: Option[Nothing]) =>
+                  calls.update(_ :+ (rightCustom -> ins)).as {
+                    ins.collect {
+                      case id if id == book2.id => id -> book2
+                    }
+                  }
+                }
+
+              (leftCustom.startingFromQuery(book1.id) <*> rightCustom.startingFromQuery(book2.id)).run
+            }
+            seenCalls <- calls.get
+          } yield assertTrue(
+            result == (book1, book2),
+            seenCalls.toSet == Set[(Relation.Custom[?, Book.Id, Book], Chunk[Book.Id])](
+              (leftCustom, Chunk(book1.id)),
+              (rightCustom, Chunk(book2.id))
+            )
+          )
         }
       ),
       suite("Deduplication")(

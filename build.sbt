@@ -149,7 +149,9 @@ lazy val kyoBatch = (projectMatrix in file("kyo-batch"))
   )
   .settings(
     libraryDependencies ++= Seq(
-      "io.getkyo" %%% "kyo-prelude" % V.kyo
+      "io.getkyo" %%% "kyo-prelude" % V.kyo,
+      "dev.zio"  %%% "zio-test"     % V.zio % Test,
+      "dev.zio"  %%% "zio-test-sbt" % V.zio % Test
     )
   )
   .dependsOn(kyo)

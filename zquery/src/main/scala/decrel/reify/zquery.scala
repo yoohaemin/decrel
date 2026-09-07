@@ -45,8 +45,14 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
     id: Id
   ) extends zio.query.Request[E, Result]
 
+  private val datasourceIdentifiers = new WeakKeyCache[String]
+  private var nextDatasourceId      = 0L
+
   private def datasourceIdentifier(relationKey: Any): String =
-    "RelationDatasource:" + relationKey.getClass.getName
+    datasourceIdentifiers.getOrCreate(relationKey) {
+      nextDatasourceId += 1
+      s"RelationDatasource:$nextDatasourceId"
+    }
 
   private def buildDatasource[In, E, Out](
     relationKey: Any

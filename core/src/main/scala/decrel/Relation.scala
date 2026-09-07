@@ -8,6 +8,8 @@
 
 package decrel
 
+import scala.annotation.implicitNotFound
+
 /**
  * A _declaration_ of a `Relation` object by extending one of `Relation.Single`, `Relation.Optional` or
  * `Relation.Many` can be thought of as an edge in the directed graph that is your entire domain model.
@@ -24,11 +26,13 @@ object Relation {
 
   sealed trait Declared[-In, +Out] extends Relation[In, Out]
 
-  trait Single[-In, +Out] extends Relation.Declared[In, Out]
+  sealed trait Edge[-In, +Out] extends Declared[In, Out]
 
-  trait Optional[-In, +Out] extends Relation.Declared[In, Option[Out]]
+  trait Single[-In, +Out] extends Relation.Edge[In, Out]
 
-  trait Many[-In, +Collection[+_], +Out] extends Relation.Declared[In, Collection[Out]]
+  trait Optional[-In, +Out] extends Relation.Edge[In, Option[Out]]
+
+  trait Many[-In, +Collection[+_], +Out] extends Relation.Edge[In, Collection[Out]]
 
   /**
    * Pass through relation
@@ -43,44 +47,35 @@ object Relation {
    * Creates a relation on top of an existing relation value.
    */
   final case class Custom[Tree, In, Out](
-    relation: Tree & Relation[In, Out]
-  ) extends Relation[In, Out]
+    relation: Tree & Relation.Declared[In, Out]
+  ) extends Relation.Declared[In, Out]
 
-  sealed trait Filtered[Tree, BaseOut, -In, +Out, +Filter] extends Relation[In, Out] {
-    def relation: Tree & Relation[In, BaseOut]
+  sealed abstract class Filtered[Tree, BaseOut, -In, +Out, +Filter] extends Relation[In, Out] {
+    def relation: Tree & Relation.Declared[In, BaseOut]
     def filter: Filter
+
+    final def filter[NextFilter](nextFilter: NextFilter)(implicit
+      ev: Filtered.RefilteringNotSupported
+    ): Nothing =
+      throw new UnsupportedOperationException("unreachable")
   }
 
   object Filtered {
-    final case class Single[Tree, In, Out, Filter](
-      relation: Tree & Relation.Single[In, Out],
-      filter: Filter
-    ) extends Relation.Optional[In, Out]
-        with Filtered[Tree, Out, In, Option[Out], Filter]
+    @implicitNotFound(
+      "Chaining .filter(...) on an already filtered relation is not supported."
+    )
+    sealed trait RefilteringNotSupported
 
-    final case class Optional[Tree, In, Out, Filter](
-      relation: Tree & Relation.Optional[In, Out],
-      filter: Filter
-    ) extends Relation.Optional[In, Out]
-        with Filtered[Tree, Option[Out], In, Option[Out], Filter]
+    private final class Impl[Tree, BaseOut, In, Out, Filter](
+      val relation: Tree & Relation.Declared[In, BaseOut],
+      val filter: Filter
+    ) extends Filtered[Tree, BaseOut, In, Out, Filter]
 
-    final case class Many[
-      Tree,
-      In,
-      CC[+A],
-      Out,
-      Filter
-    ](
-      relation: Tree & Relation.Many[In, CC, Out],
+    private[decrel] def apply[Tree, BaseOut, In, Out, Filter](
+      relation: Tree & Relation.Declared[In, BaseOut],
       filter: Filter
-    ) extends Relation.Many[In, CC, Out]
-        with Filtered[Tree, CC[Out], In, CC[Out], Filter]
-
-    final case class Custom[Tree, In, Out, Filter](
-      relation: Relation.Custom[Tree, In, Out],
-      filter: Filter
-    ) extends Relation[In, Out]
-        with Filtered[Relation.Custom[Tree, In, Out], Out, In, Out, Filter]
+    ): Filtered[Tree, BaseOut, In, Out, Filter] =
+      new Impl(relation, filter)
   }
 
   sealed trait Composed[
@@ -141,6 +136,31 @@ object Relation {
       rightRel: RightTree <:< Relation[RightIn, RightOut]
     ) extends Composed[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut, Option[RightOut]]
 
+    case class FilteredOptional[
+      LeftTree,
+      LeftBaseOut,
+      LeftIn,
+      LeftOut,
+      LeftFilter,
+      RightTree,
+      RightIn,
+      RightOut
+    ](
+      left: Relation.Filtered[LeftTree, LeftBaseOut, LeftIn, Option[LeftOut], LeftFilter],
+      right: RightTree
+    )(implicit
+      composeOneEv: LeftOut <:< RightIn,
+      rightRel: RightTree <:< Relation[RightIn, RightOut]
+    ) extends Composed[
+          Relation.Filtered[LeftTree, LeftBaseOut, LeftIn, Option[LeftOut], LeftFilter],
+          LeftIn,
+          LeftOut,
+          RightTree,
+          RightIn,
+          RightOut,
+          Option[RightOut]
+        ]
+
     case class Many[
       LeftTree,
       LeftIn,
@@ -157,5 +177,31 @@ object Relation {
       leftRel: LeftTree <:< Relation.Many[LeftIn, CC, LeftOut],
       rightRel: RightTree <:< Relation[RightIn, RightOut]
     ) extends Composed[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut, CC[RightOut]]
+
+    case class FilteredMany[
+      LeftTree,
+      LeftBaseOut,
+      LeftIn,
+      LeftOut,
+      LeftFilter,
+      RightTree,
+      RightIn,
+      RightOut,
+      CC[+A]
+    ](
+      left: Relation.Filtered[LeftTree, LeftBaseOut, LeftIn, CC[LeftOut], LeftFilter],
+      right: RightTree
+    )(implicit
+      composeOneEv: LeftOut <:< RightIn,
+      rightRel: RightTree <:< Relation[RightIn, RightOut]
+    ) extends Composed[
+          Relation.Filtered[LeftTree, LeftBaseOut, LeftIn, CC[LeftOut], LeftFilter],
+          LeftIn,
+          LeftOut,
+          RightTree,
+          RightIn,
+          RightOut,
+          CC[RightOut]
+        ]
   }
 }
