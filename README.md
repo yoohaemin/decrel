@@ -65,12 +65,12 @@ You decide how to fulfill each relation with actual data access logic:
 
 ```scala
 // ZIO implementation
-implementSingleDatasource(Book.author) { books =>
+implementSingleDatasource(Book.author) { (books, _) =>
   ZIO.succeed(books.map(book => book -> authorMap(book.authorId)))
 }
 
 // Cats Effect implementation
-implementSingleDatasource(Book.author) { books =>
+implementSingleDatasource(Book.author) { (books, _) =>
   IO.pure(books.map(book => book -> authorMap(book.authorId)))
 }
 ```
@@ -87,11 +87,29 @@ val bookAuthorPublisher = Book.author <>: Author.publisher
 val bookDetails = Book.author & Book.price
 ```
 
-### 4. Efficient Execution
+### 4. Typed Filters
+
+Filters can inspect an edge's input and candidate output using typed ZIO Blocks lenses:
+
+```scala
+import decrel.filter.schema.syntax._
+
+val affordableBooks = Customer.books.filter { (in, out) =>
+  (out(Book.price) <= in(Customer.budget)) &&
+  out(Book.discount).exists(_ > 0)
+}
+```
+
+Add `decrel-filter-schema` to use the optics adapter. The predicate AST lives in core;
+data-source implementations interpret it. A filtered single relation becomes optional,
+and a filtered many relation selects individual elements. See the
+[filtering guide](mdoc/docs/guide/filtering.md) for supported operators and the backend contract.
+
+### 5. Efficient Execution
 
 The composed relations are efficiently executed against your datasource, with automatic batching and parallelization through integrations with ZQuery and Fetch.
 
-### 5. Testing Support
+### 6. Testing Support
 
 The same relations can be used to generate random test data:
 
@@ -151,11 +169,11 @@ Refer to the below pseudocode to see an example, showcasing what you can do with
 
 ```scala
 object BookRelations extends zquery[Any] {
-  implicit val bookAuthorProof: Proof.Single[Book.author.type, Book, Nothing, Author] =
-    implementSingleDatasource(Book.author) { books =>
+  implicit val bookAuthorProof: Proof.Single[Book.author.type, Book, Nothing, Author, Nothing] =
+    implementSingleDatasource(Book.author) { (books, _) =>
       for {
         // Check cache first
-        cachedAuthors <- checkCache(books.map(_.authorId))
+        cachedAuthors <- checkCache(Book.author, books.map(_.authorId))
         // Find which IDs aren't in cache
         missingIds = books.map(_.authorId).filterNot(cachedAuthors.contains)
         // Fetch missing authors from DB
@@ -215,7 +233,7 @@ For comprehensive documentation, examples, and guides, please visit the [Decrel 
 On a fundamental level, Decrel is a structured way to compose `flatMap`/`traverse` operations:
 
 * Relations are like arrows with three "kinds" — Single, Optional, and Many
-* You provide implementations as functions: `In => F[Kind[Out]]` (where `Kind` is `Id`, `Option`, or `Collection[A]`)
+* You provide implementations as functions: `(Relation, In) => F[Kind[Out]]` (where `Kind` is `Id`, `Option`, or `Collection[A]`)
 * Decrel handles the composition of these operations according to the relation structure
 
 ## Contributing

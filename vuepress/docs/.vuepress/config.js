@@ -25,7 +25,8 @@ export default defineUserConfig({
                         children: [
                             '/guide/README.md',
                             '/guide/getting-started.md',
-                            '/guide/defining-relations.md'
+                            '/guide/defining-relations.md',
+                            '/guide/filtering.md'
                         ],
                     }],
                     '/showcase/': [{

@@ -45,6 +45,7 @@ lazy val stableScalaVersions                   = Seq(V.scala213, V.scala33)
 lazy val nextScalaVersions                     = Seq(V.scala39)
 lazy val rootAggregates: Seq[ProjectReference] =
   core.projectRefs ++
+    filterSchema.projectRefs ++
     kyo.projectRefs ++
     kyoBatch.projectRefs ++
     zquery.projectRefs ++
@@ -79,6 +80,20 @@ lazy val core = (projectMatrix in file("core"))
   .jsPlatform(scalaVersions = stableScalaVersions)
 
 ///////////////////////// Haxl based datatypes
+
+lazy val filterSchema = (projectMatrix in file("filter-schema"))
+  .settings(name := "decrel-filter-schema")
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-blocks-schema" % V.zioBlocks,
+      "dev.zio" %%% "zio-test"          % V.zio % Test,
+      "dev.zio" %%% "zio-test-sbt"      % V.zio % Test
+    )
+  )
+  .dependsOn(core)
+  .jvmPlatform(scalaVersions = stableScalaVersions)
+  .jsPlatform(scalaVersions = stableScalaVersions)
 
 lazy val zquery = (projectMatrix in file("zquery"))
   .enablePlugins(BuildInfoPlugin)
@@ -135,7 +150,9 @@ lazy val fetch = (projectMatrix in file("fetch"))
   )
   .settings(
     libraryDependencies ++= Seq(
-      "com.47deg" %%% "fetch" % V.fetch
+      "com.47deg" %%% "fetch"        % V.fetch,
+      "dev.zio"   %%% "zio-test"     % V.zio % Test,
+      "dev.zio"   %%% "zio-test-sbt" % V.zio % Test
     )
   )
   .dependsOn(cats)
@@ -155,7 +172,9 @@ lazy val kyoBatch = (projectMatrix in file("kyo-batch"))
   )
   .settings(
     libraryDependencies ++= Seq(
-      "io.getkyo" %%% "kyo-prelude" % V.kyo
+      "io.getkyo" %%% "kyo-prelude"  % V.kyo,
+      "dev.zio"   %%% "zio-test"     % V.zio % Test,
+      "dev.zio"   %%% "zio-test-sbt" % V.zio % Test
     )
   )
   .dependsOn(kyo)
@@ -294,6 +313,7 @@ lazy val docs = project
   )
   .dependsOn(
     core.jvm(V.scala213),
+    filterSchema.jvm(V.scala213),
     zquery.jvm(V.scala213),
     fetch.jvm(V.scala213),
     ziotest.jvm(V.scala213),
@@ -360,6 +380,7 @@ lazy val V = new {
   val zioQuery     = "0.7.8"
   val fetch        = "3.2.1"
   val izumiReflect = "3.0.10"
+  val zioBlocks    = "0.0.51"
   val scalacheck   = "1.20.0"
   val scalajsDom   = "2.5.0"
 }

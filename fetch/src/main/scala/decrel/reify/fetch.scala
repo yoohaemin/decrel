@@ -9,16 +9,20 @@
 package decrel.reify
 
 import cats.*
-import cats.implicits.*
 import cats.data.NonEmptyList
 import cats.effect.{ Clock, Concurrent, Ref }
+import cats.implicits.*
 import decrel.Relation
+import decrel.filter.Predicate
 import fetch.*
-import izumi.reflect.Tag
 
 import scala.collection.immutable.HashMap
 import scala.collection.{ mutable, BuildFrom, IterableOps }
 import scala.util.control.NoStackTrace
+
+private[decrel] final case class FetchRelationData[Request, Out](
+  override val name: String
+) extends Data[Request, Out]
 
 /**
  * Instantiate this trait in one place in your app pass around the object, importing it where you want to use it.
@@ -30,7 +34,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   // ****** Implementations for Required Operations **************************
 
   protected implicit val CF: Concurrent[F]
-  override protected implicit val F: Monad[Fetch[F, *]] = fetch.fetchM[F]
+  override protected implicit lazy val F: Monad[Fetch[F, *]] = _root_.fetch.fetchM[F]
 
   override protected def foreach[Coll[+T] <: Iterable[T], A, B](
     collection: Coll[A]
@@ -43,69 +47,58 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
   // ****** Datasource Implementations ************************************
 
-  private case class RelationRequest[Rel, Id, Result](
-    rel: Rel & Relation[Id, Result],
+  private case class RelationRequest[Id, Result](
+    relationKey: Any,
     id: Id
   )
 
-  private class RelationRequestData[Rel, In, Out](
-    val rel: Rel,
-    override val name: String
-  ) extends Data[RelationRequest[Rel, In, Out], Out] {
+  private val datasourceNames = new WeakKeyCache[String]
 
-    def this(rel: Rel, tag: Tag[Rel]) =
-      this(rel, "RelationDatasource:" + tag.tag.longNameWithPrefix)
-  }
+  private def datasourceName(relationKey: Any): String =
+    datasourceNames.getOrCreate(relationKey) {
+      DatasourceId.fresh()
+    }
 
-  private class FetchDataSourceImpl[Rel: Tag, In, Out](
-    rel: Rel,
+  private class FetchDataSourceImpl[In, Out](
+    relationKey: Any,
     batchExecute: List[In] => F[List[(In, Out)]]
-  ) extends DataSource[F, RelationRequest[Rel, In, Out], Out] {
-    override def data: Data[RelationRequest[Rel, In, Out], Out] =
-      new RelationRequestData[Rel, In, Out](rel, Tag[Rel])
+  ) extends DataSource[F, RelationRequest[In, Out], Out] {
+    override val data: Data[RelationRequest[In, Out], Out] =
+      new FetchRelationData[RelationRequest[In, Out], Out](datasourceName(relationKey))
 
     override implicit def CF: Concurrent[F] = self.CF
 
-    override def fetch(id: RelationRequest[Rel, In, Out]): F[Option[Out]] =
+    override def fetch(id: RelationRequest[In, Out]): F[Option[Out]] =
       batchExecute(List(id.id)).map(r => Some(r.head._2))
 
     override def batch(
-      requests: NonEmptyList[RelationRequest[Rel, In, Out]]
-    ): F[Map[RelationRequest[Rel, In, Out], Out]] = {
-      // Size of the request. Needs to be checked against the result.
+      requests: NonEmptyList[RelationRequest[In, Out]]
+    ): F[Map[RelationRequest[In, Out], Out]] = {
       var size = 0
-
-      // List that will be fed into the provided implementation function.
       var list = List.empty[In]
 
-      // Saves 1 allocation because this is referenced 2 times
       val requestsList = requests.toList
 
-      // Build the request list and size in one traversal
       requestsList.foreach { request =>
         size += 1
         val newList = request.id :: list
         list = newList
       }
 
-      // Create a table from `In`s to `RelationRequest`s for fast lookup
       val requestMapBuilder =
-        mutable.HashMap.newBuilder[In, Option[RelationRequest[Rel, In, Out]]]
+        mutable.HashMap.newBuilder[In, Option[RelationRequest[In, Out]]]
       requestMapBuilder.sizeHint(size)
       requestsList.foreach(request => requestMapBuilder.addOne(request.id -> Some(request)))
       val requestMap = requestMapBuilder.result().withDefaultValue(None)
 
-      // Create a builder that will ultimately be returned
-      val returnsMap = HashMap.newBuilder[RelationRequest[Rel, In, Out], Out]
+      val returnsMap = HashMap.newBuilder[RelationRequest[In, Out], Out]
       returnsMap.sizeHint(size)
 
       batchExecute(list).flatMap { results =>
-        // to compare against the request size
         var resultSize = 0
 
         CF.catchOnly[DataSourceImplementationException] {
           results.foreach { pair =>
-            // Blindly avoiding pattern matching
             val in  = pair._1
             val out = pair._2
 
@@ -130,163 +123,215 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
     private case object NotRequestedOrDoubleReturns
         extends DataSourceImplementationException(
-          s"Proof for relation $rel has returned data that was either not requested, or returned 2 or more results for the same identifier."
+          s"Proof for relation $relationKey has returned data that was either not requested, or returned 2 or more results for the same identifier."
         )
 
     private case object NotEnoughReturns
         extends DataSourceImplementationException(
-          s"Proof for relation $rel has not returned enough data"
+          s"Proof for relation $relationKey has not returned enough data"
         )
 
   }
 
   // batchExecute is expected to return a List of the same size
-  private def buildDatasource[Rel: Tag, In, Out](rel: Rel)(
+  private def buildDatasource[In, Out](relationKey: Any)(
     batchExecute: List[In] => F[List[(In, Out)]]
-  ): DataSource[F, RelationRequest[Rel, In, Out], Out] =
-    new FetchDataSourceImpl[Rel, In, Out](rel, batchExecute)
+  ): DataSource[F, RelationRequest[In, Out], Out] =
+    new FetchDataSourceImpl[In, Out](relationKey, batchExecute)
 
-  def implementSingleDatasource[Rel: Tag, In, Out](
+  private def singleReifiedRelation[In, Out, Filter <: Predicate[?, ?]](
+    relationKey: Any,
+    filter: Option[Filter]
+  )(
+    batchExecute: (List[In], Option[Filter]) => F[List[(In, Out)]]
+  ): ReifiedRelation[In, Out] = {
+    val ds = buildDatasource[In, Out](relationKey)(ins => batchExecute(ins, filter))
+
+    new ReifiedRelation.Custom[In, Out] {
+      override def apply(in: In): Fetch[F, Out] =
+        applyMultiple(List(in)).map(_.head)
+
+      override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+        ins: Coll[In]
+      ): Fetch[F, Coll[Out]] = {
+        val fetches = List.newBuilder[Fetch[F, Out]]
+        ins.foreach(in => fetches += Fetch(RelationRequest[In, Out](relationKey, in), ds))
+
+        Fetch
+          .batchAll(fetches.result()*)
+          .map(_.to((ins: IterableOps[In, Coll, Coll[In]]).iterableFactory))
+      }
+    }
+  }
+
+  // batchExecute must return one entry for every requested input; result order does not matter.
+  def implementFilteredSingleDatasource[Rel, In, Out](
     relation: Rel & Relation.Single[In, Out]
   )(
-    // Also should allow exception per request, so when failing we can give back what we fetched so far
-    batchExecute: List[In] => F[List[(In, Out)]]
-  ): Proof.Single[Rel & Relation.Single[In, Out], In, Out] =
-    new Proof.Single[Rel & Relation.Single[In, Out], In, Out] {
+    batchExecute: (List[In], Option[Predicate[In, Out]]) => F[List[(In, Option[Out])]]
+  ): Proof.Single[Rel & Relation.Single[In, Out], In, Out, Predicate[In, Out]] =
+    new Proof.Single[Rel & Relation.Single[In, Out], In, Out, Predicate[In, Out]] {
+      override private[decrel] def reifyRelation(
+        relationValue: (Rel & Relation.Single[In, Out]) & Relation[In, Out]
+      ): ReifiedRelation[In, Out] =
+        reifyFiltered(relationValue, None)
 
-      private val ds = buildDatasource[Rel, In, Out](relation)(batchExecute)
-
-      override val reify: ReifiedRelation[In, Out] =
-        new ReifiedRelation.Custom[In, Out] {
-          override def apply(in: In): Fetch[F, Out] =
-            applyMultiple(List(in)).map(_.head) // TODO add tests for this
-
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-            ins: Coll[In]
-          ): Fetch[F, Coll[Out]] = {
-            val fetches = List.newBuilder[Fetch[F, Out]]
-            ins.foreach(in => fetches += Fetch(RelationRequest[Rel, In, Out](relation, in), ds))
-
-            Fetch
-              .batchAll(fetches.result()*)
-              .map(_.to((ins: IterableOps[In, Coll, Coll[In]]).iterableFactory))
-          }
+      override private[decrel] def reifyFiltered(
+        relationKey: Any,
+        filter: Option[Predicate[In, Out]]
+      ): ReifiedRelation[In, Out] =
+        // Required accesses cache Row, matching Cache.add on the unfiltered edge.
+        // Filtered accesses below cache Option[Row] under the filtered relation key.
+        singleReifiedRelation[In, Out, Predicate[In, Out]](
+          filter.fold[Any](relation)(_ => relationKey),
+          filter
+        ) { (inputs, predicate) =>
+          batchExecute(inputs, predicate).map(_.map { case (in, out) =>
+            in -> out.getOrElse(
+              throw new IllegalStateException(
+                s"Single relation implementation returned None for unfiltered access: $relationKey"
+              )
+            )
+          })
         }
+
+      override private[decrel] def reifyFilteredOptional(
+        relationKey: Any,
+        filter: Option[Predicate[In, Out]]
+      ): ReifiedRelation[In, Option[Out]] =
+        singleReifiedRelation(filter.fold[Any](relation)(_ => relationKey), filter)(batchExecute)
     }
 
-  def implementOptionalDatasource[Rel: Tag, In, Out](
+  def implementSingleDatasource[Rel, In, Out](
+    relation: Rel & Relation.Single[In, Out]
+  )(
+    batchExecute: (List[In], Option[Nothing]) => F[List[(In, Out)]]
+  ): Proof.Single[Rel & Relation.Single[In, Out], In, Out, Nothing] =
+    new Proof.Single[Rel & Relation.Single[In, Out], In, Out, Nothing] {
+      override private[decrel] def reifyRelation(
+        relationValue: (Rel & Relation.Single[In, Out]) & Relation[In, Out]
+      ): ReifiedRelation[In, Out] =
+        reifyFiltered(relationValue, None)
+
+      override private[decrel] def reifyFiltered(
+        relationKey: Any,
+        filter: Option[Nothing]
+      ): ReifiedRelation[In, Out] =
+        singleReifiedRelation(filter.fold[Any](relation)(_ => relationKey), filter)(batchExecute)
+    }
+
+  def implementFilteredOptionalDatasource[Rel, In, Out](
     relation: Rel & Relation.Optional[In, Out]
   )(
-    // Also should allow exception per request, so when failing we can give back what we fetched so far
-    batchExecute: List[In] => F[List[(In, Option[Out])]]
-  ): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out] =
-    new Proof.Optional[Rel & Relation.Optional[In, Out], In, Out] {
+    batchExecute: (List[In], Option[Predicate[In, Out]]) => F[List[(In, Option[Out])]]
+  ): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out, Predicate[In, Out]] =
+    new Proof.Optional[Rel & Relation.Optional[In, Out], In, Out, Predicate[In, Out]] {
+      override private[decrel] def reifyRelation(
+        relationValue: (Rel & Relation.Optional[In, Out]) & Relation[In, Option[Out]]
+      ): ReifiedRelation[In, Option[Out]] =
+        reifyFiltered(relationValue, None)
 
-      private val ds = buildDatasource[Rel, In, Option[Out]](relation)(batchExecute)
+      override private[decrel] def reifyFiltered(
+        relationKey: Any,
+        filter: Option[Predicate[In, Out]]
+      ): ReifiedRelation[In, Option[Out]] =
+        singleReifiedRelation(filter.fold[Any](relation)(_ => relationKey), filter)(batchExecute)
+    }
 
-      override val reify: ReifiedRelation[In, Option[Out]] =
-        new ReifiedRelation.Custom[In, Option[Out]] {
-          override def apply(in: In): Fetch[F, Option[Out]] =
-            applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
+  def implementOptionalDatasource[Rel, In, Out](
+    relation: Rel & Relation.Optional[In, Out]
+  )(
+    batchExecute: (List[In], Option[Nothing]) => F[List[(In, Option[Out])]]
+  ): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out, Nothing] =
+    implementFilteredOptionalDatasource[Rel, In, Out](relation)((ins, _) => batchExecute(ins, None))
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-            ins: Coll[In]
-          ): Fetch[F, Coll[Option[Out]]] = {
-            val fetches = List.newBuilder[Fetch[F, Option[Out]]]
-            ins.foreach(in =>
-              fetches += Fetch(RelationRequest[Rel, In, Option[Out]](relation, in), ds)
-            )
+  def implementFilteredManyDatasource[Rel, In, CC[+A] <: Iterable[
+    A
+  ] & IterableOps[A, CC, CC[A]], Out](
+    relation: Rel & Relation.Many[In, CC, Out]
+  )(
+    batchExecute: (List[In], Option[Predicate[In, Out]]) => F[List[(In, CC[Out])]]
+  ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out, Predicate[In, Out]] =
+    new Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out, Predicate[In, Out]] {
+      override private[decrel] def reifyRelation(
+        relationValue: (Rel & Relation.Many[In, CC, Out]) & Relation[In, CC[Out]]
+      ): ReifiedRelation[In, CC[Out]] =
+        reifyFiltered(relationValue, None)
 
-            Fetch
-              .batchAll(fetches.result()*)
-              .map(_.to((ins: IterableOps[In, Coll, Coll[In]]).iterableFactory))
-          }
-        }
+      override private[decrel] def reifyFiltered(
+        relationKey: Any,
+        filter: Option[Predicate[In, Out]]
+      ): ReifiedRelation[In, CC[Out]] =
+        singleReifiedRelation(filter.fold[Any](relation)(_ => relationKey), filter)(batchExecute)
     }
 
   def implementManyDatasource[
-    Rel: Tag,
+    Rel,
     In,
     CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]],
     Out
   ](
     relation: Rel & Relation.Many[In, CC, Out]
   )(
-    // Also should allow exception per request, so when failing we can give back what we fetched so far
-    batchExecute: List[In] => F[List[(In, CC[Out])]]
-  ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] =
-    new Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] {
+    batchExecute: (List[In], Option[Nothing]) => F[List[(In, CC[Out])]]
+  ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out, Nothing] =
+    implementFilteredManyDatasource[Rel, In, CC, Out](relation)((ins, _) => batchExecute(ins, None))
 
-      private val ds = buildDatasource[Rel, In, CC[Out]](relation)(batchExecute)
-
-      override val reify: ReifiedRelation[In, CC[Out]] =
-        new ReifiedRelation.Custom[In, CC[Out]] {
-          override def apply(in: In): Fetch[F, CC[Out]] =
-            applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
-
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-            ins: Coll[In]
-          ): Fetch[F, Coll[CC[Out]]] = {
-            val fetches = List.newBuilder[Fetch[F, CC[Out]]]
-            ins.foreach(in => fetches += Fetch(RelationRequest[Rel, In, CC[Out]](relation, in), ds))
-
-            Fetch
-              .batchAll(fetches.result()*)
-              .map(_.to((ins: IterableOps[In, Coll, Coll[In]]).iterableFactory))
-          }
-        }
-    }
-
-  def implementCustomDatasource[
-    Tree,
-    In,
-    Out
-  ](
+  def implementCustomDatasource[Tree, In, Out](
     relation: Relation.Custom[Tree, In, Out]
   )(
-    // Also should allow exception per request, so when failing we can give back what we fetched so far
-    batchExecute: List[In] => F[List[(In, Out)]]
-  )(implicit
-    tag: Tag[Relation.Custom[Tree, In, Out]]
-  ): Proof[Relation.Custom[Tree, In, Out], In, Out] =
-    new Proof[Relation.Custom[Tree, In, Out], In, Out] {
-      private val ds = buildDatasource(relation)(batchExecute)
+    batchExecute: (List[In], Option[Nothing]) => F[List[(In, Out)]]
+  ): Proof[Relation.Custom[Tree, In, Out], In, Out, Nothing] =
+    new Proof[Relation.Custom[Tree, In, Out], In, Out, Nothing] {
+      override private[decrel] def reifyRelation(
+        relationValue: Relation.Custom[Tree, In, Out] & Relation[In, Out]
+      ): ReifiedRelation[In, Out] =
+        reifyFiltered(relationValue, None)
 
-      type Rel = Relation.Custom[Tree, In, Out]
-
-      override val reify: ReifiedRelation[In, Out] =
-        new ReifiedRelation.Custom[In, Out] {
-          override def apply(in: In): Fetch[F, Out] =
-            applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
-
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-            ins: Coll[In]
-          ): Fetch[F, Coll[Out]] = {
-            val fetches = List.newBuilder[Fetch[F, Out]]
-            ins.foreach(in => fetches += Fetch(RelationRequest[Rel, In, Out](relation, in), ds))
-
-            Fetch
-              .batchAll(fetches.result()*)
-              .map(_.to((ins: IterableOps[In, Coll, Coll[In]]).iterableFactory))
-          }
-        }
+      override private[decrel] def reifyFiltered(
+        relationKey: Any,
+        filter: Option[Nothing]
+      ): ReifiedRelation[In, Out] =
+        singleReifiedRelation(filter.fold[Any](relation)(_ => relationKey), filter)(batchExecute)
     }
 
-  def contramapOneProof[Rel, NewRel, In, Out, B](
-    proof: Proof[Rel, In, Out],
+  def contramapOneProof[Rel <: Relation[In, Out], NewRel, In, Out, B, Filter <: Predicate[?, ?]](
+    proof: Proof.Single[Rel, In, Out, Filter],
     rel: NewRel & Relation.Single[B, Out],
     f: B => In
-  ): Proof.Single[NewRel & Relation.Single[B, Out], B, Out] =
-    new Proof.Single[NewRel & Relation.Single[B, Out], B, Out] {
-      override val reify: ReifiedRelation[B, Out] =
+  ): Proof.Single[NewRel & Relation.Single[B, Out], B, Out, Nothing] =
+    new Proof.Single[NewRel & Relation.Single[B, Out], B, Out, Nothing] {
+      override private[decrel] def reifyRelation(
+        relation: (NewRel & Relation.Single[B, Out]) & Relation[B, Out]
+      ): ReifiedRelation[B, Out] =
+        reifyFiltered(relation, None)
+
+      override private[decrel] def reifyFiltered(
+        relationKey: Any,
+        filter: Option[Nothing]
+      ): ReifiedRelation[B, Out] =
         new ReifiedRelation.Custom[B, Out] {
           override def apply(in: B): Fetch[F, Out] =
-            proof.reify.apply(f(in))
+            proof.reifyFiltered(relationKey, filter).apply(f(in))
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             in: Coll[B]
           ): Access[Coll[Out]] =
-            proof.reify.applyMultiple[Coll](in.map(f))
+            proof.reifyFiltered(relationKey, filter).applyMultiple[Coll](in.map(f))
+        }
+
+      override private[decrel] def reifyFilteredOptional(
+        relationKey: Any,
+        filter: Option[Nothing]
+      ): ReifiedRelation[B, Option[Out]] =
+        new ReifiedRelation.Custom[B, Option[Out]] {
+          override def apply(in: B): Fetch[F, Option[Out]] =
+            proof.reifyFilteredOptional(relationKey, filter).apply(f(in))
+
+          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+            in: Coll[B]
+          ): Access[Coll[Option[Out]]] =
+            proof.reifyFilteredOptional(relationKey, filter).applyMultiple[Coll](in.map(f))
         }
     }
 
@@ -295,23 +340,31 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     NewRel,
     In,
     Out,
-    B
+    B,
+    Filter <: Predicate[?, ?]
   ](
-    proof: Proof[Rel, In, Out],
+    proof: Proof[Rel, In, Out, Filter],
     rel: NewRel & Relation.Optional[B, Out],
     f: B => Option[In]
-  ): Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out] =
-    new Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out] {
-      override val reify: ReifiedRelation[B, Option[Out]] =
+  ): Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out, Nothing] =
+    new Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out, Nothing] {
+      override private[decrel] def reifyRelation(
+        relation: (NewRel & Relation.Optional[B, Out]) & Relation[B, Option[Out]]
+      ): ReifiedRelation[B, Option[Out]] =
+        reifyFiltered(relation, None)
+
+      override private[decrel] def reifyFiltered(
+        relationKey: Any,
+        filter: Option[Nothing]
+      ): ReifiedRelation[B, Option[Out]] =
         new ReifiedRelation.Custom[B, Option[Out]] {
 
           override def apply(in: B): Fetch[F, Option[Out]] =
-            proof.reify.applyMultiple(f(in).toList).map(_.headOption)
+            proof.reifyFiltered(relationKey, filter).applyMultiple(f(in).toList).map(_.headOption)
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             ins: Coll[B]
           ): Access[Coll[Option[Out]]] =
-            // TODO test if batching support is proper
             Fetch
               .batchAll(ins.toList.map(in => apply(in))*)
               .map(_.to((ins: IterableOps[B, Coll, Coll[B]]).iterableFactory))
@@ -324,23 +377,31 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     In,
     Out,
     B,
-    CC[+T] <: Iterable[T] & IterableOps[T, CC, CC[T]]
+    CC[+T] <: Iterable[T] & IterableOps[T, CC, CC[T]],
+    Filter <: Predicate[?, ?]
   ](
-    proof: Proof[Rel, In, Out],
+    proof: Proof[Rel, In, Out, Filter],
     rel: NewRel & Relation.Many[B, CC, Out],
     f: B => CC[In]
-  ): Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out] =
-    new Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out] {
-      override val reify: ReifiedRelation[B, CC[Out]] =
+  ): Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out, Nothing] =
+    new Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out, Nothing] {
+      override private[decrel] def reifyRelation(
+        relation: (NewRel & Relation.Many[B, CC, Out]) & Relation[B, CC[Out]]
+      ): ReifiedRelation[B, CC[Out]] =
+        reifyFiltered(relation, None)
+
+      override private[decrel] def reifyFiltered(
+        relationKey: Any,
+        filter: Option[Nothing]
+      ): ReifiedRelation[B, CC[Out]] =
         new ReifiedRelation.Custom[B, CC[Out]] {
 
           override def apply(in: B): Fetch[F, CC[Out]] =
-            proof.reify.applyMultiple(f(in))
+            proof.reifyFiltered(relationKey, filter).applyMultiple(f(in))
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             ins: Coll[B]
           ): Access[Coll[CC[Out]]] =
-            // TODO test if batching support is proper
             Fetch
               .batchAll(ins.toList.map(in => apply(in))*)
               .map(_.to((ins: IterableOps[B, Coll, Coll[B]]).iterableFactory))
@@ -350,24 +411,26 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   // ****** Cache Implementation ************************************
 
   implicit class CacheOps(private val cache: Cache) {
-    def toFetchDataCache: F[fetch.DataCache[F]] =
+    def toFetchDataCache: F[_root_.fetch.DataCache[F]] =
       toFetchCacheImpl(cache)
   }
 
-  private def toFetchCacheImpl(cache: Cache): F[fetch.DataCache[F]] =
-    cache.entries.toList.foldLeftM[F, fetch.DataCache[F]](fetch.InMemoryCache.empty[F]) {
-      case (acc, (_, v)) =>
-        val k: v.key.type                               = v.key
-        val tag: Tag[k.R]                               = k.tag
-        val relation: k.R & Relation[k.Input, k.Result] = k.relationEv(k._relation)
-        val key: k.Input                                = k._key
-        val value: k.Result                             = v.valueEv(v._value)
+  private def toFetchCacheImpl(cache: Cache): F[_root_.fetch.DataCache[F]] =
+    cache.entries.toList.foldLeftM[F, _root_.fetch.DataCache[F]](
+      _root_.fetch.InMemoryCache.empty[F]
+    ) { case (acc, (_, v)) =>
+      val k: v.key.type                               = v.key
+      val relation: k.R & Relation[k.Input, k.Result] = k.relationEv(k._relation)
+      val key: k.Input                                = k._key
+      val value: k.Result                             = v.valueEv(v._value)
 
-        acc.insert[RelationRequest[k.R, k.Input, k.Result], k.Result](
-          RelationRequest(relation, key),
-          value,
-          new RelationRequestData(relation, tag)
+      acc.insert[RelationRequest[k.Input, k.Result], k.Result](
+        RelationRequest(relation, key),
+        value,
+        new FetchRelationData[RelationRequest[k.Input, k.Result], k.Result](
+          datasourceName(relation)
         )
+      )
     }
 
   // ****** Syntax ************************************
@@ -375,16 +438,16 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   /**
    * Syntax for Relation values
    */
-  implicit class FetchRelationOps[Rel, In, Out](private val rel: Rel & Relation[In, Out]) { // TODO add AnyVal
+  implicit class FetchRelationOps[Rel, In, Out](private val rel: Rel & Relation[In, Out]) {
 
     def toF(in: In)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
+      proof: Proof[Rel & Relation[In, Out], In, Out, Nothing],
       clock: Clock[F]
     ): F[Out] =
       Fetch.run(toFetch(in))
 
     def toF(in: In, cache: Cache)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
+      proof: Proof[Rel & Relation[In, Out], In, Out, Nothing],
       clock: Clock[F]
     ): F[Out] =
       toFetchCacheImpl(cache).flatMap { cache =>
@@ -394,7 +457,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     def toFMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
+      proof: Proof[Rel & Relation[In, Out], In, Out, Nothing],
       clock: Clock[F]
     ): F[Coll[Out]] =
       Fetch.run(toFetchMany(in))
@@ -403,7 +466,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
       in: Coll[In],
       cache: Cache
     )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
+      proof: Proof[Rel & Relation[In, Out], In, Out, Nothing],
       clock: Clock[F]
     ): F[Coll[Out]] =
       toFetchCacheImpl(cache).flatMap { cache =>
@@ -411,13 +474,13 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
       }
 
     def startingFrom(in: In)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
+      proof: Proof[Rel & Relation[In, Out], In, Out, Nothing],
       clock: Clock[F]
     ): F[Out] =
       toF(in)
 
     def startingFrom(in: In, cache: Cache)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
+      proof: Proof[Rel & Relation[In, Out], In, Out, Nothing],
       clock: Clock[F]
     ): F[Out] =
       toF(in, cache)
@@ -425,7 +488,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     def startingFrom[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
+      proof: Proof[Rel & Relation[In, Out], In, Out, Nothing],
       clock: Clock[F]
     ): F[Coll[Out]] =
       toFMany(in)
@@ -434,32 +497,32 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
       in: Coll[In],
       cache: Cache
     )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
+      proof: Proof[Rel & Relation[In, Out], In, Out, Nothing],
       clock: Clock[F]
     ): F[Coll[Out]] =
       toFMany(in, cache)
 
     def toFetch(in: In)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out]
+      proof: Proof[Rel & Relation[In, Out], In, Out, Nothing]
     ): Fetch[F, Out] =
-      proof.reify(in)
+      proof.reify(rel).apply(in)
 
     def toFetchMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out]
+      proof: Proof[Rel & Relation[In, Out], In, Out, Nothing]
     ): Fetch[F, Coll[Out]] =
-      proof.reify.applyMultiple(in)
+      proof.reify(rel).applyMultiple(in)
 
     def startingFromFetch(in: In)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out]
+      proof: Proof[Rel & Relation[In, Out], In, Out, Nothing]
     ): Fetch[F, Out] =
       toFetch(in)
 
     def startingFromFetch[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out]
+      proof: Proof[Rel & Relation[In, Out], In, Out, Nothing]
     ): Fetch[F, Coll[Out]] =
       toFetchMany(in)
   }
@@ -469,7 +532,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
    */
   implicit class FetchReifiedRelationOps[In, Out](
     private val rel: ReifiedRelation[In, Out]
-  ) { // TODO add AnyVal
+  ) {
     def toF(in: In)(implicit
       clock: Clock[F]
     ): F[Out] =
@@ -543,11 +606,8 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
   implicit class RefCacheOps(private val refCache: Ref[F, Cache]) {
 
-    def add[Rel, A, B](relation: Rel & Relation[A, B], key: A, value: B)(implicit
-      tag: Tag[Rel]
-    ): F[Unit] =
+    def add[Rel, A, B](relation: Rel & Relation[A, B], key: A, value: B): F[Unit] =
       refCache.update(_.add[Rel, A, B](relation, key, value))
 
   }
-
 }

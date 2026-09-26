@@ -101,8 +101,8 @@ import zio._
 // Create a module with your implementation
 object EmployeeRelations extends zquery[Any] {
   
-  implicit val employeeDepartmentProof: Proof.Single[Employee.department.type, Employee, Nothing, Department] =
-    implementSingleDatasource(Employee.department) { employeeIds =>
+  implicit val employeeDepartmentProof: Proof.Single[Employee.department.type, Employee, Nothing, Department, Nothing] =
+    implementSingleDatasource(Employee.department) { (employeeIds, _) =>
       // Implementation to fetch departments for employees
       ZIO.succeed(
         employeeIds.map(id => id -> Department(s"Dept-${id.value}"))
@@ -122,8 +122,8 @@ import cats.effect.IO
 // Create a module with your implementation
 object EmployeeRelations extends fetch[IO] {
   
-  implicit val employeeDepartmentProof: Proof.Single[Employee.department.type, Employee, Department] =
-    implementSingleDatasource(Employee.department) { employeeIds =>
+  implicit val employeeDepartmentProof: Proof.Single[Employee.department.type, Employee, Department, Nothing] =
+    implementSingleDatasource(Employee.department) { (employeeIds, _) =>
       // Implementation to fetch departments for employees
       IO.pure(
         employeeIds.map(id => id -> Department(s"Dept-${id.value}"))
