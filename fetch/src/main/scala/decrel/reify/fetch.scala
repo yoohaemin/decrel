@@ -13,11 +13,16 @@ import cats.data.NonEmptyList
 import cats.effect.{ Clock, Concurrent, Ref }
 import cats.implicits.*
 import decrel.Relation
+import decrel.filter.Predicate
 import fetch.*
 
 import scala.collection.immutable.HashMap
 import scala.collection.{ mutable, BuildFrom, IterableOps }
 import scala.util.control.NoStackTrace
+
+private[decrel] final case class FetchRelationData[Request, Out](
+  override val name: String
+) extends Data[Request, Out]
 
 /**
  * Instantiate this trait in one place in your app pass around the object, importing it where you want to use it.
@@ -29,7 +34,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   // ****** Implementations for Required Operations **************************
 
   protected implicit val CF: Concurrent[F]
-  override protected implicit val F: Monad[Fetch[F, *]] = _root_.fetch.fetchM[F]
+  override protected implicit lazy val F: Monad[Fetch[F, *]] = _root_.fetch.fetchM[F]
 
   override protected def foreach[Coll[+T] <: Iterable[T], A, B](
     collection: Coll[A]
@@ -47,19 +52,19 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     id: Id
   )
 
-  private def datasourceName(relationKey: Any): String =
-    "RelationDatasource:" + relationKey.getClass.getName
+  private val datasourceNames = new WeakKeyCache[String]
 
-  private class RelationRequestData[In, Out](
-    override val name: String
-  ) extends Data[RelationRequest[In, Out], Out]
+  private def datasourceName(relationKey: Any): String =
+    datasourceNames.getOrCreate(relationKey) {
+      DatasourceId.fresh()
+    }
 
   private class FetchDataSourceImpl[In, Out](
     relationKey: Any,
     batchExecute: List[In] => F[List[(In, Out)]]
   ) extends DataSource[F, RelationRequest[In, Out], Out] {
-    override def data: Data[RelationRequest[In, Out], Out] =
-      new RelationRequestData[In, Out](datasourceName(relationKey))
+    override val data: Data[RelationRequest[In, Out], Out] =
+      new FetchRelationData[RelationRequest[In, Out], Out](datasourceName(relationKey))
 
     override implicit def CF: Concurrent[F] = self.CF
 
@@ -134,7 +139,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   ): DataSource[F, RelationRequest[In, Out], Out] =
     new FetchDataSourceImpl[In, Out](relationKey, batchExecute)
 
-  private def singleReifiedRelation[In, Out, Filter](
+  private def singleReifiedRelation[In, Out, Filter <: Predicate[?, ?]](
     relationKey: Any,
     filter: Option[Filter]
   )(
@@ -159,40 +164,13 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     }
   }
 
-  private def requiredSingleReifiedRelation[In, Out](
-    relationKey: Any,
-    relation: ReifiedRelation[In, Option[Out]]
-  ): ReifiedRelation[In, Out] =
-    new ReifiedRelation.Custom[In, Out] {
-      override def apply(in: In): Fetch[F, Out] =
-        relation.apply(in).map {
-          case Some(out) => out
-          case None =>
-            throw new IllegalStateException(
-              s"Single relation implementation returned None for unfiltered access: $relationKey"
-            )
-        }
-
-      override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-        ins: Coll[In]
-      ): Fetch[F, Coll[Out]] =
-        relation.applyMultiple(ins).map(
-          _.map {
-            case Some(out) => out
-            case None =>
-              throw new IllegalStateException(
-                s"Single relation implementation returned None for unfiltered access: $relationKey"
-              )
-          }
-        )
-    }
-
-  def implementSingleDatasource[Rel, In, Out, Filter](
+  // batchExecute must return one entry for every requested input; result order does not matter.
+  def implementFilteredSingleDatasource[Rel, In, Out](
     relation: Rel & Relation.Single[In, Out]
   )(
-    batchExecute: (List[In], Option[Filter]) => F[List[(In, Option[Out])]]
-  )(implicit d: DummyImplicit): Proof.Single[Rel & Relation.Single[In, Out], In, Out, Filter] =
-    new Proof.Single[Rel & Relation.Single[In, Out], In, Out, Filter] {
+    batchExecute: (List[In], Option[Predicate[In, Out]]) => F[List[(In, Option[Out])]]
+  ): Proof.Single[Rel & Relation.Single[In, Out], In, Out, Predicate[In, Out]] =
+    new Proof.Single[Rel & Relation.Single[In, Out], In, Out, Predicate[In, Out]] {
       override private[decrel] def reifyRelation(
         relationValue: (Rel & Relation.Single[In, Out]) & Relation[In, Out]
       ): ReifiedRelation[In, Out] =
@@ -200,16 +178,26 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
       override private[decrel] def reifyFiltered(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Predicate[In, Out]]
       ): ReifiedRelation[In, Out] =
-        requiredSingleReifiedRelation(
+        // Required accesses cache Row, matching Cache.add on the unfiltered edge.
+        // Filtered accesses below cache Option[Row] under the filtered relation key.
+        singleReifiedRelation[In, Out, Predicate[In, Out]](
           filter.fold[Any](relation)(_ => relationKey),
-          reifyFilteredOptional(relationKey, filter)
-        )
+          filter
+        ) { (inputs, predicate) =>
+          batchExecute(inputs, predicate).map(_.map { case (in, out) =>
+            in -> out.getOrElse(
+              throw new IllegalStateException(
+                s"Single relation implementation returned None for unfiltered access: $relationKey"
+              )
+            )
+          })
+        }
 
       override private[decrel] def reifyFilteredOptional(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Predicate[In, Out]]
       ): ReifiedRelation[In, Option[Out]] =
         singleReifiedRelation(filter.fold[Any](relation)(_ => relationKey), filter)(batchExecute)
     }
@@ -232,12 +220,12 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
         singleReifiedRelation(filter.fold[Any](relation)(_ => relationKey), filter)(batchExecute)
     }
 
-  def implementOptionalDatasource[Rel, In, Out, Filter](
+  def implementFilteredOptionalDatasource[Rel, In, Out](
     relation: Rel & Relation.Optional[In, Out]
   )(
-    batchExecute: (List[In], Option[Filter]) => F[List[(In, Option[Out])]]
-  )(implicit d: DummyImplicit): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out, Filter] =
-    new Proof.Optional[Rel & Relation.Optional[In, Out], In, Out, Filter] {
+    batchExecute: (List[In], Option[Predicate[In, Out]]) => F[List[(In, Option[Out])]]
+  ): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out, Predicate[In, Out]] =
+    new Proof.Optional[Rel & Relation.Optional[In, Out], In, Out, Predicate[In, Out]] {
       override private[decrel] def reifyRelation(
         relationValue: (Rel & Relation.Optional[In, Out]) & Relation[In, Option[Out]]
       ): ReifiedRelation[In, Option[Out]] =
@@ -245,7 +233,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
       override private[decrel] def reifyFiltered(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Predicate[In, Out]]
       ): ReifiedRelation[In, Option[Out]] =
         singleReifiedRelation(filter.fold[Any](relation)(_ => relationKey), filter)(batchExecute)
     }
@@ -255,20 +243,16 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   )(
     batchExecute: (List[In], Option[Nothing]) => F[List[(In, Option[Out])]]
   ): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out, Nothing] =
-    implementOptionalDatasource[Rel, In, Out, Nothing](relation)(batchExecute)
+    implementFilteredOptionalDatasource[Rel, In, Out](relation)((ins, _) => batchExecute(ins, None))
 
-  def implementManyDatasource[
-    Rel,
-    In,
-    CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]],
-    Out,
-    Filter
-  ](
+  def implementFilteredManyDatasource[Rel, In, CC[+A] <: Iterable[
+    A
+  ] & IterableOps[A, CC, CC[A]], Out](
     relation: Rel & Relation.Many[In, CC, Out]
   )(
-    batchExecute: (List[In], Option[Filter]) => F[List[(In, CC[Out])]]
-  )(implicit d: DummyImplicit): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out, Filter] =
-    new Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out, Filter] {
+    batchExecute: (List[In], Option[Predicate[In, Out]]) => F[List[(In, CC[Out])]]
+  ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out, Predicate[In, Out]] =
+    new Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out, Predicate[In, Out]] {
       override private[decrel] def reifyRelation(
         relationValue: (Rel & Relation.Many[In, CC, Out]) & Relation[In, CC[Out]]
       ): ReifiedRelation[In, CC[Out]] =
@@ -276,7 +260,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
       override private[decrel] def reifyFiltered(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Predicate[In, Out]]
       ): ReifiedRelation[In, CC[Out]] =
         singleReifiedRelation(filter.fold[Any](relation)(_ => relationKey), filter)(batchExecute)
     }
@@ -291,19 +275,14 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   )(
     batchExecute: (List[In], Option[Nothing]) => F[List[(In, CC[Out])]]
   ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out, Nothing] =
-    implementManyDatasource[Rel, In, CC, Out, Nothing](relation)(batchExecute)
+    implementFilteredManyDatasource[Rel, In, CC, Out](relation)((ins, _) => batchExecute(ins, None))
 
-  def implementCustomDatasource[
-    Tree,
-    In,
-    Out,
-    Filter
-  ](
+  def implementCustomDatasource[Tree, In, Out](
     relation: Relation.Custom[Tree, In, Out]
   )(
-    batchExecute: (List[In], Option[Filter]) => F[List[(In, Out)]]
-  )(implicit d: DummyImplicit): Proof[Relation.Custom[Tree, In, Out], In, Out, Filter] =
-    new Proof[Relation.Custom[Tree, In, Out], In, Out, Filter] {
+    batchExecute: (List[In], Option[Nothing]) => F[List[(In, Out)]]
+  ): Proof[Relation.Custom[Tree, In, Out], In, Out, Nothing] =
+    new Proof[Relation.Custom[Tree, In, Out], In, Out, Nothing] {
       override private[decrel] def reifyRelation(
         relationValue: Relation.Custom[Tree, In, Out] & Relation[In, Out]
       ): ReifiedRelation[In, Out] =
@@ -311,28 +290,17 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
       override private[decrel] def reifyFiltered(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Nothing]
       ): ReifiedRelation[In, Out] =
         singleReifiedRelation(filter.fold[Any](relation)(_ => relationKey), filter)(batchExecute)
     }
 
-  def implementCustomDatasource[
-    Tree,
-    In,
-    Out
-  ](
-    relation: Relation.Custom[Tree, In, Out]
-  )(
-    batchExecute: (List[In], Option[Nothing]) => F[List[(In, Out)]]
-  ): Proof[Relation.Custom[Tree, In, Out], In, Out, Nothing] =
-    implementCustomDatasource[Tree, In, Out, Nothing](relation)(batchExecute)
-
-  def contramapOneProof[Rel <: Relation[In, Out], NewRel, In, Out, B, Filter](
+  def contramapOneProof[Rel <: Relation[In, Out], NewRel, In, Out, B, Filter <: Predicate[?, ?]](
     proof: Proof.Single[Rel, In, Out, Filter],
     rel: NewRel & Relation.Single[B, Out],
     f: B => In
-  ): Proof.Single[NewRel & Relation.Single[B, Out], B, Out, Filter] =
-    new Proof.Single[NewRel & Relation.Single[B, Out], B, Out, Filter] {
+  ): Proof.Single[NewRel & Relation.Single[B, Out], B, Out, Nothing] =
+    new Proof.Single[NewRel & Relation.Single[B, Out], B, Out, Nothing] {
       override private[decrel] def reifyRelation(
         relation: (NewRel & Relation.Single[B, Out]) & Relation[B, Out]
       ): ReifiedRelation[B, Out] =
@@ -340,7 +308,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
       override private[decrel] def reifyFiltered(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Nothing]
       ): ReifiedRelation[B, Out] =
         new ReifiedRelation.Custom[B, Out] {
           override def apply(in: B): Fetch[F, Out] =
@@ -354,7 +322,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
       override private[decrel] def reifyFilteredOptional(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Nothing]
       ): ReifiedRelation[B, Option[Out]] =
         new ReifiedRelation.Custom[B, Option[Out]] {
           override def apply(in: B): Fetch[F, Option[Out]] =
@@ -373,13 +341,13 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     In,
     Out,
     B,
-    Filter
+    Filter <: Predicate[?, ?]
   ](
     proof: Proof[Rel, In, Out, Filter],
     rel: NewRel & Relation.Optional[B, Out],
     f: B => Option[In]
-  ): Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out, Filter] =
-    new Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out, Filter] {
+  ): Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out, Nothing] =
+    new Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out, Nothing] {
       override private[decrel] def reifyRelation(
         relation: (NewRel & Relation.Optional[B, Out]) & Relation[B, Option[Out]]
       ): ReifiedRelation[B, Option[Out]] =
@@ -387,7 +355,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
       override private[decrel] def reifyFiltered(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Nothing]
       ): ReifiedRelation[B, Option[Out]] =
         new ReifiedRelation.Custom[B, Option[Out]] {
 
@@ -410,13 +378,13 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     Out,
     B,
     CC[+T] <: Iterable[T] & IterableOps[T, CC, CC[T]],
-    Filter
+    Filter <: Predicate[?, ?]
   ](
     proof: Proof[Rel, In, Out, Filter],
     rel: NewRel & Relation.Many[B, CC, Out],
     f: B => CC[In]
-  ): Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out, Filter] =
-    new Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out, Filter] {
+  ): Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out, Nothing] =
+    new Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out, Nothing] {
       override private[decrel] def reifyRelation(
         relation: (NewRel & Relation.Many[B, CC, Out]) & Relation[B, CC[Out]]
       ): ReifiedRelation[B, CC[Out]] =
@@ -424,7 +392,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
       override private[decrel] def reifyFiltered(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Nothing]
       ): ReifiedRelation[B, CC[Out]] =
         new ReifiedRelation.Custom[B, CC[Out]] {
 
@@ -448,18 +416,21 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   }
 
   private def toFetchCacheImpl(cache: Cache): F[_root_.fetch.DataCache[F]] =
-    cache.entries.toList.foldLeftM[F, _root_.fetch.DataCache[F]](_root_.fetch.InMemoryCache.empty[F]) {
-      case (acc, (_, v)) =>
-        val k: v.key.type                                = v.key
-        val relation: k.R & Relation[k.Input, k.Result] = k.relationEv(k._relation)
-        val key: k.Input                                 = k._key
-        val value: k.Result                              = v.valueEv(v._value)
+    cache.entries.toList.foldLeftM[F, _root_.fetch.DataCache[F]](
+      _root_.fetch.InMemoryCache.empty[F]
+    ) { case (acc, (_, v)) =>
+      val k: v.key.type                               = v.key
+      val relation: k.R & Relation[k.Input, k.Result] = k.relationEv(k._relation)
+      val key: k.Input                                = k._key
+      val value: k.Result                             = v.valueEv(v._value)
 
-        acc.insert[RelationRequest[k.Input, k.Result], k.Result](
-          RelationRequest(relation, key),
-          value,
-          new RelationRequestData(datasourceName(relation))
+      acc.insert[RelationRequest[k.Input, k.Result], k.Result](
+        RelationRequest(relation, key),
+        value,
+        new FetchRelationData[RelationRequest[k.Input, k.Result], k.Result](
+          datasourceName(relation)
         )
+      )
     }
 
   // ****** Syntax ************************************

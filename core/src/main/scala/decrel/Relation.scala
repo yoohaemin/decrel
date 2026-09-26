@@ -8,6 +8,8 @@
 
 package decrel
 
+import decrel.filter.Predicate
+
 import scala.annotation.implicitNotFound
 
 /**
@@ -50,7 +52,8 @@ object Relation {
     relation: Tree & Relation.Declared[In, Out]
   ) extends Relation.Declared[In, Out]
 
-  sealed abstract class Filtered[Tree, BaseOut, -In, +Out, +Filter] extends Relation[In, Out] {
+  sealed abstract class Filtered[Tree, BaseOut, -In, +Out, +Filter <: Predicate[?, ?]]
+      extends Relation[In, Out] {
     def relation: Tree & Relation.Declared[In, BaseOut]
     def filter: Filter
 
@@ -66,12 +69,12 @@ object Relation {
     )
     sealed trait RefilteringNotSupported
 
-    private final class Impl[Tree, BaseOut, In, Out, Filter](
+    private final case class Impl[Tree, BaseOut, In, Out, Filter <: Predicate[?, ?]](
       val relation: Tree & Relation.Declared[In, BaseOut],
       val filter: Filter
     ) extends Filtered[Tree, BaseOut, In, Out, Filter]
 
-    private[decrel] def apply[Tree, BaseOut, In, Out, Filter](
+    private[decrel] def apply[Tree, BaseOut, In, Out, Filter <: Predicate[?, ?]](
       relation: Tree & Relation.Declared[In, BaseOut],
       filter: Filter
     ): Filtered[Tree, BaseOut, In, Out, Filter] =
@@ -141,7 +144,7 @@ object Relation {
       LeftBaseOut,
       LeftIn,
       LeftOut,
-      LeftFilter,
+      LeftFilter <: Predicate[?, ?],
       RightTree,
       RightIn,
       RightOut
@@ -183,7 +186,7 @@ object Relation {
       LeftBaseOut,
       LeftIn,
       LeftOut,
-      LeftFilter,
+      LeftFilter <: Predicate[?, ?],
       RightTree,
       RightIn,
       RightOut,

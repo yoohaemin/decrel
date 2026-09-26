@@ -9,6 +9,7 @@
 package decrel.reify.bifunctor
 
 import decrel.*
+import decrel.filter.Predicate
 import izumi.reflect.TagK
 
 import scala.collection.{ BuildFrom, IterableOps }
@@ -22,7 +23,7 @@ trait proof { this: access & reifiedRelation =>
    * In practice, this data structure is the outer shell of `ReifiedRelation`
    * that guides the implicit derivation mechanism.
    */
-  abstract class Proof[Rel, In, +E, Out, -Filter] {
+  abstract class Proof[Rel, In, +E, Out, -Filter <: Predicate[?, ?]] {
 
     final def reify(relation: Rel & Relation[In, Out]): ReifiedRelation[In, E, Out] =
       reifyRelation(relation)
@@ -35,15 +36,21 @@ trait proof { this: access & reifiedRelation =>
       relationKey: Any,
       filter: Option[Filter]
     ): ReifiedRelation[In, E, Out] =
-      reifyRelation(relationKey.asInstanceOf[Rel & Relation[In, Out]])
+      if (filter.isEmpty)
+        reifyRelation(relationKey.asInstanceOf[Rel & Relation[In, Out]])
+      else
+        throw new UnsupportedOperationException("This proof does not implement filtered access")
   }
 
   object Proof {
 
-    sealed trait Declared[Rel, In, +E, Out, -Filter]
+    sealed trait Declared[Rel, In, +E, Out, -Filter <: Predicate[?, ?]]
         extends Proof[Rel, In, E, Out, Filter]
 
-    sealed trait FilteredOptional[Rel <: Relation[In, Option[Out]], In, +E, Out, -Filter]
+    sealed trait FilteredOptional[Rel <: Relation[
+      In,
+      Option[Out]
+    ], In, +E, Out, -Filter <: Predicate[?, ?]]
         extends Proof[Rel, In, E, Option[Out], Filter]
 
     sealed trait FilteredMany[
@@ -52,13 +59,13 @@ trait proof { this: access & reifiedRelation =>
       +E,
       CC[+_],
       Out,
-      -Filter
+      -Filter <: Predicate[?, ?]
     ] extends Proof[Rel, In, E, CC[Out], Filter]
 
     /**
      * Includes both Single and Self.
      */
-    sealed trait GenericSingle[Rel <: Relation[In, Out], In, +E, Out, -Filter]
+    sealed trait GenericSingle[Rel <: Relation[In, Out], In, +E, Out, -Filter <: Predicate[?, ?]]
         extends Proof[Rel, In, E, Out, Filter]
 
     final class SelfProof[Rel <: Relation.Self[A], A]
@@ -85,7 +92,7 @@ trait proof { this: access & reifiedRelation =>
       new SelfProof[Relation.Self[Any], Any]
 
     implicit def selfProof[Rel <: Relation.Self[A], A]
-        : Proof.GenericSingle[Rel, A, Nothing, A, Nothing] =
+      : Proof.GenericSingle[Rel, A, Nothing, A, Nothing] =
       _selfProof.asInstanceOf[Proof.GenericSingle[Rel, A, Nothing, A, Nothing]]
 
     implicit def widenRelationProof[
@@ -93,7 +100,7 @@ trait proof { this: access & reifiedRelation =>
       In,
       E,
       Out,
-      Filter
+      Filter <: Predicate[?, ?]
     ](
       proof: Proof[Rel, In, E, Out, Filter]
     ): Proof[Rel & Relation[In, Out], In, E, Out, Filter] =
@@ -104,7 +111,7 @@ trait proof { this: access & reifiedRelation =>
       In,
       +E,
       Out,
-      -Filter
+      -Filter <: Predicate[?, ?]
     ] extends Proof.Declared[Rel, In, E, Out, Filter]
         with GenericSingle[Rel, In, E, Out, Filter] { outer =>
 
@@ -135,8 +142,8 @@ trait proof { this: access & reifiedRelation =>
         rel: Rel2
       )(
         f: In2 => In
-      ): Proof.Single[Rel2, In2, E, Out, Filter] =
-        new Proof.Single[Rel2 & Relation.Single[In2, Out], In2, E, Out, Filter] {
+      ): Proof.Single[Rel2, In2, E, Out, Nothing] =
+        new Proof.Single[Rel2 & Relation.Single[In2, Out], In2, E, Out, Nothing] {
           override private[decrel] def reifyRelation(
             relation: (Rel2 & Relation.Single[In2, Out]) & Relation[In2, Out]
           ): ReifiedRelation[In2, E, Out] =
@@ -144,7 +151,7 @@ trait proof { this: access & reifiedRelation =>
 
           override private[decrel] def reifyFiltered(
             relationKey: Any,
-            filter: Option[Filter]
+            filter: Option[Nothing]
           ): ReifiedRelation[In2, E, Out] =
             new ReifiedRelation.ComposedSingle[In2, Nothing, In, In, E, Out](
               new ReifiedRelation.FromFunction(f),
@@ -153,7 +160,7 @@ trait proof { this: access & reifiedRelation =>
 
           override private[decrel] def reifyFilteredOptional(
             relationKey: Any,
-            filter: Option[Filter]
+            filter: Option[Nothing]
           ): ReifiedRelation[In2, E, Option[Out]] =
             new ReifiedRelation.ComposedSingle[In2, Nothing, In, In, E, Option[Out]](
               new ReifiedRelation.FromFunction(f),
@@ -168,8 +175,8 @@ trait proof { this: access & reifiedRelation =>
         rel: Rel2
       )(
         f: In2 => Option[In]
-      ): Proof.Optional[Rel2, In2, E, Out, Filter] =
-        new Proof.Optional[Rel2, In2, E, Out, Filter] {
+      ): Proof.Optional[Rel2, In2, E, Out, Nothing] =
+        new Proof.Optional[Rel2, In2, E, Out, Nothing] {
 
           override private[decrel] def reifyRelation(
             relation: Rel2 & Relation[In2, Option[Out]]
@@ -178,7 +185,7 @@ trait proof { this: access & reifiedRelation =>
 
           override private[decrel] def reifyFiltered(
             relationKey: Any,
-            filter: Option[Filter]
+            filter: Option[Nothing]
           ): ReifiedRelation[In2, E, Option[Out]] =
             new ReifiedRelation.ComposedOptional[In2, Nothing, In, In, E, Out](
               new ReifiedRelation.FromFunction(f),
@@ -194,8 +201,8 @@ trait proof { this: access & reifiedRelation =>
         rel: Rel2
       )(
         f: In2 => CC[In]
-      )(implicit tagkColl: TagK[CC]): Proof.Many[Rel2, In2, E, CC, Out, Filter] =
-        new Proof.Many[Rel2, In2, E, CC, Out, Filter] {
+      )(implicit tagkColl: TagK[CC]): Proof.Many[Rel2, In2, E, CC, Out, Nothing] =
+        new Proof.Many[Rel2, In2, E, CC, Out, Nothing] {
 
           override private[decrel] def reifyRelation(
             relation: Rel2 & Relation[In2, CC[Out]]
@@ -204,7 +211,7 @@ trait proof { this: access & reifiedRelation =>
 
           override private[decrel] def reifyFiltered(
             relationKey: Any,
-            filter: Option[Filter]
+            filter: Option[Nothing]
           ): ReifiedRelation[In2, E, CC[Out]] =
             new ReifiedRelation.ComposedMany(
               new ReifiedRelation.FromFunction(f),
@@ -218,7 +225,7 @@ trait proof { this: access & reifiedRelation =>
       In,
       +E,
       Out,
-      -Filter
+      -Filter <: Predicate[?, ?]
     ] extends Proof.Declared[Rel, In, E, Option[Out], Filter] { outer =>
 
       final def contramap[
@@ -228,8 +235,8 @@ trait proof { this: access & reifiedRelation =>
         rel: Rel2
       )(
         f: In2 => In
-      ): Proof.Optional[Rel2, In2, E, Out, Filter] =
-        new Proof.Optional[Rel2, In2, E, Out, Filter] {
+      ): Proof.Optional[Rel2, In2, E, Out, Nothing] =
+        new Proof.Optional[Rel2, In2, E, Out, Nothing] {
           override private[decrel] def reifyRelation(
             relation: Rel2 & Relation[In2, Option[Out]]
           ): ReifiedRelation[In2, E, Option[Out]] =
@@ -237,7 +244,7 @@ trait proof { this: access & reifiedRelation =>
 
           override private[decrel] def reifyFiltered(
             relationKey: Any,
-            filter: Option[Filter]
+            filter: Option[Nothing]
           ): ReifiedRelation[In2, E, Option[Out]] =
             new ReifiedRelation.ComposedSingle[In2, Nothing, In, In, E, Option[Out]](
               new ReifiedRelation.FromFunction(f),
@@ -252,8 +259,8 @@ trait proof { this: access & reifiedRelation =>
         rel: Rel2
       )(
         f: In2 => Option[In]
-      ): Proof.Optional[Rel2, In2, E, Out, Filter] =
-        new Proof.Optional[Rel2, In2, E, Out, Filter] {
+      ): Proof.Optional[Rel2, In2, E, Out, Nothing] =
+        new Proof.Optional[Rel2, In2, E, Out, Nothing] {
 
           private type X[A] = Option[Option[A]]
 
@@ -264,7 +271,7 @@ trait proof { this: access & reifiedRelation =>
 
           override private[decrel] def reifyFiltered(
             relationKey: Any,
-            filter: Option[Filter]
+            filter: Option[Nothing]
           ): ReifiedRelation[In2, E, Option[Out]] =
             new ReifiedRelation.Transformed[In2, X, E, Option, Out](
               new ReifiedRelation.ComposedOptional[In2, Nothing, In, In, E, Option[Out]](
@@ -283,8 +290,8 @@ trait proof { this: access & reifiedRelation =>
         rel: Rel2
       )(
         f: In2 => CC[In]
-      )(implicit tagkColl: TagK[CC]): Proof.Many[Rel2, In2, E, CC, Out, Filter] =
-        new Proof.Many[Rel2, In2, E, CC, Out, Filter] {
+      )(implicit tagkColl: TagK[CC]): Proof.Many[Rel2, In2, E, CC, Out, Nothing] =
+        new Proof.Many[Rel2, In2, E, CC, Out, Nothing] {
 
           private type X[A] = CC[Option[A]]
 
@@ -295,7 +302,7 @@ trait proof { this: access & reifiedRelation =>
 
           override private[decrel] def reifyFiltered(
             relationKey: Any,
-            filter: Option[Filter]
+            filter: Option[Nothing]
           ): ReifiedRelation[In2, E, CC[Out]] =
             new ReifiedRelation.Transformed[In2, X, E, CC, Out](
               new ReifiedRelation.ComposedMany[In2, Nothing, In, In, E, CC, Option[Out]](
@@ -313,7 +320,7 @@ trait proof { this: access & reifiedRelation =>
       +E,
       Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]],
       Out,
-      -Filter
+      -Filter <: Predicate[?, ?]
     ] extends Proof.Declared[Rel, In, E, Coll[Out], Filter] { outer =>
 
       final def contramap[
@@ -328,8 +335,8 @@ trait proof { this: access & reifiedRelation =>
         tagkColl: TagK[Coll],
         tagkColl2: TagK[Coll2],
         bf: BuildFrom[Coll[Out], Out, Coll2[Out]]
-      ): Proof.Many[Rel2, In2, E, Coll2, Out, Filter] =
-        new Proof.Many[Rel2, In2, E, Coll2, Out, Filter] {
+      ): Proof.Many[Rel2, In2, E, Coll2, Out, Nothing] =
+        new Proof.Many[Rel2, In2, E, Coll2, Out, Nothing] {
 
           override private[decrel] def reifyRelation(
             relation: Rel2 & Relation[In2, Coll2[Out]]
@@ -338,7 +345,7 @@ trait proof { this: access & reifiedRelation =>
 
           override private[decrel] def reifyFiltered(
             relationKey: Any,
-            filter: Option[Filter]
+            filter: Option[Nothing]
           ): ReifiedRelation[In2, E, Coll2[Out]] =
             new ReifiedRelation.Transformed[In2, Coll, E, Coll2, Out](
               new ReifiedRelation.ComposedSingle[In2, Nothing, In, In, E, Coll[Out]](
@@ -365,8 +372,8 @@ trait proof { this: access & reifiedRelation =>
         tagkColl: TagK[Coll],
         tagkColl2: TagK[Coll2],
         bf: BuildFrom[Iterable[Out], Out, Coll2[Out]]
-      ): Proof.Many[Rel2, In2, E, Coll2, Out, Filter] =
-        new Proof.Many[Rel2, In2, E, Coll2, Out, Filter] {
+      ): Proof.Many[Rel2, In2, E, Coll2, Out, Nothing] =
+        new Proof.Many[Rel2, In2, E, Coll2, Out, Nothing] {
 
           type X[A] = Option[Coll[A]]
 
@@ -377,7 +384,7 @@ trait proof { this: access & reifiedRelation =>
 
           override private[decrel] def reifyFiltered(
             relationKey: Any,
-            filter: Option[Filter]
+            filter: Option[Nothing]
           ): ReifiedRelation[In2, E, Coll2[Out]] =
             new ReifiedRelation.Transformed[In2, X, E, Coll2, Out](
               new ReifiedRelation.ComposedOptional[In2, Nothing, In, In, E, Coll[Out]](
@@ -407,8 +414,8 @@ trait proof { this: access & reifiedRelation =>
       )(implicit
         tagkColl: TagK[Coll],
         tagkColl2: TagK[Coll2]
-      ): Proof.Many[Rel2, In2, E, Coll2, Out, Filter] =
-        new Proof.Many[Rel2, In2, E, Coll2, Out, Filter] {
+      ): Proof.Many[Rel2, In2, E, Coll2, Out, Nothing] =
+        new Proof.Many[Rel2, In2, E, Coll2, Out, Nothing] {
 
           type X[A] = Coll2[Coll[A]]
 
@@ -419,7 +426,7 @@ trait proof { this: access & reifiedRelation =>
 
           override private[decrel] def reifyFiltered(
             relationKey: Any,
-            filter: Option[Filter]
+            filter: Option[Nothing]
           ): ReifiedRelation[In2, E, Coll2[Out]] =
             new ReifiedRelation.Transformed[In2, X, E, Coll2, Out](
               new ReifiedRelation.ComposedMany[In2, Nothing, In, In, E, Coll2, Coll[Out]](
@@ -436,8 +443,8 @@ trait proof { this: access & reifiedRelation =>
       In,
       E,
       Out,
-      FilterValue,
-      ProofFilter >: FilterValue
+      FilterValue <: Predicate[In, Out],
+      ProofFilter >: FilterValue <: Predicate[?, ?]
     ](implicit
       proof: Proof.Single[Tree & Relation.Single[In, Out], In, E, Out, ProofFilter]
     ): Proof.FilteredOptional[
@@ -455,9 +462,11 @@ trait proof { this: access & reifiedRelation =>
         Nothing
       ] {
         override private[decrel] def reifyRelation(
-          relation: Relation.Filtered[Tree, Out, In, Option[Out], FilterValue] & Relation[In, Option[Out]]
+          relation: Relation.Filtered[Tree, Out, In, Option[Out], FilterValue] &
+            Relation[In, Option[Out]]
         ): ReifiedRelation[In, E, Option[Out]] = {
-          val filtered = relation.asInstanceOf[Relation.Filtered[Tree, Out, In, Option[Out], FilterValue]]
+          val filtered =
+            relation.asInstanceOf[Relation.Filtered[Tree, Out, In, Option[Out], FilterValue]]
           proof.reifyFilteredOptional(filtered, Some(filtered.filter))
         }
       }
@@ -467,8 +476,8 @@ trait proof { this: access & reifiedRelation =>
       In,
       E,
       Out,
-      FilterValue,
-      ProofFilter >: FilterValue
+      FilterValue <: Predicate[In, Out],
+      ProofFilter >: FilterValue <: Predicate[?, ?]
     ](implicit
       proof: Proof.Optional[Tree & Relation.Optional[In, Out], In, E, Out, ProofFilter]
     ): Proof.FilteredOptional[
@@ -486,7 +495,8 @@ trait proof { this: access & reifiedRelation =>
         Nothing
       ] {
         override private[decrel] def reifyRelation(
-          relation: Relation.Filtered[Tree, Option[Out], In, Option[Out], FilterValue] & Relation[In, Option[Out]]
+          relation: Relation.Filtered[Tree, Option[Out], In, Option[Out], FilterValue] &
+            Relation[In, Option[Out]]
         ): ReifiedRelation[In, E, Option[Out]] = {
           val filtered = relation.asInstanceOf[
             Relation.Filtered[Tree, Option[Out], In, Option[Out], FilterValue]
@@ -501,8 +511,8 @@ trait proof { this: access & reifiedRelation =>
       E,
       CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]],
       Out,
-      FilterValue,
-      ProofFilter >: FilterValue
+      FilterValue <: Predicate[In, Out],
+      ProofFilter >: FilterValue <: Predicate[?, ?]
     ](implicit
       proof: Proof.Many[Tree & Relation.Many[In, CC, Out], In, E, CC, Out, ProofFilter]
     ): Proof.FilteredMany[
@@ -522,43 +532,11 @@ trait proof { this: access & reifiedRelation =>
         Nothing
       ] {
         override private[decrel] def reifyRelation(
-          relation: Relation.Filtered[Tree, CC[Out], In, CC[Out], FilterValue] & Relation[In, CC[Out]]
+          relation: Relation.Filtered[Tree, CC[Out], In, CC[Out], FilterValue] &
+            Relation[In, CC[Out]]
         ): ReifiedRelation[In, E, CC[Out]] = {
           val filtered = relation.asInstanceOf[
             Relation.Filtered[Tree, CC[Out], In, CC[Out], FilterValue]
-          ]
-          proof.reifyFiltered(filtered, Some(filtered.filter))
-        }
-      }
-
-    implicit def filteredCustomProof[
-      Tree,
-      In,
-      E,
-      Out,
-      FilterValue,
-      ProofFilter >: FilterValue
-    ](implicit
-      proof: Proof[Relation.Custom[Tree, In, Out], In, E, Out, ProofFilter]
-    ): Proof[
-      Relation.Filtered[Relation.Custom[Tree, In, Out], Out, In, Out, FilterValue],
-      In,
-      E,
-      Out,
-      Nothing
-    ] =
-      new Proof[
-        Relation.Filtered[Relation.Custom[Tree, In, Out], Out, In, Out, FilterValue],
-        In,
-        E,
-        Out,
-        Nothing
-      ] {
-        override private[decrel] def reifyRelation(
-          relation: Relation.Filtered[Relation.Custom[Tree, In, Out], Out, In, Out, FilterValue] & Relation[In, Out]
-        ): ReifiedRelation[In, E, Out] = {
-          val filtered = relation.asInstanceOf[
-            Relation.Filtered[Relation.Custom[Tree, In, Out], Out, In, Out, FilterValue]
           ]
           proof.reifyFiltered(filtered, Some(filtered.filter))
         }
@@ -615,7 +593,9 @@ trait proof { this: access & reifiedRelation =>
         ] & Relation[LeftIn, RightOut]
       ): ReifiedRelation[LeftIn, RightE, RightOut] = {
         val composed = relation
-          .asInstanceOf[Relation.Composed.Single[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut]]
+          .asInstanceOf[
+            Relation.Composed.Single[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut]
+          ]
         new ReifiedRelation.ComposedSingle(
           leftProof.reify(composed.left.asInstanceOf[LeftTree & Relation.Single[LeftIn, LeftOut]]),
           rightProof.reify(composed.right.asInstanceOf[RightTree & Relation[RightIn, RightOut]])
@@ -670,7 +650,9 @@ trait proof { this: access & reifiedRelation =>
           Relation.Composed.Optional[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut]
         ]
         new ReifiedRelation.ComposedOptional(
-          leftProof.reify(composed.left.asInstanceOf[LeftTree & Relation.Optional[LeftIn, LeftOut]]),
+          leftProof.reify(
+            composed.left.asInstanceOf[LeftTree & Relation.Optional[LeftIn, LeftOut]]
+          ),
           rightProof.reify(composed.right.asInstanceOf[RightTree & Relation[RightIn, RightOut]])
         )
       }
@@ -682,7 +664,7 @@ trait proof { this: access & reifiedRelation =>
       LeftIn,
       LeftE <: RightE,
       LeftOut,
-      LeftFilter,
+      LeftFilter <: Predicate[?, ?],
       RightTree,
       RightIn,
       RightE,
@@ -815,7 +797,9 @@ trait proof { this: access & reifiedRelation =>
           Relation.Composed.Many[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut, CC]
         ]
         new ReifiedRelation.ComposedMany(
-          leftProof.reify(composed.left.asInstanceOf[LeftTree & Relation.Many[LeftIn, CC, LeftOut]]),
+          leftProof.reify(
+            composed.left.asInstanceOf[LeftTree & Relation.Many[LeftIn, CC, LeftOut]]
+          ),
           rightProof.reify(composed.right.asInstanceOf[RightTree & Relation[RightIn, RightOut]])
         )
       }
@@ -827,7 +811,7 @@ trait proof { this: access & reifiedRelation =>
       LeftIn,
       LeftE <: RightE,
       LeftOut,
-      LeftFilter,
+      LeftFilter <: Predicate[?, ?],
       RightTree,
       RightIn,
       RightE,

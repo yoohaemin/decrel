@@ -8,6 +8,8 @@
 
 package decrel
 
+import decrel.filter.{ Expr, Predicate }
+
 import decrel.Relation.Composed
 
 trait syntax {
@@ -126,7 +128,7 @@ trait syntax {
     ] =
       Relation.Composed.Many(left, Relation.Composed.Zipped(Relation.Self[LeftOutO], right))
 
-    def >>:[LeftTree, LeftBaseOut, LeftIn, LeftOut, LeftFilter](
+    def >>:[LeftTree, LeftBaseOut, LeftIn, LeftOut, LeftFilter <: Predicate[?, ?]](
       left: Relation.Filtered[LeftTree, LeftBaseOut, LeftIn, Option[LeftOut], LeftFilter]
     )(implicit
       ev: LeftOut <:< RightIn
@@ -141,7 +143,7 @@ trait syntax {
       RightOut
     ] = Relation.Composed.FilteredOptional(left, right)
 
-    def <>:[LeftTree, LeftBaseOut, LeftIn, LeftOut, LeftFilter, ZippedOut](
+    def <>:[LeftTree, LeftBaseOut, LeftIn, LeftOut, LeftFilter <: Predicate[?, ?], ZippedOut](
       left: Relation.Filtered[LeftTree, LeftBaseOut, LeftIn, Option[LeftOut], LeftFilter]
     )(implicit
       ev: LeftOut <:< RightIn,
@@ -164,9 +166,12 @@ trait syntax {
       LeftOut,
       ZippedOut
     ] =
-      Relation.Composed.FilteredOptional(left, Relation.Composed.Zipped(Relation.Self[LeftOut], right))
+      Relation.Composed.FilteredOptional(
+        left,
+        Relation.Composed.Zipped(Relation.Self[LeftOut], right)
+      )
 
-    def >>:[LeftTree, LeftBaseOut, LeftIn, LeftOut, LeftFilter, CC[+A]](
+    def >>:[LeftTree, LeftBaseOut, LeftIn, LeftOut, LeftFilter <: Predicate[?, ?], CC[+A]](
       left: Relation.Filtered[LeftTree, LeftBaseOut, LeftIn, CC[LeftOut], LeftFilter]
     )(implicit
       ev: LeftOut <:< RightIn
@@ -182,7 +187,9 @@ trait syntax {
       CC
     ] = Relation.Composed.FilteredMany(left, right)
 
-    def <>:[LeftTree, LeftBaseOut, LeftIn, LeftOutO, LeftFilter, ZippedOut, CC[+A]](
+    def <>:[LeftTree, LeftBaseOut, LeftIn, LeftOutO, LeftFilter <: Predicate[?, ?], ZippedOut, CC[
+      +A
+    ]](
       left: Relation.Filtered[LeftTree, LeftBaseOut, LeftIn, CC[LeftOutO], LeftFilter]
     )(implicit
       ev: LeftOutO <:< RightIn,
@@ -275,55 +282,44 @@ trait syntax {
   implicit final class SingleFilterSyntax[Tree, In, Out](
     private val self: Tree & Relation.Single[In, Out]
   ) {
-    def filter[Filter](filter: Filter): Relation.Filtered[
-      Tree,
-      Out,
-      In,
-      Option[Out],
-      Filter
-    ] =
-      Relation.Filtered(self, filter)
+    def filter(
+      predicate: Predicate[In, Out]
+    ): Relation.Filtered[Tree, Out, In, Option[Out], Predicate[In, Out]] =
+      Relation.Filtered(self, predicate.checked)
+
+    def filter(
+      build: (Expr[In, Out, In], Expr[In, Out, Out]) => Predicate[In, Out]
+    ): Relation.Filtered[Tree, Out, In, Option[Out], Predicate[In, Out]] =
+      filter(Predicate.build(build))
   }
 
   implicit final class OptionalFilterSyntax[Tree, In, Out](
     private val self: Tree & Relation.Optional[In, Out]
   ) {
-    def filter[Filter](filter: Filter): Relation.Filtered[
-      Tree,
-      Option[Out],
-      In,
-      Option[Out],
-      Filter
-    ] =
-      Relation.Filtered(self, filter)
+    def filter(
+      predicate: Predicate[In, Out]
+    ): Relation.Filtered[Tree, Option[Out], In, Option[Out], Predicate[In, Out]] =
+      Relation.Filtered(self, predicate.checked)
+
+    def filter(
+      build: (Expr[In, Out, In], Expr[In, Out, Out]) => Predicate[In, Out]
+    ): Relation.Filtered[Tree, Option[Out], In, Option[Out], Predicate[In, Out]] =
+      filter(Predicate.build(build))
   }
 
   implicit final class ManyFilterSyntax[Tree, In, CC[+A], Out](
     private val self: Tree & Relation.Many[In, CC, Out]
   ) {
-    def filter[Filter](filter: Filter): Relation.Filtered[
-      Tree,
-      CC[Out],
-      In,
-      CC[Out],
-      Filter
-    ] =
-      Relation.Filtered(self, filter)
-  }
+    def filter(
+      predicate: Predicate[In, Out]
+    ): Relation.Filtered[Tree, CC[Out], In, CC[Out], Predicate[In, Out]] =
+      Relation.Filtered(self, predicate.checked)
 
-  implicit final class CustomFilterSyntax[Tree, In, Out](
-    private val self: Relation.Custom[Tree, In, Out]
-  ) {
-    def filter[Filter](filter: Filter): Relation.Filtered[
-      Relation.Custom[Tree, In, Out],
-      Out,
-      In,
-      Out,
-      Filter
-    ] =
-      Relation.Filtered(self, filter)
+    def filter(
+      build: (Expr[In, Out, In], Expr[In, Out, Out]) => Predicate[In, Out]
+    ): Relation.Filtered[Tree, CC[Out], In, CC[Out], Predicate[In, Out]] =
+      filter(Predicate.build(build))
   }
-
 }
 
 object syntax extends syntax

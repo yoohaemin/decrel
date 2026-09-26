@@ -55,10 +55,10 @@ for {
 - [Introduction](/guide/)
 - [Getting Started](/guide/getting-started)
 - [Defining Relations](/guide/defining-relations)
+- [Typed Filters](/guide/filtering)
 - [Example Showcase](/showcase/)
 
 ## Community
 
 - [GitHub Repository](https://github.com/yoohaemin/decrel)
 - [Discussion Forum](https://github.com/yoohaemin/decrel/discussions)
-

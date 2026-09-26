@@ -9,6 +9,7 @@
 package decrel.reify
 
 import decrel.Relation
+import decrel.filter.Predicate
 import kyo.*
 
 import scala.collection.{ BuildFrom, IterableOps }
@@ -65,7 +66,7 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
       override def apply(in: In): Out < Eff =
         relation.apply(in).map {
           case Some(out) => out
-          case None =>
+          case None      =>
             throw new IllegalStateException(
               s"Single relation implementation returned None for unfiltered access: $relationKey"
             )
@@ -74,23 +75,25 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
       override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
         ins: Coll[In]
       ): Coll[Out] < Eff =
-        relation.applyMultiple(ins).map(
-          _.map {
-            case Some(out) => out
-            case None =>
-              throw new IllegalStateException(
-                s"Single relation implementation returned None for unfiltered access: $relationKey"
-              )
-          }
-        )
+        relation
+          .applyMultiple(ins)
+          .map(
+            _.map {
+              case Some(out) => out
+              case None      =>
+                throw new IllegalStateException(
+                  s"Single relation implementation returned None for unfiltered access: $relationKey"
+                )
+            }
+          )
     }
 
-  def implementSingleDatasource[Rel, In, Out, Filter](
+  def implementFilteredSingleDatasource[Rel, In, Out](
     relation: Rel & Relation.Single[In, Out]
   )(
-    batchExecute: (Seq[In], Option[Filter]) => Map[In, Option[Out]] < Eff
-  )(implicit d: DummyImplicit): Proof.Single[Rel & Relation.Single[In, Out], In, Out, Filter] =
-    new Proof.Single[Rel & Relation.Single[In, Out], In, Out, Filter] {
+    batchExecute: (Seq[In], Option[Predicate[In, Out]]) => Map[In, Option[Out]] < Eff
+  ): Proof.Single[Rel & Relation.Single[In, Out], In, Out, Predicate[In, Out]] =
+    new Proof.Single[Rel & Relation.Single[In, Out], In, Out, Predicate[In, Out]] {
       private val sourceCache = new SourceCache[In, Option[Out]]
 
       override private[decrel] def reifyRelation(
@@ -100,7 +103,7 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
 
       override private[decrel] def reifyFiltered(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Predicate[In, Out]]
       ): ReifiedRelation[In, Out] =
         requiredSingleReifiedRelation(
           filter.fold[Any](relation)(_ => relationKey),
@@ -109,10 +112,11 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
 
       override private[decrel] def reifyFilteredOptional(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Predicate[In, Out]]
       ): ReifiedRelation[In, Option[Out]] =
         sourceBackedReifiedRelation(
-          sourceCache.getOrCreate(filter.fold[Any](relation)(_ => relationKey))(batchExecute(_, filter))
+          sourceCache
+            .getOrCreate(filter.fold[Any](relation)(_ => relationKey))(batchExecute(_, filter))
         )
     }
 
@@ -134,16 +138,17 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
         filter: Option[Nothing]
       ): ReifiedRelation[In, Out] =
         sourceBackedReifiedRelation(
-          sourceCache.getOrCreate(filter.fold[Any](relation)(_ => relationKey))(batchExecute(_, filter))
+          sourceCache
+            .getOrCreate(filter.fold[Any](relation)(_ => relationKey))(batchExecute(_, filter))
         )
     }
 
-  def implementOptionalDatasource[Rel, In, Out, Filter](
+  def implementFilteredOptionalDatasource[Rel, In, Out](
     relation: Rel & Relation.Optional[In, Out]
   )(
-    batchExecute: (Seq[In], Option[Filter]) => Map[In, Option[Out]] < Eff
-  )(implicit d: DummyImplicit): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out, Filter] =
-    new Proof.Optional[Rel & Relation.Optional[In, Out], In, Out, Filter] {
+    batchExecute: (Seq[In], Option[Predicate[In, Out]]) => Map[In, Option[Out]] < Eff
+  ): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out, Predicate[In, Out]] =
+    new Proof.Optional[Rel & Relation.Optional[In, Out], In, Out, Predicate[In, Out]] {
       private val sourceCache = new SourceCache[In, Option[Out]]
 
       override private[decrel] def reifyRelation(
@@ -153,10 +158,11 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
 
       override private[decrel] def reifyFiltered(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Predicate[In, Out]]
       ): ReifiedRelation[In, Option[Out]] =
         sourceBackedReifiedRelation(
-          sourceCache.getOrCreate(filter.fold[Any](relation)(_ => relationKey))(batchExecute(_, filter))
+          sourceCache
+            .getOrCreate(filter.fold[Any](relation)(_ => relationKey))(batchExecute(_, filter))
         )
     }
 
@@ -165,20 +171,16 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
   )(
     batchExecute: (Seq[In], Option[Nothing]) => Map[In, Option[Out]] < Eff
   ): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out, Nothing] =
-    implementOptionalDatasource[Rel, In, Out, Nothing](relation)(batchExecute)
+    implementFilteredOptionalDatasource[Rel, In, Out](relation)((ins, _) => batchExecute(ins, None))
 
-  def implementManyDatasource[
-    Rel,
-    In,
-    CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]],
-    Out,
-    Filter
-  ](
+  def implementFilteredManyDatasource[Rel, In, CC[+A] <: Iterable[
+    A
+  ] & IterableOps[A, CC, CC[A]], Out](
     relation: Rel & Relation.Many[In, CC, Out]
   )(
-    batchExecute: (Seq[In], Option[Filter]) => Map[In, CC[Out]] < Eff
-  )(implicit d: DummyImplicit): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out, Filter] =
-    new Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out, Filter] {
+    batchExecute: (Seq[In], Option[Predicate[In, Out]]) => Map[In, CC[Out]] < Eff
+  ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out, Predicate[In, Out]] =
+    new Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out, Predicate[In, Out]] {
       private val sourceCache = new SourceCache[In, CC[Out]]
 
       override private[decrel] def reifyRelation(
@@ -188,10 +190,11 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
 
       override private[decrel] def reifyFiltered(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Predicate[In, Out]]
       ): ReifiedRelation[In, CC[Out]] =
         sourceBackedReifiedRelation(
-          sourceCache.getOrCreate(filter.fold[Any](relation)(_ => relationKey))(batchExecute(_, filter))
+          sourceCache
+            .getOrCreate(filter.fold[Any](relation)(_ => relationKey))(batchExecute(_, filter))
         )
     }
 
@@ -205,19 +208,14 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
   )(
     batchExecute: (Seq[In], Option[Nothing]) => Map[In, CC[Out]] < Eff
   ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out, Nothing] =
-    implementManyDatasource[Rel, In, CC, Out, Nothing](relation)(batchExecute)
+    implementFilteredManyDatasource[Rel, In, CC, Out](relation)((ins, _) => batchExecute(ins, None))
 
-  def implementCustomDatasource[
-    Tree,
-    In,
-    Out,
-    Filter
-  ](
+  def implementCustomDatasource[Tree, In, Out](
     relation: Relation.Custom[Tree, In, Out]
   )(
-    batchExecute: (Seq[In], Option[Filter]) => Map[In, Out] < Eff
-  )(implicit d: DummyImplicit): Proof[Relation.Custom[Tree, In, Out], In, Out, Filter] =
-    new Proof[Relation.Custom[Tree, In, Out], In, Out, Filter] {
+    batchExecute: (Seq[In], Option[Nothing]) => Map[In, Out] < Eff
+  ): Proof[Relation.Custom[Tree, In, Out], In, Out, Nothing] =
+    new Proof[Relation.Custom[Tree, In, Out], In, Out, Nothing] {
       private val sourceCache = new SourceCache[In, Out]
 
       override private[decrel] def reifyRelation(
@@ -227,30 +225,20 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
 
       override private[decrel] def reifyFiltered(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Nothing]
       ): ReifiedRelation[In, Out] =
         sourceBackedReifiedRelation(
-          sourceCache.getOrCreate(filter.fold[Any](relation)(_ => relationKey))(batchExecute(_, filter))
+          sourceCache
+            .getOrCreate(filter.fold[Any](relation)(_ => relationKey))(batchExecute(_, filter))
         )
     }
 
-  def implementCustomDatasource[
-    Tree,
-    In,
-    Out
-  ](
-    relation: Relation.Custom[Tree, In, Out]
-  )(
-    batchExecute: (Seq[In], Option[Nothing]) => Map[In, Out] < Eff
-  ): Proof[Relation.Custom[Tree, In, Out], In, Out, Nothing] =
-    implementCustomDatasource[Tree, In, Out, Nothing](relation)(batchExecute)
-
-  def contramapOneProof[Rel <: Relation[In, Out], NewRel, In, Out, B, Filter](
+  def contramapOneProof[Rel <: Relation[In, Out], NewRel, In, Out, B, Filter <: Predicate[?, ?]](
     proof: Proof.Single[Rel, In, Out, Filter],
     rel: NewRel & Relation.Single[B, Out],
     f: B => In
-  ): Proof.Single[NewRel & Relation.Single[B, Out], B, Out, Filter] =
-    new Proof.Single[NewRel & Relation.Single[B, Out], B, Out, Filter] {
+  ): Proof.Single[NewRel & Relation.Single[B, Out], B, Out, Nothing] =
+    new Proof.Single[NewRel & Relation.Single[B, Out], B, Out, Nothing] {
       override private[decrel] def reifyRelation(
         relation: (NewRel & Relation.Single[B, Out]) & Relation[B, Out]
       ): ReifiedRelation[B, Out] =
@@ -258,7 +246,7 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
 
       override private[decrel] def reifyFiltered(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Nothing]
       ): ReifiedRelation[B, Out] =
         new ReifiedRelation.Custom[B, Out] {
           override def apply(in: B): Out < Eff =
@@ -272,7 +260,7 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
 
       override private[decrel] def reifyFilteredOptional(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Nothing]
       ): ReifiedRelation[B, Option[Out]] =
         new ReifiedRelation.Custom[B, Option[Out]] {
           override def apply(in: B): Option[Out] < Eff =
@@ -291,13 +279,13 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
     In,
     Out,
     B,
-    Filter
+    Filter <: Predicate[?, ?]
   ](
     proof: Proof[Rel, In, Out, Filter],
     rel: NewRel & Relation.Optional[B, Out],
     f: B => Option[In]
-  ): Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out, Filter] =
-    new Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out, Filter] {
+  ): Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out, Nothing] =
+    new Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out, Nothing] {
       override private[decrel] def reifyRelation(
         relation: (NewRel & Relation.Optional[B, Out]) & Relation[B, Option[Out]]
       ): ReifiedRelation[B, Option[Out]] =
@@ -305,7 +293,7 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
 
       override private[decrel] def reifyFiltered(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Nothing]
       ): ReifiedRelation[B, Option[Out]] =
         new ReifiedRelation.Custom[B, Option[Out]] {
           override def apply(in: B): Option[Out] < Eff =
@@ -329,13 +317,13 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
     Out,
     B,
     CC[+T] <: Iterable[T] & IterableOps[T, CC, CC[T]],
-    Filter
+    Filter <: Predicate[?, ?]
   ](
     proof: Proof[Rel, In, Out, Filter],
     rel: NewRel & Relation.Many[B, CC, Out],
     f: B => CC[In]
-  ): Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out, Filter] =
-    new Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out, Filter] {
+  ): Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out, Nothing] =
+    new Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out, Nothing] {
       override private[decrel] def reifyRelation(
         relation: (NewRel & Relation.Many[B, CC, Out]) & Relation[B, CC[Out]]
       ): ReifiedRelation[B, CC[Out]] =
@@ -343,7 +331,7 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
 
       override private[decrel] def reifyFiltered(
         relationKey: Any,
-        filter: Option[Filter]
+        filter: Option[Nothing]
       ): ReifiedRelation[B, CC[Out]] =
         new ReifiedRelation.Custom[B, CC[Out]] {
 

@@ -25,7 +25,7 @@ object Book {
   case object fetch extends Relation.Single[Int, Int]
 }
 
-val relation = Book.fetch.filter(1)
+val relation = Book.fetch.filter(decrel.filter.Predicate.always[Int, Int])
 """
           )
         )
@@ -61,7 +61,7 @@ object Book {
   case object fetch extends Relation.Single[Int, Int]
 }
 
-val relation = Book.fetch.filter(1).filter(2)
+val relation = Book.fetch.filter(decrel.filter.Predicate.always[Int, Int]).filter(decrel.filter.Predicate.never[Int, Int])
 """
         )
 
@@ -73,7 +73,7 @@ object Book {
   case object currentRental extends Relation.Optional[Int, Int]
 }
 
-val relation = Book.currentRental.filter(1).filter(2)
+val relation = Book.currentRental.filter(decrel.filter.Predicate.always[Int, Int]).filter(decrel.filter.Predicate.never[Int, Int])
 """
         )
 
@@ -85,7 +85,7 @@ object User {
   case object rentals extends Relation.Many[Int, List, Int]
 }
 
-val relation = User.rentals.filter(1).filter(2)
+val relation = User.rentals.filter(decrel.filter.Predicate.always[Int, Int]).filter(decrel.filter.Predicate.never[Int, Int])
 """
         )
 
@@ -208,17 +208,15 @@ object Book {
   case object many extends Relation.Many[Int, List, Int]
 }
 
-val filteredSingle = Book.fetch.filter(1)
+val filteredSingle = Book.fetch.filter(decrel.filter.Predicate.always[Int, Int])
 val singleDeclared: Relation.Declared[Int, Int] = filteredSingle.relation
 
-val filteredOptional = Book.maybe.filter(1)
+val filteredOptional = Book.maybe.filter(decrel.filter.Predicate.always[Int, Int])
 val optionalDeclared: Relation.Declared[Int, Option[Int]] = filteredOptional.relation
 
-val filteredMany = Book.many.filter(1)
+val filteredMany = Book.many.filter(decrel.filter.Predicate.always[Int, Int])
 val manyDeclared: Relation.Declared[Int, List[Int]] = filteredMany.relation
 
-val filteredCustom = Book.fetch.customImpl.filter(1)
-val customDeclared: Relation.Declared[Int, Int] = filteredCustom.relation
 """
           )
         )
@@ -232,7 +230,7 @@ object Book {
   case object fetch extends Relation.Single[Int, Int]
 }
 
-val edge: Relation.Edge[Int, Option[Int]] = Book.fetch.filter(1)
+val edge: Relation.Edge[Int, Option[Int]] = Book.fetch.filter(decrel.filter.Predicate.always[Int, Int])
 """
         )
 

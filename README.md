@@ -87,11 +87,29 @@ val bookAuthorPublisher = Book.author <>: Author.publisher
 val bookDetails = Book.author & Book.price
 ```
 
-### 4. Efficient Execution
+### 4. Typed Filters
+
+Filters can inspect an edge's input and candidate output using typed ZIO Blocks lenses:
+
+```scala
+import decrel.filter.schema.syntax._
+
+val affordableBooks = Customer.books.filter { (in, out) =>
+  (out(Book.price) <= in(Customer.budget)) &&
+  out(Book.discount).exists(_ > 0)
+}
+```
+
+Add `decrel-filter-schema` to use the optics adapter. The predicate AST lives in core;
+data-source implementations interpret it. A filtered single relation becomes optional,
+and a filtered many relation selects individual elements. See the
+[filtering guide](mdoc/docs/guide/filtering.md) for supported operators and the backend contract.
+
+### 5. Efficient Execution
 
 The composed relations are efficiently executed against your datasource, with automatic batching and parallelization through integrations with ZQuery and Fetch.
 
-### 5. Testing Support
+### 6. Testing Support
 
 The same relations can be used to generate random test data:
 

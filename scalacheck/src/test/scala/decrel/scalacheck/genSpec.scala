@@ -9,13 +9,15 @@
 package decrel.scalacheck
 
 import decrel.*
+import decrel.filter.{ Path, Predicate }
 import decrel.scalacheck.gen.*
 import org.scalacheck.{ Gen, Properties }
 import org.scalacheck.Prop.forAll
 
 object genSpec extends Properties("Relations") {
 
-  case class RentalFilter(label: String)
+  private def rentalFilter(label: String): Predicate[Rental.Id, Rental] =
+    Predicate.build((_, out) => out(new Path[Rental, String](Vector("id", "value"))) === label)
 
   // Relation descriptions
   case class Rental(id: Rental.Id, bookId: Book.Id, userId: User.Id)
@@ -64,11 +66,12 @@ object genSpec extends Properties("Relations") {
     Rental.Id,
     Rental,
     Nothing
-  ] = Gen.relationSingle[Rental.fetch.type, Rental.Id, Rental](Rental.fetch) { (id, _: Option[Nothing]) =>
-    for {
-      bookId <- gen.bookId
-      userId <- gen.userId
-    } yield Rental(id, bookId, userId)
+  ] = Gen.relationSingle[Rental.fetch.type, Rental.Id, Rental](Rental.fetch) {
+    (id, _: Option[Nothing]) =>
+      for {
+        bookId <- gen.bookId
+        userId <- gen.userId
+      } yield Rental(id, bookId, userId)
   }
 
   implicit val rentalBook: Proof.Single[
@@ -76,18 +79,20 @@ object genSpec extends Properties("Relations") {
     Rental,
     Book,
     Nothing
-  ] = Gen.relationSingle[Rental.book.type, Rental, Book](Rental.book) { (rental, _: Option[Nothing]) =>
-    Gen.const(Book(rental.bookId, Some(rental.id)))
-  }
+  ] =
+    Gen.relationSingle[Rental.book.type, Rental, Book](Rental.book) { (rental, _: Option[Nothing]) =>
+      Gen.const(Book(rental.bookId, Some(rental.id)))
+    }
 
   implicit val rentalUser: Proof.Single[
     Rental.user.type & Relation.Single[Rental, User],
     Rental,
     User,
     Nothing
-  ] = Gen.relationSingle[Rental.user.type, Rental, User](Rental.user) { (rental, _: Option[Nothing]) =>
-    Gen.const(User(rental.userId, List(rental.id)))
-  }
+  ] =
+    Gen.relationSingle[Rental.user.type, Rental, User](Rental.user) { (rental, _: Option[Nothing]) =>
+      Gen.const(User(rental.userId, List(rental.id)))
+    }
 
   implicit val userCurrentRentals: Proof.Many[
     User.currentRentals.type & Relation.Many[User, List, Rental],
@@ -95,12 +100,13 @@ object genSpec extends Properties("Relations") {
     List,
     Rental,
     Nothing
-  ] = Gen.relationMany[User.currentRentals.type, User, Rental, List](User.currentRentals) { (user, _: Option[Nothing]) =>
-    Gen
-      // Use `expand` even when implementing other relations
-      .listOf(gen.rentalId.expand(Rental.fetch))
-      // Make it consistent
-      .map(_.map(_.copy(userId = user.id)))
+  ] = Gen.relationMany[User.currentRentals.type, User, Rental, List](User.currentRentals) {
+    (user, _: Option[Nothing]) =>
+      Gen
+        // Use `expand` even when implementing other relations
+        .listOf(gen.rentalId.expand(Rental.fetch))
+        // Make it consistent
+        .map(_.map(_.copy(userId = user.id)))
   }
 
   private val staticRentalId = Rental.Id("foo")
@@ -120,14 +126,15 @@ object genSpec extends Properties("Relations") {
       Rental.fetch.type & Relation.Single[Rental.Id, Rental],
       Rental.Id,
       Rental,
-      RentalFilter
-    ] = Gen.relationSingle[Rental.fetch.type, Rental.Id, Rental, RentalFilter](Rental.fetch) { (id, filter: Option[RentalFilter]) =>
-      sawFilter = filter.contains(RentalFilter("exact"))
-      Gen.const(Some(Rental(id, Book.Id("book"), User.Id("user"))))
+      Predicate[Rental.Id, Rental]
+    ] = Gen.filteredRelationSingle[Rental.fetch.type, Rental.Id, Rental](Rental.fetch) {
+      (id, filter: Option[Predicate[Rental.Id, Rental]]) =>
+        sawFilter = filter.contains(rentalFilter("exact"))
+        Gen.const(Some(Rental(id, Book.Id("book"), User.Id("user"))))
     }
 
     forAll {
-      Gen.const(staticRentalId).expand(Rental.fetch.filter(RentalFilter("exact")))
+      Gen.const(staticRentalId).expand(Rental.fetch.filter(rentalFilter("exact")))
     } { rental =>
       sawFilter && rental.contains(Rental(staticRentalId, Book.Id("book"), User.Id("user")))
     }

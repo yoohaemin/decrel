@@ -9,7 +9,7 @@
 package decrel.reify
 
 trait catsMonad[F[_]] extends monofunctor.module[F] {
-  protected val F: cats.Monad[F]
+  protected def F: cats.Monad[F]
 
   protected def flatMap[A, B](access: F[A])(f: A => F[B]): F[B] =
     F.flatMap(access)(f)
