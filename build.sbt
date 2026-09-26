@@ -1,6 +1,6 @@
 inThisBuild(
   List(
-    scalaVersion             := V.scala3LTS,
+    scalaVersion             := V.scala33,
     crossScalaVersions       := V.scalaAll,
     organization             := "com.yoohaemin",
     homepage                 := Some(url("https://github.com/yoohaemin/decrel")),
@@ -36,8 +36,8 @@ addCommandAlias(
 
 //TODO uncomment native crossbuilds when ZIO published against native 0.4.8+ is out
 //Related: https://github.com/scala-native/scala-native/issues/2858
-lazy val stableScalaVersions                   = Seq(V.scala213, V.scala3LTS)
-lazy val nextScalaVersions                     = Seq(V.scala3Next)
+lazy val stableScalaVersions                   = Seq(V.scala213, V.scala33)
+lazy val nextScalaVersions                     = Seq(V.scala39)
 lazy val rootAggregates: Seq[ProjectReference] =
   core.projectRefs ++
     kyo.projectRefs ++
@@ -108,12 +108,12 @@ lazy val zqueryNext = (projectMatrix in file("zquery-next"))
   .jvmPlatform(
     scalaVersions = nextScalaVersions,
     axisValues = Nil,
-    configure = _.dependsOn(zquery.jvm(V.scala3LTS))
+    configure = _.dependsOn(zquery.jvm(V.scala33))
   )
   .jsPlatform(
     scalaVersions = nextScalaVersions,
     axisValues = Nil,
-    configure = _.dependsOn(zquery.js(V.scala3LTS))
+    configure = _.dependsOn(zquery.js(V.scala33))
   )
 
 lazy val fetch = (projectMatrix in file("fetch"))
@@ -240,12 +240,12 @@ lazy val kyo = (projectMatrix in file("kyo"))
   .jvmPlatform(
     scalaVersions = nextScalaVersions,
     axisValues = Nil,
-    configure = _.dependsOn(core.jvm(V.scala3LTS))
+    configure = _.dependsOn(core.jvm(V.scala33))
   )
   .jsPlatform(
     scalaVersions = nextScalaVersions,
     axisValues = Nil,
-    configure = _.dependsOn(core.js(V.scala3LTS))
+    configure = _.dependsOn(core.js(V.scala33))
   )
 
 ///////////////////////// docs
@@ -314,13 +314,13 @@ lazy val commonSettings = Def.settings(
         "-P:kind-projector:underscore-placeholders",
         "-Xfatal-warnings"
       )
-    case V.scala3LTS =>
+    case V.scala33 =>
       Seq(
         "-no-indent",
         "-Ykind-projector",
         "-Xfatal-warnings"
       )
-    case V.scala3Next =>
+    case V.scala39 =>
       Seq(
         "-no-indent",
         "-Xkind-projector",
@@ -341,13 +341,13 @@ lazy val commonSettings = Def.settings(
 )
 
 lazy val V = new {
-  val scala213   = "2.13.18"
-  val scala3LTS  = "3.3.8"
-  val scala3Next = "3.8.4"
-  val scalaAll   = scala213 :: scala3LTS :: scala3Next :: Nil
+  val scala213 = "2.13.18"
+  val scala33  = "3.3.8"
+  val scala39  = "3.9.0"
+  val scalaAll = scala213 :: scala33 :: scala39 :: Nil
 
   val cats         = "2.13.0"
-  val kyo          = "0.19.0"
+  val kyo          = "1.0.0-RC6"
   val zio          = "2.1.26"
   val zioQuery     = "0.7.8"
   val fetch        = "3.2.1"
@@ -358,7 +358,7 @@ lazy val V = new {
 
 lazy val ciSettings = List(
   githubWorkflowPublishTargetBranches := List(RefPredicate.Equals(Ref.Branch("master"))),
-  githubWorkflowJavaVersions          := Seq(JavaSpec.zulu("17")),
+  githubWorkflowJavaVersions          := Seq(JavaSpec.zulu("25")),
   githubWorkflowUseSbtThinClient      := false,
   // Avoid flaky GitHub Actions artifact handoffs between build and publish jobs.
   githubWorkflowArtifactUpload := false,
