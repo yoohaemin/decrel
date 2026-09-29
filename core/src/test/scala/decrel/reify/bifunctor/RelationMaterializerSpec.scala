@@ -47,10 +47,10 @@ object proofSpec extends ZIOSpecDefault {
       test("materializing for datasources without errors") {
         val composed = Foo.bar >>: Bar.baz
 
-        implicit def fooBarReify: Proof.Single[Foo.bar.type, Foo, Nothing, Bar] =
+        implicit def fooBarReify: Proof.Single[Foo.bar.type, Foo, Nothing, Bar, Nothing] =
           ???
 
-        implicit def barBazReify: Proof.Single[Bar.baz.type, Bar, Nothing, Baz] =
+        implicit def barBazReify: Proof.Single[Bar.baz.type, Bar, Nothing, Baz, Nothing] =
           ???
 
         implicit def reified: ReifiedRelation[Foo, Nothing, Baz] =
@@ -62,10 +62,10 @@ object proofSpec extends ZIOSpecDefault {
         test("on rhs") {
           val composed = Foo.bar >>: Bar.baz
 
-          implicit def fooBarReify: Proof.Single[Foo.bar.type, Foo, Nothing, Bar] =
+          implicit def fooBarReify: Proof.Single[Foo.bar.type, Foo, Nothing, Bar, Nothing] =
             ???
 
-          implicit def barBazReify: Proof.Single[Bar.baz.type, Bar, Int, Baz] =
+          implicit def barBazReify: Proof.Single[Bar.baz.type, Bar, Int, Baz, Nothing] =
             ???
 
           implicit def Reified: ReifiedRelation[Foo, Int, Baz] =
@@ -76,10 +76,10 @@ object proofSpec extends ZIOSpecDefault {
         test("on lhs") {
           val composed = Foo.bar >>: Bar.baz
 
-          implicit def fooBarReify: Proof.Single[Foo.bar.type, Foo, Int, Bar] =
+          implicit def fooBarReify: Proof.Single[Foo.bar.type, Foo, Int, Bar, Nothing] =
             ???
 
-          implicit def barBazReify: Proof.Single[Bar.baz.type, Bar, Nothing, Baz] =
+          implicit def barBazReify: Proof.Single[Bar.baz.type, Bar, Nothing, Baz, Nothing] =
             ???
 
           implicit def Reified: ReifiedRelation[Foo, Int, Baz] =
@@ -90,10 +90,10 @@ object proofSpec extends ZIOSpecDefault {
         test("on both sides") {
           val composed = Foo.bar >>: Bar.baz
 
-          implicit def fooBarReify: Proof.Single[Foo.bar.type, Foo, Int, Bar] =
+          implicit def fooBarReify: Proof.Single[Foo.bar.type, Foo, Int, Bar, Nothing] =
             ???
 
-          implicit def barBazReify: Proof.Single[Bar.baz.type, Bar, Int, Baz] =
+          implicit def barBazReify: Proof.Single[Bar.baz.type, Bar, Int, Baz, Nothing] =
             ???
 
           implicit def Reified: ReifiedRelation[Foo, Int, Baz] =
@@ -104,10 +104,10 @@ object proofSpec extends ZIOSpecDefault {
         test("with supertype error on lhs") {
           val composed = Foo.bar >>: Bar.baz
 
-          implicit def fooBarReify: Proof.Single[Foo.bar.type, Foo, AnyVal, Bar] =
+          implicit def fooBarReify: Proof.Single[Foo.bar.type, Foo, AnyVal, Bar, Nothing] =
             ???
 
-          implicit def barBazReify: Proof.Single[Bar.baz.type, Bar, Int, Baz] =
+          implicit def barBazReify: Proof.Single[Bar.baz.type, Bar, Int, Baz, Nothing] =
             ???
 
           implicit def Reified: ReifiedRelation[Foo, AnyVal, Baz] =
@@ -118,10 +118,10 @@ object proofSpec extends ZIOSpecDefault {
         test("with supertype error on rhs") {
           val composed = Foo.bar >>: Bar.baz
 
-          implicit def fooBarReify: Proof.Single[Foo.bar.type, Foo, Int, Bar] =
+          implicit def fooBarReify: Proof.Single[Foo.bar.type, Foo, Int, Bar, Nothing] =
             ???
 
-          implicit def barBazReify: Proof.Single[Bar.baz.type, Bar, AnyVal, Baz] =
+          implicit def barBazReify: Proof.Single[Bar.baz.type, Bar, AnyVal, Baz, Nothing] =
             ???
 
           implicit def Reified: ReifiedRelation[Foo, AnyVal, Baz] =

@@ -65,15 +65,15 @@ object BlogDataAccess extends zquery[Any] {
   )
 
   // Implement relations
-  implicit val postAuthorProof: Proof.Single[Post.author.type, Post, Nothing, Author] =
-    implementSingleDatasource(Post.author) { posts =>
+  implicit val postAuthorProof: Proof.Single[Post.author.type, Post, Nothing, Author, Nothing] =
+    implementSingleDatasource(Post.author) { (posts, _) =>
       ZIO.succeed(
         posts.map(post => post -> authors(post.authorId))
       )
     }
     
-  implicit val postCommentsProof: Proof.Many[Post.comments.type, Post, Nothing, List, Comment] =
-    implementManyDatasource(Post.comments) { posts =>
+  implicit val postCommentsProof: Proof.Many[Post.comments.type, Post, Nothing, List, Comment, Nothing] =
+    implementManyDatasource(Post.comments) { (posts, _) =>
       ZIO.succeed(
         posts.map(post => 
           post -> comments.filter(_.postId == post.id)

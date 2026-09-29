@@ -140,16 +140,16 @@ object DataAccess extends zquery[Any] {
   )
   
   // Implement the post.user relation
-  implicit val postUserProof: Proof.Single[Post.user.type, Post, Nothing, User] =
-    implementSingleDatasource(Post.user) { posts =>
+  implicit val postUserProof: Proof.Single[Post.user.type, Post, Nothing, User, Nothing] =
+    implementSingleDatasource(Post.user) { (posts, _) =>
       ZIO.succeed(
         posts.map(post => post -> users(post.userId))
       )
     }
     
   // Implement the user.posts relation
-  implicit val userPostsProof: Proof.Many[User.posts.type, User, Nothing, List, Post] =
-    implementManyDatasource(User.posts) { users =>
+  implicit val userPostsProof: Proof.Many[User.posts.type, User, Nothing, List, Post, Nothing] =
+    implementManyDatasource(User.posts) { (users, _) =>
       ZIO.succeed(
         users.map(user => 
           user -> posts.filter(_.userId == user.id)
@@ -222,16 +222,16 @@ object DataAccess extends fetch[IO] {
   )
   
   // Implement the orderItem.product relation
-  implicit val orderItemProductProof: Proof.Single[OrderItem.product.type, OrderItem, Product] =
-    implementSingleDatasource(OrderItem.product) { items =>
+  implicit val orderItemProductProof: Proof.Single[OrderItem.product.type, OrderItem, Product, Nothing] =
+    implementSingleDatasource(OrderItem.product) { (items, _) =>
       IO.pure(
         items.map(item => item -> products(item.productId))
       )
     }
     
   // Implement the order.items relation
-  implicit val orderItemsProof: Proof.Many[Order.items.type, Order, List, OrderItem] =
-    implementManyDatasource(Order.items) { orders =>
+  implicit val orderItemsProof: Proof.Many[Order.items.type, Order, List, OrderItem, Nothing] =
+    implementManyDatasource(Order.items) { (orders, _) =>
       IO.pure(
         orders.map(order => 
           order -> orderItems.filter(_.orderId == order.id)

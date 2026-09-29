@@ -9,11 +9,15 @@
 package decrel.ziotest
 
 import decrel.*
+import decrel.filter.{ Path, Predicate }
 import decrel.ziotest.gen.*
 import zio.test.*
 import zio.test.Assertion.*
 
 object genSpec extends ZIOSpecDefault {
+
+  private def rentalFilter(label: String): Predicate[Rental.Id, Rental] =
+    Predicate.build((_, out) => out(new Path[Rental, String](Vector("id", "value"))) === label)
 
   // Relation descriptions
   case class Rental(id: Rental.Id, bookId: Book.Id, userId: User.Id)
@@ -55,40 +59,48 @@ object genSpec extends ZIOSpecDefault {
   implicit val rentalFetch: Proof.Single[
     Rental.fetch.type & Relation.Single[Rental.Id, Rental],
     Rental.Id,
-    Rental
-  ] = Gen.relationSingle(Rental.fetch) { id =>
-    (gen.bookId <*> gen.userId).flatMap { case (bookId, userId) =>
-      Gen.const(Rental(id, bookId, userId))
-    }
+    Rental,
+    Nothing
+  ] = Gen.relationSingle[Rental.fetch.type, Rental.Id, Rental](Rental.fetch) {
+    (id, _: Option[Nothing]) =>
+      (gen.bookId <*> gen.userId).flatMap { case (bookId, userId) =>
+        Gen.const(Rental(id, bookId, userId))
+      }
   }
 
   implicit val rentalBook: Proof.Single[
     Rental.book.type & Relation.Single[Rental, Book],
     Rental,
-    Book
-  ] = Gen.relationSingle(Rental.book) { rental =>
-    Gen.const(Book(rental.bookId, Some(rental.id)))
-  }
+    Book,
+    Nothing
+  ] =
+    Gen.relationSingle[Rental.book.type, Rental, Book](Rental.book) { (rental, _: Option[Nothing]) =>
+      Gen.const(Book(rental.bookId, Some(rental.id)))
+    }
 
   implicit val rentalUser: Proof.Single[
     Rental.user.type & Relation.Single[Rental, User],
     Rental,
-    User
-  ] = Gen.relationSingle(Rental.user) { rental =>
-    Gen.const(User(rental.userId, List(rental.id)))
-  }
+    User,
+    Nothing
+  ] =
+    Gen.relationSingle[Rental.user.type, Rental, User](Rental.user) { (rental, _: Option[Nothing]) =>
+      Gen.const(User(rental.userId, List(rental.id)))
+    }
 
   implicit val userCurrentRentals: Proof.Many[
     User.currentRentals.type & Relation.Many[User, List, Rental],
     User,
     List,
-    Rental
-  ] = Gen.relationMany(User.currentRentals) { user =>
-    Gen
-      // Use `expand` even when implementing other relations
-      .listOf(gen.rentalId.expand(Rental.fetch))
-      // Make it consistent
-      .map(_.map(_.copy(userId = user.id)))
+    Rental,
+    Nothing
+  ] = Gen.relationMany[User.currentRentals.type, User, Rental, List](User.currentRentals) {
+    (user, _: Option[Nothing]) =>
+      Gen
+        // Use `expand` even when implementing other relations
+        .listOf(gen.rentalId.expand(Rental.fetch))
+        // Make it consistent
+        .map(_.map(_.copy(userId = user.id)))
   }
 
   override def spec: Spec[Environment, Any] =
@@ -101,6 +113,30 @@ object genSpec extends ZIOSpecDefault {
 
         check(rentalIdGen.expand(relation)) { (rental: Rental) =>
           assert(rental.id)(equalTo(staticRentalId))
+        }
+      },
+      test("relation builders receive the filter") {
+        var sawFilter = false
+
+        implicit val localRentalFetch: Proof.Single[
+          Rental.fetch.type & Relation.Single[Rental.Id, Rental],
+          Rental.Id,
+          Rental,
+          Predicate[Rental.Id, Rental]
+        ] = Gen.filteredRelationSingle[Rental.fetch.type, Rental.Id, Rental](Rental.fetch) {
+          (id, filter: Option[Predicate[Rental.Id, Rental]]) =>
+            sawFilter = filter.contains(rentalFilter("exact"))
+            Gen.const(Some(Rental(id, Book.Id("book"), User.Id("user"))))
+        }
+
+        val staticRentalId = Rental.Id("foo")
+
+        check(Gen.const(staticRentalId).expand(Rental.fetch.filter(rentalFilter("exact")))) {
+          (rental: Option[Rental]) =>
+            assertTrue(
+              sawFilter,
+              rental.contains(Rental(staticRentalId, Book.Id("book"), User.Id("user")))
+            )
         }
       },
       test("Composing with &") {

@@ -22,12 +22,12 @@ trait zquerySyntax[R] {
   implicit class ZQueryRelationOps[Rel, In, E, Out](private val rel: Rel with Relation[In, Out]) {
 
     def toZIO(in: In)(implicit
-      proof: Proof[Rel with Relation[In, Out], In, E, Out]
+      proof: Proof[Rel with Relation[In, Out], In, E, Out, Nothing]
     ): ZIO[R, E, Out] =
       toQuery(in).run
 
     def toZIO(in: In, cache: Cache)(implicit
-      proof: Proof[Rel with Relation[In, Out], In, E, Out]
+      proof: Proof[Rel with Relation[In, Out], In, E, Out, Nothing]
     ): ZIO[R, E, Out] =
       toZQueryCacheImpl(cache).flatMap { zCache =>
         toQuery(in).runCache(zCache)
@@ -36,7 +36,7 @@ trait zquerySyntax[R] {
     def toZIOMany[Coll[+A] <: Iterable[A] with IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
-      proof: Proof[Rel with Relation[In, Out], In, E, Out]
+      proof: Proof[Rel with Relation[In, Out], In, E, Out, Nothing]
     ): ZIO[R, E, Coll[Out]] =
       toQueryMany(in).run
 
@@ -44,26 +44,26 @@ trait zquerySyntax[R] {
       in: Coll[In],
       cache: Cache
     )(implicit
-      proof: Proof[Rel with Relation[In, Out], In, E, Out]
+      proof: Proof[Rel with Relation[In, Out], In, E, Out, Nothing]
     ): ZIO[R, E, Coll[Out]] =
       toZQueryCacheImpl(cache).flatMap { zCache =>
         toQueryMany(in).runCache(zCache)
       }
 
     def startingFrom(in: In)(implicit
-      proof: Proof[Rel with Relation[In, Out], In, E, Out]
+      proof: Proof[Rel with Relation[In, Out], In, E, Out, Nothing]
     ): ZIO[R, E, Out] =
       toZIO(in)
 
     def startingFrom(in: In, cache: Cache)(implicit
-      proof: Proof[Rel with Relation[In, Out], In, E, Out]
+      proof: Proof[Rel with Relation[In, Out], In, E, Out, Nothing]
     ): ZIO[R, E, Out] =
       toZIO(in, cache)
 
     def startingFrom[Coll[+A] <: Iterable[A] with IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
-      proof: Proof[Rel with Relation[In, Out], In, E, Out]
+      proof: Proof[Rel with Relation[In, Out], In, E, Out, Nothing]
     ): ZIO[R, E, Coll[Out]] =
       toZIOMany(in)
 
@@ -71,31 +71,31 @@ trait zquerySyntax[R] {
       in: Coll[In],
       cache: Cache
     )(implicit
-      proof: Proof[Rel with Relation[In, Out], In, E, Out]
+      proof: Proof[Rel with Relation[In, Out], In, E, Out, Nothing]
     ): ZIO[R, E, Coll[Out]] =
       toZIOMany(in, cache)
 
     def toQuery(in: In)(implicit
-      proof: Proof[Rel with Relation[In, Out], In, E, Out]
+      proof: Proof[Rel with Relation[In, Out], In, E, Out, Nothing]
     ): ZQuery[R, E, Out] =
-      proof.reify.apply(in)
+      proof.reify(rel).apply(in)
 
     def toQueryMany[Coll[+A] <: Iterable[A] with IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
-      proof: Proof[Rel with Relation[In, Out], In, E, Out]
+      proof: Proof[Rel with Relation[In, Out], In, E, Out, Nothing]
     ): ZQuery[R, E, Coll[Out]] =
-      proof.reify.applyMultiple(in)
+      proof.reify(rel).applyMultiple(in)
 
     def startingFromQuery(in: In)(implicit
-      proof: Proof[Rel with Relation[In, Out], In, E, Out]
+      proof: Proof[Rel with Relation[In, Out], In, E, Out, Nothing]
     ): ZQuery[R, E, Out] =
       toQuery(in)
 
     def startingFromQuery[Coll[+A] <: Iterable[A] with IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
-      proof: Proof[Rel with Relation[In, Out], In, E, Out]
+      proof: Proof[Rel with Relation[In, Out], In, E, Out, Nothing]
     ): ZQuery[R, E, Coll[Out]] =
       toQueryMany(in)
   }

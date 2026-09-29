@@ -8,6 +8,10 @@
 
 package decrel
 
+import decrel.filter.Predicate
+
+import scala.annotation.implicitNotFound
+
 /**
  * A _declaration_ of a `Relation` object by extending one of `Relation.Single`, `Relation.Optional` or
  * `Relation.Many` can be thought of as an edge in the directed graph that is your entire domain model.
@@ -24,11 +28,13 @@ object Relation {
 
   sealed trait Declared[-In, +Out] extends Relation[In, Out]
 
-  trait Single[-In, +Out] extends Relation.Declared[In, Out]
+  sealed trait Edge[-In, +Out] extends Declared[In, Out]
 
-  trait Optional[-In, +Out] extends Relation.Declared[In, Option[Out]]
+  trait Single[-In, +Out] extends Relation.Edge[In, Out]
 
-  trait Many[-In, +Collection[+_], +Out] extends Relation.Declared[In, Collection[Out]]
+  trait Optional[-In, +Out] extends Relation.Edge[In, Option[Out]]
+
+  trait Many[-In, +Collection[+_], +Out] extends Relation.Edge[In, Collection[Out]]
 
   /**
    * Pass through relation
@@ -43,8 +49,37 @@ object Relation {
    * Creates a relation on top of an existing relation value.
    */
   final case class Custom[Tree, In, Out](
-    relation: Tree & Relation[In, Out]
-  ) extends Relation[In, Out]
+    relation: Tree & Relation.Declared[In, Out]
+  ) extends Relation.Declared[In, Out]
+
+  sealed abstract class Filtered[Tree, BaseOut, -In, +Out, +Filter <: Predicate[?, ?]]
+      extends Relation[In, Out] {
+    def relation: Tree & Relation.Declared[In, BaseOut]
+    def filter: Filter
+
+    final def filter[NextFilter](nextFilter: NextFilter)(implicit
+      ev: Filtered.RefilteringNotSupported
+    ): Nothing =
+      throw new UnsupportedOperationException("unreachable")
+  }
+
+  object Filtered {
+    @implicitNotFound(
+      "Chaining .filter(...) on an already filtered relation is not supported."
+    )
+    sealed trait RefilteringNotSupported
+
+    private final case class Impl[Tree, BaseOut, In, Out, Filter <: Predicate[?, ?]](
+      val relation: Tree & Relation.Declared[In, BaseOut],
+      val filter: Filter
+    ) extends Filtered[Tree, BaseOut, In, Out, Filter]
+
+    private[decrel] def apply[Tree, BaseOut, In, Out, Filter <: Predicate[?, ?]](
+      relation: Tree & Relation.Declared[In, BaseOut],
+      filter: Filter
+    ): Filtered[Tree, BaseOut, In, Out, Filter] =
+      new Impl(relation, filter)
+  }
 
   sealed trait Composed[
     LeftTree,
@@ -104,6 +139,31 @@ object Relation {
       rightRel: RightTree <:< Relation[RightIn, RightOut]
     ) extends Composed[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut, Option[RightOut]]
 
+    case class FilteredOptional[
+      LeftTree,
+      LeftBaseOut,
+      LeftIn,
+      LeftOut,
+      LeftFilter <: Predicate[?, ?],
+      RightTree,
+      RightIn,
+      RightOut
+    ](
+      left: Relation.Filtered[LeftTree, LeftBaseOut, LeftIn, Option[LeftOut], LeftFilter],
+      right: RightTree
+    )(implicit
+      composeOneEv: LeftOut <:< RightIn,
+      rightRel: RightTree <:< Relation[RightIn, RightOut]
+    ) extends Composed[
+          Relation.Filtered[LeftTree, LeftBaseOut, LeftIn, Option[LeftOut], LeftFilter],
+          LeftIn,
+          LeftOut,
+          RightTree,
+          RightIn,
+          RightOut,
+          Option[RightOut]
+        ]
+
     case class Many[
       LeftTree,
       LeftIn,
@@ -120,5 +180,31 @@ object Relation {
       leftRel: LeftTree <:< Relation.Many[LeftIn, CC, LeftOut],
       rightRel: RightTree <:< Relation[RightIn, RightOut]
     ) extends Composed[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut, CC[RightOut]]
+
+    case class FilteredMany[
+      LeftTree,
+      LeftBaseOut,
+      LeftIn,
+      LeftOut,
+      LeftFilter <: Predicate[?, ?],
+      RightTree,
+      RightIn,
+      RightOut,
+      CC[+A]
+    ](
+      left: Relation.Filtered[LeftTree, LeftBaseOut, LeftIn, CC[LeftOut], LeftFilter],
+      right: RightTree
+    )(implicit
+      composeOneEv: LeftOut <:< RightIn,
+      rightRel: RightTree <:< Relation[RightIn, RightOut]
+    ) extends Composed[
+          Relation.Filtered[LeftTree, LeftBaseOut, LeftIn, CC[LeftOut], LeftFilter],
+          LeftIn,
+          LeftOut,
+          RightTree,
+          RightIn,
+          RightOut,
+          CC[RightOut]
+        ]
   }
 }
