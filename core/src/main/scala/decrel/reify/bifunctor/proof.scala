@@ -11,6 +11,7 @@ package decrel.reify.bifunctor
 import decrel.*
 import izumi.reflect.TagK
 
+import scala.annotation.unchecked.uncheckedVariance
 import scala.collection.{ BuildFrom, IterableOps }
 
 trait proof { this: access & reifiedRelation =>
@@ -24,6 +25,15 @@ trait proof { this: access & reifiedRelation =>
   abstract class Proof[+Rel, -In, +E, Out] {
 
     def reify: ReifiedRelation[In, E, Out]
+
+    /**
+     * Reifies this proof for a concrete relation value. Existing proofs keep
+     * their behavior through the default delegation; implementations that
+     * depend on relation identity may override this entry point.
+     */
+    def reify(
+      relation: (Rel @uncheckedVariance) & Relation[In @uncheckedVariance, Out]
+    ): ReifiedRelation[In, E, Out] = reify
   }
 
   object Proof {
@@ -460,7 +470,7 @@ trait proof { this: access & reifiedRelation =>
 
   implicit class relationOps[Rel, In, E, Out](val rel: Rel & Relation[In, Out]) {
     def reify(implicit ev: Proof[Rel, In, E, Out]): ReifiedRelation[In, E, Out] =
-      ev.reify
+      ev.reify(rel)
   }
 
 }

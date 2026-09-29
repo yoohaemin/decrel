@@ -78,14 +78,14 @@ trait zquerySyntax[R] {
     def toQuery(in: In)(implicit
       proof: Proof[Rel with Relation[In, Out], In, E, Out]
     ): ZQuery[R, E, Out] =
-      proof.reify.apply(in)
+      proof.reify(rel).apply(in)
 
     def toQueryMany[Coll[+A] <: Iterable[A] with IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel with Relation[In, Out], In, E, Out]
     ): ZQuery[R, E, Coll[Out]] =
-      proof.reify.applyMultiple(in)
+      proof.reify(rel).applyMultiple(in)
 
     def startingFromQuery(in: In)(implicit
       proof: Proof[Rel with Relation[In, Out], In, E, Out]

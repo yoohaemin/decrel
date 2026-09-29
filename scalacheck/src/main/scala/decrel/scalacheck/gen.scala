@@ -79,7 +79,7 @@ trait gen extends module[Gen] {
 
     def expand[Rel, B](rel: Rel & Relation[A, B])(implicit
       proof: Proof[Rel & Relation[A, B], A, B]
-    ): Gen[B] = gen.flatMap(rel.reify(proof).apply)
+    ): Gen[B] = gen.flatMap(proof.reify(rel).apply)
 
   }
 }

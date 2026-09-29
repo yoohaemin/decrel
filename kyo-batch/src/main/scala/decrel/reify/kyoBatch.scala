@@ -251,14 +251,14 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
     def startingFrom(in: In)(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out]
     ): Out < Eff =
-      proof.reify.apply(in)
+      proof.reify(rel).apply(in)
 
     def startingFromMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out]
     ): Coll[Out] < Eff =
-      proof.reify.applyMultiple(in)
+      proof.reify(rel).applyMultiple(in)
 
   }
 

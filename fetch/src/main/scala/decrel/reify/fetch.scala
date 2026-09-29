@@ -442,14 +442,14 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     def toFetch(in: In)(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out]
     ): Fetch[F, Out] =
-      proof.reify(in)
+      proof.reify(rel).apply(in)
 
     def toFetchMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out]
     ): Fetch[F, Coll[Out]] =
-      proof.reify.applyMultiple(in)
+      proof.reify(rel).applyMultiple(in)
 
     def startingFromFetch(in: In)(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out]

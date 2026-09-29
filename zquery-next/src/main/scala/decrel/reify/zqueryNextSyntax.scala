@@ -28,6 +28,6 @@ trait zqueryNextSyntax[R] {
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, E, Out]
     ): ZQuery[R, E, Out] =
-      proof.reify.apply(in)
+      proof.reify(rel).apply(in)
   }
 }
