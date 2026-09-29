@@ -340,6 +340,10 @@ lazy val commonSettings = Def.settings(
         "-Vimplicits",
         "-Vtype-diffs",
         "-P:kind-projector:underscore-placeholders",
+        // -Xsource:3 escalates this to an error under -Xfatal-warnings. Scoping a
+        // case class constructor is intended (filter.OrderBy, selection.Selection),
+        // and Scala 3 applies the same modifier to the generated copy.
+        "-Wconf:msg=access modifiers for:s",
         "-Xfatal-warnings"
       )
     case V.scala33 =>
