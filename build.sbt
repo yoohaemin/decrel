@@ -23,8 +23,13 @@ inThisBuild(
     ConsoleHelper.welcomeMessage,
     versionScheme    := Some("early-semver"),
     organizationName := "Haemin Yoo",
-    startYear        := Some(2022)
+    startYear        := Some(2022),
+    headerEndYear    := Some(2026)
   ) ::: ciSettings
+)
+
+lazy val headerSettings = Def.settings(
+  headerEndYear := (ThisBuild / headerEndYear).value
 )
 
 name := "decrel"
@@ -56,6 +61,7 @@ lazy val root = project
   .settings(
     crossScalaVersions := Nil
   )
+  .settings(headerSettings)
   .enablePlugins(NoPublishPlugin)
 
 lazy val core = (projectMatrix in file("core"))
@@ -256,6 +262,7 @@ lazy val jsdocs = project
     scalaVersion                           := V.scala213,
     crossScalaVersions                     := List(V.scala213)
   )
+  .settings(headerSettings)
   .dependsOn(
     core.js(V.scala213),
     zquery.js(V.scala213),
@@ -295,6 +302,7 @@ lazy val docs = project
   .enablePlugins(NoPublishPlugin)
 
 lazy val commonSettings = Def.settings(
+  headerSettings,
   scalacOptions ++= Seq(
     "-deprecation",
     "-encoding",
