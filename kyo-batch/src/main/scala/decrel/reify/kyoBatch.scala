@@ -41,7 +41,10 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
 
       private val source = Batch.sourceMap[In, Out, Eff](batchExecute)
 
-      override val reify: ReifiedRelation[In, Out] =
+      override def apply(relationValue: Rel & Relation.Single[In, Out]): ReifiedRelation[In, Out] =
+        cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[In, Out] =
         new ReifiedRelation.Custom[In, Out] {
           override def apply(in: In): Out < Eff =
             Batch.run(Batch.eval(List(in)).map(source)).map(_.head)
@@ -71,7 +74,11 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
 
       private val ds = Batch.sourceMap[In, Option[Out], Eff](batchExecute)
 
-      override val reify: ReifiedRelation[In, Option[Out]] =
+      override def apply(
+        relationValue: Rel & Relation.Optional[In, Out]
+      ): ReifiedRelation[In, Option[Out]] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[In, Option[Out]] =
         new ReifiedRelation.Custom[In, Option[Out]] {
           override def apply(in: In): Option[Out] < Eff =
             Batch
@@ -105,7 +112,11 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
 
       private val ds = Batch.sourceMap[In, CC[Out], Eff](batchExecute)
 
-      override val reify: ReifiedRelation[In, CC[Out]] =
+      override def apply(
+        relationValue: Rel & Relation.Many[In, CC, Out]
+      ): ReifiedRelation[In, CC[Out]] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[In, CC[Out]] =
         new ReifiedRelation.Custom[In, CC[Out]] {
           override def apply(in: In): CC[Out] < Eff =
             Batch
@@ -137,7 +148,10 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
     new Proof[Relation.Custom[Tree, In, Out], In, Out] {
       private val ds = Batch.sourceMap[In, Out, Eff](batchExecute)
 
-      override val reify: ReifiedRelation[In, Out] =
+      override def apply(relationValue: Relation.Custom[Tree, In, Out]): ReifiedRelation[In, Out] =
+        cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[In, Out] =
         new ReifiedRelation.Custom[In, Out] {
           override def apply(in: In): Out < Eff =
             Batch
@@ -155,40 +169,46 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
         }
     }
 
-  def contramapOneProof[Rel, NewRel, In, Out, B](
-    proof: Proof[Rel, In, Out],
+  def contramapOneProof[NewRel, In, Out, B](
+    interpreter: ReifiedRelation[In, Out],
     rel: NewRel & Relation.Single[B, Out],
     f: B => In
   ): Proof.Single[NewRel & Relation.Single[B, Out], B, Out] =
     new Proof.Single[NewRel & Relation.Single[B, Out], B, Out] {
-      override val reify: ReifiedRelation[B, Out] =
+      override def apply(relationValue: NewRel & Relation.Single[B, Out]): ReifiedRelation[B, Out] =
+        cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[B, Out] =
         new ReifiedRelation.Custom[B, Out] {
           override def apply(in: B): Out < Eff =
-            proof.reify.apply(f(in))
+            interpreter.apply(f(in))
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             in: Coll[B]
           ): Coll[Out] < Eff =
-            proof.reify.applyMultiple[Coll](in.map(f))
+            interpreter.applyMultiple[Coll](in.map(f))
         }
     }
 
   def contramapOptionalProof[
-    Rel,
     NewRel,
     In,
     Out,
     B
   ](
-    proof: Proof[Rel, In, Out],
+    interpreter: ReifiedRelation[In, Out],
     rel: NewRel & Relation.Optional[B, Out],
     f: B => Option[In]
   ): Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out] =
     new Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out] {
-      override val reify: ReifiedRelation[B, Option[Out]] =
+      override def apply(
+        relationValue: NewRel & Relation.Optional[B, Out]
+      ): ReifiedRelation[B, Option[Out]] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[B, Option[Out]] =
         new ReifiedRelation.Custom[B, Option[Out]] {
           override def apply(in: B): Option[Out] < Eff =
-            proof.reify.applyMultiple(f(in).toList).map(_.headOption)
+            interpreter.applyMultiple(f(in).toList).map(_.headOption)
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             in: Coll[B]
@@ -203,23 +223,26 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
     }
 
   def contramapManyProof[
-    Rel,
     NewRel,
     In,
     Out,
     B,
     CC[+T] <: Iterable[T] & IterableOps[T, CC, CC[T]]
   ](
-    proof: Proof[Rel, In, Out],
+    interpreter: ReifiedRelation[In, Out],
     rel: NewRel & Relation.Many[B, CC, Out],
     f: B => CC[In]
   ): Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out] =
     new Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out] {
-      override val reify: ReifiedRelation[B, CC[Out]] =
+      override def apply(
+        relationValue: NewRel & Relation.Many[B, CC, Out]
+      ): ReifiedRelation[B, CC[Out]] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[B, CC[Out]] =
         new ReifiedRelation.Custom[B, CC[Out]] {
 
           override def apply(in: B): CC[Out] < Eff =
-            proof.reify.applyMultiple(f(in))
+            interpreter.applyMultiple(f(in))
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             in: Coll[B]
@@ -227,7 +250,7 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
             val collFactory = (in: IterableOps[B, Coll, Coll[B]]).iterableFactory
 
             Kyo
-              .foreach(in)(b => proof.reify.applyMultiple(f(b)))
+              .foreach(in)(b => interpreter.applyMultiple(f(b)))
               .map(a => succeed(a.to(collFactory)))
           }
         }
@@ -246,19 +269,18 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
   /**
    * Syntax for Relation values
    */
-  implicit class KyoRelationOps[Rel, In, Out](private val rel: Rel & Relation[In, Out]) { // TODO add AnyVal
+  implicit class KyoRelationOps[Rel, In, Out](private val rel: Rel & Relation[In, Out])(implicit
+    proof: Proof[Rel & Relation[In, Out], In, Out]
+  ) { // TODO add AnyVal
+    private val interpreter = proof(rel)
 
-    def startingFrom(in: In)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out]
-    ): Out < Eff =
-      proof.reify.apply(in)
+    def startingFrom(in: In): Out < Eff =
+      interpreter.apply(in)
 
     def startingFromMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out]
     ): Coll[Out] < Eff =
-      proof.reify.applyMultiple(in)
+      interpreter.applyMultiple(in)
 
   }
 

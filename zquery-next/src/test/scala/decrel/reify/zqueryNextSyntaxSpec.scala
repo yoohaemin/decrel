@@ -122,7 +122,7 @@ object zqueryNextSyntaxSpec extends ZIOSpecDefault {
       Rental,
       TestError,
       Book
-    ] = contramapOneProof(bookFetch, Rental.book, _.bookId)
+    ] = contramapOneProof(bookFetch(Book.fetch), Rental.book, _.bookId)
   }
 
   private val proofs = Ref.make(Calls()).map(new proofs(state, _))

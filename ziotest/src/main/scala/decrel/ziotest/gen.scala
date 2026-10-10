@@ -38,7 +38,11 @@ trait gen[R] extends module[Gen[R, *]] {
       f: In => Gen[R, Out]
     ): Proof.Single[Rel & Relation.Single[In, Out], In, Out] =
       new Proof.Single[Rel & Relation.Single[In, Out], In, Out] {
-        override val reify: ReifiedRelation[In, Out] = reifiedRelation(f)
+        override def apply(
+          relationValue: Rel & Relation.Single[In, Out]
+        ): ReifiedRelation[In, Out] = cachedInterpreter
+
+        private val cachedInterpreter: ReifiedRelation[In, Out] = reifiedRelation(f)
       }
 
     def relationOptional[Rel, In, Out](
@@ -47,7 +51,11 @@ trait gen[R] extends module[Gen[R, *]] {
       f: In => Gen[R, Option[Out]]
     ): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out] =
       new Proof.Optional[Rel & Relation.Optional[In, Out], In, Out] {
-        override val reify: ReifiedRelation[In, Option[Out]] = reifiedRelation(f)
+        override def apply(
+          relationValue: Rel & Relation.Optional[In, Out]
+        ): ReifiedRelation[In, Option[Out]] = cachedInterpreter
+
+        private val cachedInterpreter: ReifiedRelation[In, Option[Out]] = reifiedRelation(f)
       }
 
     def relationMany[Rel, In, Out, CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]](
@@ -56,7 +64,11 @@ trait gen[R] extends module[Gen[R, *]] {
       f: In => Gen[R, CC[Out]]
     ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] =
       new Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] {
-        override val reify: ReifiedRelation[In, CC[Out]] = reifiedRelation(f)
+        override def apply(
+          relationValue: Rel & Relation.Many[In, CC, Out]
+        ): ReifiedRelation[In, CC[Out]] = cachedInterpreter
+
+        private val cachedInterpreter: ReifiedRelation[In, CC[Out]] = reifiedRelation(f)
       }
   }
 
@@ -79,7 +91,7 @@ trait gen[R] extends module[Gen[R, *]] {
 
     def expand[Rel, B](rel: Rel & Relation[A, B])(implicit
       proof: Proof[Rel & Relation[A, B], A, B]
-    ): Gen[R, B] = gen.flatMap(rel.reify(proof).apply)
+    ): Gen[R, B] = gen.flatMap(proof(rel).apply)
 
   }
 }

@@ -156,7 +156,10 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
       private val ds = buildDatasource[Rel, In, Out](relation)(batchExecute)
 
-      override val reify: ReifiedRelation[In, Out] =
+      override def apply(relationValue: Rel & Relation.Single[In, Out]): ReifiedRelation[In, Out] =
+        cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[In, Out] =
         new ReifiedRelation.Custom[In, Out] {
           override def apply(in: In): Fetch[F, Out] =
             applyMultiple(List(in)).map(_.head) // TODO add tests for this
@@ -184,7 +187,11 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
       private val ds = buildDatasource[Rel, In, Option[Out]](relation)(batchExecute)
 
-      override val reify: ReifiedRelation[In, Option[Out]] =
+      override def apply(
+        relationValue: Rel & Relation.Optional[In, Out]
+      ): ReifiedRelation[In, Option[Out]] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[In, Option[Out]] =
         new ReifiedRelation.Custom[In, Option[Out]] {
           override def apply(in: In): Fetch[F, Option[Out]] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
@@ -219,7 +226,11 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
       private val ds = buildDatasource[Rel, In, CC[Out]](relation)(batchExecute)
 
-      override val reify: ReifiedRelation[In, CC[Out]] =
+      override def apply(
+        relationValue: Rel & Relation.Many[In, CC, Out]
+      ): ReifiedRelation[In, CC[Out]] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[In, CC[Out]] =
         new ReifiedRelation.Custom[In, CC[Out]] {
           override def apply(in: In): Fetch[F, CC[Out]] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
@@ -254,7 +265,10 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
       type Rel = Relation.Custom[Tree, In, Out]
 
-      override val reify: ReifiedRelation[In, Out] =
+      override def apply(relationValue: Relation.Custom[Tree, In, Out]): ReifiedRelation[In, Out] =
+        cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[In, Out] =
         new ReifiedRelation.Custom[In, Out] {
           override def apply(in: In): Fetch[F, Out] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
@@ -272,41 +286,47 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
         }
     }
 
-  def contramapOneProof[Rel, NewRel, In, Out, B](
-    proof: Proof[Rel, In, Out],
+  def contramapOneProof[NewRel, In, Out, B](
+    interpreter: ReifiedRelation[In, Out],
     rel: NewRel & Relation.Single[B, Out],
     f: B => In
   ): Proof.Single[NewRel & Relation.Single[B, Out], B, Out] =
     new Proof.Single[NewRel & Relation.Single[B, Out], B, Out] {
-      override val reify: ReifiedRelation[B, Out] =
+      override def apply(relationValue: NewRel & Relation.Single[B, Out]): ReifiedRelation[B, Out] =
+        cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[B, Out] =
         new ReifiedRelation.Custom[B, Out] {
           override def apply(in: B): Fetch[F, Out] =
-            proof.reify.apply(f(in))
+            interpreter.apply(f(in))
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             in: Coll[B]
           ): Access[Coll[Out]] =
-            proof.reify.applyMultiple[Coll](in.map(f))
+            interpreter.applyMultiple[Coll](in.map(f))
         }
     }
 
   def contramapOptionalProof[
-    Rel,
     NewRel,
     In,
     Out,
     B
   ](
-    proof: Proof[Rel, In, Out],
+    interpreter: ReifiedRelation[In, Out],
     rel: NewRel & Relation.Optional[B, Out],
     f: B => Option[In]
   ): Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out] =
     new Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out] {
-      override val reify: ReifiedRelation[B, Option[Out]] =
+      override def apply(
+        relationValue: NewRel & Relation.Optional[B, Out]
+      ): ReifiedRelation[B, Option[Out]] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[B, Option[Out]] =
         new ReifiedRelation.Custom[B, Option[Out]] {
 
           override def apply(in: B): Fetch[F, Option[Out]] =
-            proof.reify.applyMultiple(f(in).toList).map(_.headOption)
+            interpreter.applyMultiple(f(in).toList).map(_.headOption)
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             ins: Coll[B]
@@ -319,23 +339,26 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     }
 
   def contramapManyProof[
-    Rel,
     NewRel,
     In,
     Out,
     B,
     CC[+T] <: Iterable[T] & IterableOps[T, CC, CC[T]]
   ](
-    proof: Proof[Rel, In, Out],
+    interpreter: ReifiedRelation[In, Out],
     rel: NewRel & Relation.Many[B, CC, Out],
     f: B => CC[In]
   ): Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out] =
     new Proof.Many[NewRel & Relation.Many[B, CC, Out], B, CC, Out] {
-      override val reify: ReifiedRelation[B, CC[Out]] =
+      override def apply(
+        relationValue: NewRel & Relation.Many[B, CC, Out]
+      ): ReifiedRelation[B, CC[Out]] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[B, CC[Out]] =
         new ReifiedRelation.Custom[B, CC[Out]] {
 
           override def apply(in: B): Fetch[F, CC[Out]] =
-            proof.reify.applyMultiple(f(in))
+            interpreter.applyMultiple(f(in))
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             ins: Coll[B]
@@ -375,91 +398,62 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   /**
    * Syntax for Relation values
    */
-  implicit class FetchRelationOps[Rel, In, Out](private val rel: Rel & Relation[In, Out]) { // TODO add AnyVal
+  implicit class FetchRelationOps[Rel, In, Out](private val rel: Rel & Relation[In, Out])(implicit
+    proof: Proof[Rel & Relation[In, Out], In, Out]
+  ) { // TODO add AnyVal
+    private val interpreter = proof(rel)
 
-    def toF(in: In)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
-      clock: Clock[F]
-    ): F[Out] =
+    def toF(in: In)(implicit clock: Clock[F]): F[Out] =
       Fetch.run(toFetch(in))
 
-    def toF(in: In, cache: Cache)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
-      clock: Clock[F]
-    ): F[Out] =
+    def toF(in: In, cache: Cache)(implicit clock: Clock[F]): F[Out] =
       toFetchCacheImpl(cache).flatMap { cache =>
         Fetch.run(toFetch(in), cache)
       }
 
     def toFMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
-      clock: Clock[F]
-    ): F[Coll[Out]] =
+    )(implicit clock: Clock[F]): F[Coll[Out]] =
       Fetch.run(toFetchMany(in))
 
     def toFMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In],
       cache: Cache
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
-      clock: Clock[F]
-    ): F[Coll[Out]] =
+    )(implicit clock: Clock[F]): F[Coll[Out]] =
       toFetchCacheImpl(cache).flatMap { cache =>
         Fetch.run(toFetchMany(in), cache)
       }
 
-    def startingFrom(in: In)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
-      clock: Clock[F]
-    ): F[Out] =
+    def startingFrom(in: In)(implicit clock: Clock[F]): F[Out] =
       toF(in)
 
-    def startingFrom(in: In, cache: Cache)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
-      clock: Clock[F]
-    ): F[Out] =
+    def startingFrom(in: In, cache: Cache)(implicit clock: Clock[F]): F[Out] =
       toF(in, cache)
 
     def startingFrom[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
-      clock: Clock[F]
-    ): F[Coll[Out]] =
+    )(implicit clock: Clock[F]): F[Coll[Out]] =
       toFMany(in)
 
     def startingFrom[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In],
       cache: Cache
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
-      clock: Clock[F]
-    ): F[Coll[Out]] =
+    )(implicit clock: Clock[F]): F[Coll[Out]] =
       toFMany(in, cache)
 
-    def toFetch(in: In)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out]
-    ): Fetch[F, Out] =
-      proof.reify(in)
+    def toFetch(in: In): Fetch[F, Out] =
+      interpreter(in)
 
     def toFetchMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out]
     ): Fetch[F, Coll[Out]] =
-      proof.reify.applyMultiple(in)
+      interpreter.applyMultiple(in)
 
-    def startingFromFetch(in: In)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out]
-    ): Fetch[F, Out] =
+    def startingFromFetch(in: In): Fetch[F, Out] =
       toFetch(in)
 
     def startingFromFetch[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out]
     ): Fetch[F, Coll[Out]] =
       toFetchMany(in)
   }
