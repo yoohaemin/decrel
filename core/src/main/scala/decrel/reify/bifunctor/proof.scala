@@ -13,28 +13,35 @@ import decrel.reify.CommonError
 import izumi.reflect.TagK
 
 import scala.collection.{ BuildFrom, IterableOps }
+import scala.language.implicitConversions
 
 trait proof { this: access & reifiedRelation =>
 
   /**
    * A `Proof` shows that a relation is reifiable as `In => Access[Out]`.
    *
-   * In practice, this data structure is the outer shell of `ReifiedRelation`
-   * that guides the implicit derivation mechanism.
+   * Implicit construction binds relation values and builds the interpreter once.
+   * `reify` exposes that interpreter.
    */
-  abstract class Proof[+Rel, -In, +E, Out] {
+  abstract class Proof[Rel, -In, +E, Out] {
 
     def reify: ReifiedRelation[In, E, Out]
   }
 
-  object Proof {
+  trait ExistingProofs {
+    implicit def existingProof[Rel, In, E, Out](implicit
+      proof: Proof[Rel, In, E, Out]
+    ): Rel => Proof[Rel, In, E, Out] = _ => proof
+  }
 
-    sealed trait Declared[+Rel, -In, +E, Out] extends Proof[Rel, In, E, Out]
+  object Proof extends ExistingProofs {
+
+    sealed trait Declared[Rel, -In, +E, Out] extends Proof[Rel, In, E, Out]
 
     /**
      * Includes both Single and Self.
      */
-    sealed trait GenericSingle[+Rel <: Relation[In, Out], -In, +E, Out]
+    sealed trait GenericSingle[Rel <: Relation[In, Out], -In, +E, Out]
         extends Proof[Rel, In, E, Out]
 
     final class SelfProof[Rel <: Relation.Self[A], A]
@@ -58,10 +65,12 @@ trait proof { this: access & reifiedRelation =>
     private val _selfProof: SelfProof[Relation.Self[Any], Any] =
       new SelfProof[Relation.Self[Any], Any]
 
-    implicit def selfProof[Rel <: Relation.Self[A], A]: Proof.GenericSingle[Rel, A, Nothing, A] =
+    implicit def selfProof[Rel <: Relation.Self[A], A](
+      rel: Rel
+    ): Proof.GenericSingle[Rel, A, Nothing, A] =
       _selfProof.asInstanceOf[Proof.GenericSingle[Rel, A, Nothing, A]]
 
-    abstract class Single[+Rel <: Relation[In, Out], -In, +E, Out]
+    abstract class Single[Rel <: Relation[In, Out], -In, +E, Out]
         extends Proof.Declared[Rel, In, E, Out]
         with GenericSingle[Rel, In, E, Out] { outer =>
 
@@ -121,7 +130,7 @@ trait proof { this: access & reifiedRelation =>
         }
     }
 
-    abstract class Optional[+Rel <: Relation.Optional[In, Out], -In, +E, Out]
+    abstract class Optional[Rel <: Relation.Optional[In, Out], -In, +E, Out]
         extends Proof.Declared[Rel, In, E, Option[Out]] { outer =>
 
       final def contramap[
@@ -293,6 +302,7 @@ trait proof { this: access & reifiedRelation =>
       ev.substituteCo[Result](relation)
     }
 
+    // Returning a conversion lets implicit search infer child errors before the relation is supplied.
     implicit def composedSingleProof[
       LeftTree <: Relation.Single[LeftIn, LeftOut],
       LeftIn,
@@ -304,11 +314,11 @@ trait proof { this: access & reifiedRelation =>
       RightOut,
       E
     ](implicit
-      leftProof: Proof.GenericSingle[LeftTree, LeftIn, LeftE, LeftOut],
-      rightProof: Proof[RightTree, RightIn, RightE, RightOut],
+      leftProof: LeftTree => Proof[LeftTree, LeftIn, LeftE, LeftOut],
+      rightProof: RightTree => Proof[RightTree, RightIn, RightE, RightOut],
       ev: LeftOut <:< RightIn,
       errors: CommonError[LeftE, RightE, E]
-    ): Proof.Single[
+    ): (
       Relation.Composed.Single[
         LeftTree,
         LeftIn,
@@ -316,29 +326,25 @@ trait proof { this: access & reifiedRelation =>
         RightTree,
         RightIn,
         RightOut
-      ],
-      LeftIn,
-      E,
-      RightOut
-    ] = new Proof.Single[
-      Relation.Composed.Single[
-        LeftTree,
+      ] => Proof.Single[
+        Relation.Composed.Single[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut],
         LeftIn,
-        LeftOut,
-        RightTree,
-        RightIn,
+        E,
         RightOut
-      ],
-      LeftIn,
-      E,
-      RightOut
-    ] {
-      override val reify: ReifiedRelation[LeftIn, E, RightOut] =
-        new ReifiedRelation.ComposedSingle(
-          widen(leftProof.reify, errors.left),
-          widen(rightProof.reify, errors.right)
-        )
-    }
+      ]
+    ) = relation =>
+      new Proof.Single[
+        Relation.Composed.Single[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut],
+        LeftIn,
+        E,
+        RightOut
+      ] {
+        override val reify: ReifiedRelation[LeftIn, E, RightOut] =
+          new ReifiedRelation.ComposedSingle(
+            widen(leftProof(relation.left).reify, errors.left),
+            widen(rightProof(relation.right).reify, errors.right)
+          )
+      }
 
     implicit def composedOptionalProof[
       LeftTree <: Relation.Optional[LeftIn, LeftOut],
@@ -351,34 +357,30 @@ trait proof { this: access & reifiedRelation =>
       RightOut,
       E
     ](implicit
-      leftProof: Proof.Optional[LeftTree, LeftIn, LeftE, LeftOut],
-      rightProof: Proof[RightTree, RightIn, RightE, RightOut],
+      leftProof: LeftTree => Proof[LeftTree, LeftIn, LeftE, Option[LeftOut]],
+      rightProof: RightTree => Proof[RightTree, RightIn, RightE, RightOut],
       ev: LeftOut <:< RightIn,
       errors: CommonError[LeftE, RightE, E]
-    ): Proof[
-      Relation.Composed.Optional[
-        LeftTree,
+    ): (
+      Relation.Composed.Optional[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut] => Proof[
+        Relation.Composed.Optional[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut],
         LeftIn,
-        LeftOut,
-        RightTree,
-        RightIn,
-        RightOut
-      ],
-      LeftIn,
-      E,
-      Option[RightOut]
-    ] = new Proof[
-      Relation.Composed.Optional[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut],
-      LeftIn,
-      E,
-      Option[RightOut]
-    ] {
-      override def reify: ReifiedRelation[LeftIn, E, Option[RightOut]] =
-        new ReifiedRelation.ComposedOptional(
-          widen(leftProof.reify, errors.left),
-          widen(rightProof.reify, errors.right)
-        )
-    }
+        E,
+        Option[RightOut]
+      ]
+    ) = relation =>
+      new Proof[
+        Relation.Composed.Optional[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut],
+        LeftIn,
+        E,
+        Option[RightOut]
+      ] {
+        override val reify: ReifiedRelation[LeftIn, E, Option[RightOut]] =
+          new ReifiedRelation.ComposedOptional(
+            widen(leftProof(relation.left).reify, errors.left),
+            widen(rightProof(relation.right).reify, errors.right)
+          )
+      }
 
     implicit def composedManyProof[
       LeftTree <: Relation.Many[LeftIn, CC, LeftOut],
@@ -392,67 +394,50 @@ trait proof { this: access & reifiedRelation =>
       E,
       CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]
     ](implicit
-      leftProof: Proof.Many[LeftTree, LeftIn, LeftE, CC, LeftOut],
-      rightProof: Proof[RightTree, RightIn, RightE, RightOut],
+      leftProof: LeftTree => Proof[LeftTree, LeftIn, LeftE, CC[LeftOut]],
+      rightProof: RightTree => Proof[RightTree, RightIn, RightE, RightOut],
       ev: LeftOut <:< RightIn,
       bf: BuildFrom[CC[RightIn], RightOut, CC[RightOut]],
       errors: CommonError[LeftE, RightE, E]
-    ): Proof[
-      Relation.Composed.Many[
-        LeftTree,
+    ): (
+      Relation.Composed.Many[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut, CC] => Proof[
+        Relation.Composed.Many[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut, CC],
         LeftIn,
-        LeftOut,
-        RightTree,
-        RightIn,
-        RightOut,
-        CC
-      ],
-      LeftIn,
-      E,
-      CC[RightOut]
-    ] = new Proof[
-      Relation.Composed.Many[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut, CC],
-      LeftIn,
-      E,
-      CC[RightOut]
-    ] {
-      override def reify: ReifiedRelation[LeftIn, E, CC[RightOut]] =
-        new ReifiedRelation.ComposedMany(
-          widen(leftProof.reify, errors.left),
-          widen(rightProof.reify, errors.right)
-        )
-    }
+        E,
+        CC[RightOut]
+      ]
+    ) = relation =>
+      new Proof[
+        Relation.Composed.Many[LeftTree, LeftIn, LeftOut, RightTree, RightIn, RightOut, CC],
+        LeftIn,
+        E,
+        CC[RightOut]
+      ] {
+        override val reify: ReifiedRelation[LeftIn, E, CC[RightOut]] =
+          new ReifiedRelation.ComposedMany(
+            widen(leftProof(relation.left).reify, errors.left),
+            widen(rightProof(relation.right).reify, errors.right)
+          )
+      }
 
     implicit def composedZippedProof[
       LeftTree,
       LeftIn,
       LeftE,
       LeftOut,
-      LeftOutRefined <: LeftOut,
       RightTree,
-      RightIn <: LeftIn,
+      RightIn,
       RightE,
       RightOut,
       ZippedOut,
-      ZOR <: ZippedOut,
       E
     ](implicit
-      leftProof: Proof[
-        LeftTree & Relation[LeftIn, LeftOut],
-        LeftIn,
-        LeftE,
-        LeftOutRefined
-      ],
-      rightProof: Proof[
-        RightTree & Relation[RightIn, RightOut],
-        RightIn,
-        RightE,
-        RightOut
-      ],
-      zippable: Zippable.Out[LeftOutRefined, RightOut, ZOR],
+      leftProof: LeftTree => Proof[LeftTree, LeftIn, LeftE, LeftOut],
+      rightProof: RightTree => Proof[RightTree, RightIn, RightE, RightOut],
+      zippable: Zippable.Out[LeftOut, RightOut, ZippedOut],
       zippedEv: LeftIn <:< RightIn,
       errors: CommonError[LeftE, RightE, E]
-    ): Proof[
+    ): (
       Relation.Composed.Zipped[
         LeftTree,
         LeftIn,
@@ -461,12 +446,22 @@ trait proof { this: access & reifiedRelation =>
         RightIn,
         RightOut,
         ZippedOut
-      ],
-      LeftIn,
-      E,
-      ZOR
-    ] = new Proof[
-      Relation.Composed.Zipped[
+      ] => Proof[
+        Relation.Composed.Zipped[
+          LeftTree,
+          LeftIn,
+          LeftOut,
+          RightTree,
+          RightIn,
+          RightOut,
+          ZippedOut
+        ],
+        LeftIn,
+        E,
+        ZippedOut
+      ]
+    ) = relation =>
+      new Proof[Relation.Composed.Zipped[
         LeftTree,
         LeftIn,
         LeftOut,
@@ -474,22 +469,22 @@ trait proof { this: access & reifiedRelation =>
         RightIn,
         RightOut,
         ZippedOut
-      ],
-      LeftIn,
-      E,
-      ZOR
-    ] {
-      override def reify: ReifiedRelation[LeftIn, E, ZOR] =
-        new ReifiedRelation.Zipped(
-          widen(leftProof.reify, errors.left),
-          widen(rightProof.reify, errors.right)
-        )
-    }
+      ], LeftIn, E, ZippedOut] {
+        override val reify: ReifiedRelation[LeftIn, E, ZippedOut] =
+          new ReifiedRelation.Zipped(
+            widen(leftProof(relation.left).reify, errors.left),
+            widen(rightProof(relation.right).reify, errors.right)
+          )
+      }
   }
 
-  implicit class relationOps[Rel, In, E, Out](val rel: Rel & Relation[In, Out]) {
-    def reify(implicit ev: Proof[Rel, In, E, Out]): ReifiedRelation[In, E, Out] =
-      ev.reify
+  final class RelationOps[Rel, In, E, Out](val proof: Proof[Rel, In, E, Out]) {
+    def reify: ReifiedRelation[In, E, Out] = proof.reify
   }
+
+  implicit def relationOps[Rel, In, E, Out](
+    rel: Rel & Relation[In, Out]
+  )(implicit toProof: Rel => Proof[Rel, In, E, Out]): RelationOps[Rel, In, E, Out] =
+    new RelationOps(toProof(rel))
 
 }

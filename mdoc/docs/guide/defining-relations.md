@@ -168,6 +168,18 @@ val customRelation = Relation.Custom(
 )
 ```
 
+## Proof construction
+
+A `Proof` contains a completed interpreter in its parameterless `reify` value.
+Declared datasource implementations construct their proofs when registered.
+For relations containing runtime values, an implicit conversion takes the actual
+relation and returns a completed `Proof`. The syntax conversion constructs this
+proof before `.reify` exposes the interpreter. Composition constructs child proofs
+by applying their implicit conversions to the actual left and right relations.
+
+Existing implicit declaration proofs remain usable. Each constructed proof retains
+one interpreter; reification does not accept a relation or rebuild that interpreter.
+
 ## Best Practices
 
 1. **Domain-Driven Design**: Define relations that match your domain model's natural language

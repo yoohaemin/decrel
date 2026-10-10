@@ -246,17 +246,16 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
   /**
    * Syntax for Relation values
    */
-  implicit class KyoRelationOps[Rel, In, Out](private val rel: Rel & Relation[In, Out]) { // TODO add AnyVal
+  implicit class KyoRelationOps[Rel, In, Out](private val rel: Rel & Relation[In, Out])(implicit
+    toProof: (Rel & Relation[In, Out]) => Proof[Rel & Relation[In, Out], In, Out]
+  ) { // TODO add AnyVal
+    private val proof = toProof(rel)
 
-    def startingFrom(in: In)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out]
-    ): Out < Eff =
+    def startingFrom(in: In): Out < Eff =
       proof.reify.apply(in)
 
     def startingFromMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out]
     ): Coll[Out] < Eff =
       proof.reify.applyMultiple(in)
 
