@@ -20,11 +20,11 @@ trait proof { this: access & reifiedRelation =>
    * A `Proof` shows that a relation is reifiable as `In => Access[Out]`.
    *
    * Implicit construction binds relation values and builds the interpreter once.
-   * `reify` exposes that interpreter; it never receives a runtime relation tree.
+   * `reify` exposes that interpreter.
    */
   abstract class Proof[Rel, -In, Out] {
 
-    val reify: ReifiedRelation[In, Out]
+    def reify: ReifiedRelation[In, Out]
   }
 
   trait ExistingProofs {
