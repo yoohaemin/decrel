@@ -375,91 +375,62 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   /**
    * Syntax for Relation values
    */
-  implicit class FetchRelationOps[Rel, In, Out](private val rel: Rel & Relation[In, Out]) { // TODO add AnyVal
+  implicit class FetchRelationOps[Rel, In, Out](private val rel: Rel & Relation[In, Out])(implicit
+    toProof: (Rel & Relation[In, Out]) => Proof[Rel & Relation[In, Out], In, Out]
+  ) { // TODO add AnyVal
+    private val proof = toProof(rel)
 
-    def toF(in: In)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
-      clock: Clock[F]
-    ): F[Out] =
+    def toF(in: In)(implicit clock: Clock[F]): F[Out] =
       Fetch.run(toFetch(in))
 
-    def toF(in: In, cache: Cache)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
-      clock: Clock[F]
-    ): F[Out] =
+    def toF(in: In, cache: Cache)(implicit clock: Clock[F]): F[Out] =
       toFetchCacheImpl(cache).flatMap { cache =>
         Fetch.run(toFetch(in), cache)
       }
 
     def toFMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
-      clock: Clock[F]
-    ): F[Coll[Out]] =
+    )(implicit clock: Clock[F]): F[Coll[Out]] =
       Fetch.run(toFetchMany(in))
 
     def toFMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In],
       cache: Cache
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
-      clock: Clock[F]
-    ): F[Coll[Out]] =
+    )(implicit clock: Clock[F]): F[Coll[Out]] =
       toFetchCacheImpl(cache).flatMap { cache =>
         Fetch.run(toFetchMany(in), cache)
       }
 
-    def startingFrom(in: In)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
-      clock: Clock[F]
-    ): F[Out] =
+    def startingFrom(in: In)(implicit clock: Clock[F]): F[Out] =
       toF(in)
 
-    def startingFrom(in: In, cache: Cache)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
-      clock: Clock[F]
-    ): F[Out] =
+    def startingFrom(in: In, cache: Cache)(implicit clock: Clock[F]): F[Out] =
       toF(in, cache)
 
     def startingFrom[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
-      clock: Clock[F]
-    ): F[Coll[Out]] =
+    )(implicit clock: Clock[F]): F[Coll[Out]] =
       toFMany(in)
 
     def startingFrom[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In],
       cache: Cache
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out],
-      clock: Clock[F]
-    ): F[Coll[Out]] =
+    )(implicit clock: Clock[F]): F[Coll[Out]] =
       toFMany(in, cache)
 
-    def toFetch(in: In)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out]
-    ): Fetch[F, Out] =
+    def toFetch(in: In): Fetch[F, Out] =
       proof.reify(in)
 
     def toFetchMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out]
     ): Fetch[F, Coll[Out]] =
       proof.reify.applyMultiple(in)
 
-    def startingFromFetch(in: In)(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out]
-    ): Fetch[F, Out] =
+    def startingFromFetch(in: In): Fetch[F, Out] =
       toFetch(in)
 
     def startingFromFetch[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
       in: Coll[In]
-    )(implicit
-      proof: Proof[Rel & Relation[In, Out], In, Out]
     ): Fetch[F, Coll[Out]] =
       toFetchMany(in)
   }

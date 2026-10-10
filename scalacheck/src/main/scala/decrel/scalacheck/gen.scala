@@ -78,8 +78,8 @@ trait gen extends module[Gen] {
   implicit final class GenOps[A](private val gen: Gen[A]) {
 
     def expand[Rel, B](rel: Rel & Relation[A, B])(implicit
-      proof: Proof[Rel & Relation[A, B], A, B]
-    ): Gen[B] = gen.flatMap(rel.reify(proof).apply)
+      proof: (Rel & Relation[A, B]) => Proof[Rel & Relation[A, B], A, B]
+    ): Gen[B] = gen.flatMap(proof(rel).reify.apply)
 
   }
 }
