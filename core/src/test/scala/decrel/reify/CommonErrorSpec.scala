@@ -42,7 +42,11 @@ object CommonErrorSpec extends ZIOSpecDefault {
 
   implicit val leftSingleProof: Proof.Single[LeftSingle.type, Input, LeftFailure.type, Middle] =
     new Proof.Single[LeftSingle.type, Input, LeftFailure.type, Middle] {
-      override val reify: ReifiedRelation[Input, LeftFailure.type, Middle] =
+      override def apply(
+        relationValue: LeftSingle.type
+      ): ReifiedRelation[Input, LeftFailure.type, Middle] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[Input, LeftFailure.type, Middle] =
         interpreter((in: Input) =>
           if (in.value == 0) Left(LeftFailure) else Right(Middle(in.value))
         )
@@ -51,7 +55,11 @@ object CommonErrorSpec extends ZIOSpecDefault {
   implicit val leftOptionalProof
     : Proof.Optional[LeftOptional.type, Input, LeftFailure.type, Middle] =
     new Proof.Optional[LeftOptional.type, Input, LeftFailure.type, Middle] {
-      override val reify: ReifiedRelation[Input, LeftFailure.type, Option[Middle]] =
+      override def apply(
+        relationValue: LeftOptional.type
+      ): ReifiedRelation[Input, LeftFailure.type, Option[Middle]] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[Input, LeftFailure.type, Option[Middle]] =
         interpreter((in: Input) =>
           if (in.value == 0) Left(LeftFailure)
           else Right(Option.when(in.value >= 0)(Middle(in.value)))
@@ -60,7 +68,11 @@ object CommonErrorSpec extends ZIOSpecDefault {
 
   implicit val leftManyProof: Proof.Many[LeftMany.type, Input, LeftFailure.type, Vector, Middle] =
     new Proof.Many[LeftMany.type, Input, LeftFailure.type, Vector, Middle] {
-      override val reify: ReifiedRelation[Input, LeftFailure.type, Vector[Middle]] =
+      override def apply(
+        relationValue: LeftMany.type
+      ): ReifiedRelation[Input, LeftFailure.type, Vector[Middle]] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[Input, LeftFailure.type, Vector[Middle]] =
         interpreter((in: Input) =>
           if (in.value == 0) Left(LeftFailure)
           else
@@ -72,14 +84,20 @@ object CommonErrorSpec extends ZIOSpecDefault {
 
   implicit val rightSingleProof: Proof.Single[RightSingle.type, Middle, RightFailure.type, Output] =
     new Proof.Single[RightSingle.type, Middle, RightFailure.type, Output] {
-      override val reify: ReifiedRelation[Middle, RightFailure.type, Output] =
+      override def apply(
+        relationValue: RightSingle.type
+      ): ReifiedRelation[Middle, RightFailure.type, Output] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[Middle, RightFailure.type, Output] =
         interpreter((in: Middle) =>
           if (in.value == 1) Left(RightFailure) else Right(Output(in.value + 10))
         )
     }
 
   implicit val rightZippedProof: Proof.Single[RightZipped.type, Input, RightFailure.type, Output] =
-    rightSingleProof.contramap[RightZipped.type, Input](RightZipped)(in => Middle(in.value))
+    rightSingleProof.contramap[RightZipped.type, Input](RightSingle, RightZipped)(in =>
+      Middle(in.value)
+    )
 
   private def join[A, B, E](left: A, right: B)(implicit errors: CommonError[A, B, E]): (E, E) =
     (errors.left(left), errors.right(right))

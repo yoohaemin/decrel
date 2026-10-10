@@ -137,14 +137,14 @@ object zqueryProofSpec extends ZIOSpecDefault {
       Rental,
       TestError,
       Book
-    ] = contramapOneProof(bookFetch, Rental.book, _.bookId)
+    ] = contramapOneProof(bookFetch(Book.fetch), Rental.book, _.bookId)
 
     implicit val rentalUser: Proof.Single[
       Rental.user.type & Relation.Single[Rental, User],
       Rental,
       TestError,
       User
-    ] = contramapOneProof(userFetch, Rental.user, _.userId)
+    ] = contramapOneProof(userFetch(User.fetch), Rental.user, _.userId)
 
     implicit val bookCurrentRental: Proof.Optional[
       Book.currentRental.type & Relation.Optional[Book, Rental],

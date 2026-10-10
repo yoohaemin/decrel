@@ -103,7 +103,11 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
 
       private val ds = buildDatasource[Rel, In, E, Out](relation)(batchExecute)
 
-      override val reify: ReifiedRelation[In, E, Out] =
+      override def apply(
+        relationValue: Rel & Relation.Single[In, Out]
+      ): ReifiedRelation[In, E, Out] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[In, E, Out] =
         new ReifiedRelation.Custom[In, E, Out] {
           override def apply(in: In): ZQuery[R, E, Out] =
             applyMultiple(List(in)).map(_.head) // TODO add tests for this
@@ -131,7 +135,11 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
 
       private val ds = buildDatasource[Rel, In, E, Option[Out]](relation)(batchExecute)
 
-      override val reify: ReifiedRelation[In, E, Option[Out]] =
+      override def apply(
+        relationValue: Rel & Relation.Optional[In, Out]
+      ): ReifiedRelation[In, E, Option[Out]] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[In, E, Option[Out]] =
         new ReifiedRelation.Custom[In, E, Option[Out]] {
           override def apply(in: In): ZQuery[R, E, Option[Out]] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
@@ -165,7 +173,11 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
 
       private val ds = buildDatasource[Rel, In, E, CC[Out]](relation)(batchExecute)
 
-      override val reify: ReifiedRelation[In, E, CC[Out]] =
+      override def apply(
+        relationValue: Rel & Relation.Many[In, CC, Out]
+      ): ReifiedRelation[In, E, CC[Out]] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[In, E, CC[Out]] =
         new ReifiedRelation.Custom[In, E, CC[Out]] {
           override def apply(in: In): ZQuery[R, E, CC[Out]] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
@@ -197,7 +209,11 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
     new Proof[Relation.Custom[Tree, In, Out], In, E, Out] {
       private val ds = buildDatasource(relation)(batchExecute)
 
-      override val reify: ReifiedRelation[In, E, Out] =
+      override def apply(
+        relationValue: Relation.Custom[Tree, In, Out]
+      ): ReifiedRelation[In, E, Out] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[In, E, Out] =
         new ReifiedRelation.Custom[In, E, Out] {
           override def apply(in: In): ZQuery[R, E, Out] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
@@ -216,42 +232,49 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
         }
     }
 
-  def contramapOneProof[Rel, NewRel, In, E, Out, B](
-    proof: Proof[Rel, In, E, Out],
+  def contramapOneProof[NewRel, In, E, Out, B](
+    interpreter: ReifiedRelation[In, E, Out],
     rel: NewRel & Relation.Single[B, Out],
     f: B => In
   ): Proof.Single[NewRel & Relation.Single[B, Out], B, E, Out] =
     new Proof.Single[NewRel & Relation.Single[B, Out], B, E, Out] {
-      override val reify: ReifiedRelation[B, E, Out] =
+      override def apply(
+        relationValue: NewRel & Relation.Single[B, Out]
+      ): ReifiedRelation[B, E, Out] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[B, E, Out] =
         new ReifiedRelation.Custom[B, E, Out] {
           override def apply(in: B): ZQuery[R, E, Out] =
-            proof.reify.apply(f(in))
+            interpreter.apply(f(in))
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             in: Coll[B]
           ): Access[E, Coll[Out]] =
-            proof.reify.applyMultiple[Coll](in.map(f))
+            interpreter.applyMultiple[Coll](in.map(f))
         }
     }
 
   def contramapOptionalProof[
-    Rel,
     NewRel,
     In,
     E,
     Out,
     B
   ](
-    proof: Proof[Rel, In, E, Out],
+    interpreter: ReifiedRelation[In, E, Out],
     rel: NewRel & Relation.Optional[B, Out],
     f: B => Option[In]
   ): Proof.Optional[NewRel & Relation.Optional[B, Out], B, E, Out] =
     new Proof.Optional[NewRel & Relation.Optional[B, Out], B, E, Out] {
-      override val reify: ReifiedRelation[B, E, Option[Out]] =
+      override def apply(
+        relationValue: NewRel & Relation.Optional[B, Out]
+      ): ReifiedRelation[B, E, Option[Out]] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[B, E, Option[Out]] =
         new ReifiedRelation.Custom[B, E, Option[Out]] {
 
           override def apply(in: B): ZQuery[R, E, Option[Out]] =
-            proof.reify.applyMultiple(f(in).toList).map(_.headOption)
+            interpreter.applyMultiple(f(in).toList).map(_.headOption)
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             in: Coll[B]
@@ -262,7 +285,6 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
     }
 
   def contramapManyProof[
-    Rel,
     NewRel,
     In,
     E,
@@ -270,23 +292,27 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
     B,
     CC[+T] <: Iterable[T] & IterableOps[T, CC, CC[T]]
   ](
-    proof: Proof[Rel, In, E, Out],
+    interpreter: ReifiedRelation[In, E, Out],
     rel: NewRel & Relation.Many[B, CC, Out],
     f: B => CC[In]
   ): Proof.Many[NewRel & Relation.Many[B, CC, Out], B, E, CC, Out] =
     new Proof.Many[NewRel & Relation.Many[B, CC, Out], B, E, CC, Out] {
-      override val reify: ReifiedRelation[B, E, CC[Out]] =
+      override def apply(
+        relationValue: NewRel & Relation.Many[B, CC, Out]
+      ): ReifiedRelation[B, E, CC[Out]] = cachedInterpreter
+
+      private val cachedInterpreter: ReifiedRelation[B, E, CC[Out]] =
         new ReifiedRelation.Custom[B, E, CC[Out]] {
 
           override def apply(in: B): ZQuery[R, E, CC[Out]] =
-            proof.reify.applyMultiple(f(in))
+            interpreter.applyMultiple(f(in))
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             in: Coll[B]
           ): Access[E, Coll[CC[Out]]] =
             // TODO how to optimize?
             ZQuery.foreachBatched(in) { b =>
-              proof.reify.applyMultiple(f(b))
+              interpreter.applyMultiple(f(b))
             }
         }
     }

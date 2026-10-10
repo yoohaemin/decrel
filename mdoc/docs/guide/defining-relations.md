@@ -150,7 +150,7 @@ object Department {
 
 // Adapt to work with department ID instead of department object
 val departmentIdToManager = contramapOneProof(
-  departmentManagerProof,
+  departmentManagerProof(Department.manager),
   Department.manager,
   (id: Department.Id) => Department(id)
 )
@@ -167,6 +167,32 @@ val customRelation = Relation.Custom(
   // Reference to existing relation or custom implementation
 )
 ```
+
+## Proof construction
+
+A `Proof` constructs a `ReifiedRelation` from a relation value:
+
+```scala
+abstract class Proof[Rel, -In, +E, Out] {
+  def apply(relation: Rel): ReifiedRelation[In, E, Out]
+}
+```
+
+Implicit resolution selects the proof from the relation's type. Syntax such as
+`relation.reify` applies that proof to the actual relation value immediately and
+retains the resulting interpreter. Composition applies the child proofs to the
+actual left and right relations. Reusing a syntax instance or its interpreter
+does not repeat construction; a new syntax conversion may construct another
+interpreter.
+
+Datasource registration helpers retain their datasource and interpreter, returning
+that interpreter whenever their proof is applied. Custom implementations implement
+`apply(relation)` instead of the former parameterless `reify` member. There is no
+intermediate bound-proof wrapper.
+
+The cardinality-specific proof methods take the source relation explicitly:
+`proof.contramap(sourceRelation, targetRelation)(f)`. Integration helpers such as
+`contramapOneProof` instead take an already constructed interpreter, as shown above.
 
 ## Best Practices
 
