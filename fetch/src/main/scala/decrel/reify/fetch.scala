@@ -16,8 +16,7 @@ import decrel.Relation
 import fetch.*
 import izumi.reflect.Tag
 
-import scala.collection.immutable.HashMap
-import scala.collection.{ mutable, BuildFrom, IterableOps }
+import scala.collection.{ BuildFrom, IterableOps }
 import scala.util.control.NoStackTrace
 
 /**
@@ -67,60 +66,23 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     override implicit def CF: Concurrent[F] = self.CF
 
     override def fetch(id: RelationRequest[Rel, In, Out]): F[Option[Out]] =
-      batchExecute(List(id.id)).map(r => Some(r.head._2))
+      batch(NonEmptyList.one(id)).map(_.get(id))
 
     override def batch(
       requests: NonEmptyList[RelationRequest[Rel, In, Out]]
     ): F[Map[RelationRequest[Rel, In, Out], Out]] = {
-      // Size of the request. Needs to be checked against the result.
-      var size = 0
-
-      // List that will be fed into the provided implementation function.
-      var list = List.empty[In]
-
-      // Saves 1 allocation because this is referenced 2 times
-      val requestsList = requests.toList
-
-      // Build the request list and size in one traversal
-      requestsList.foreach { request =>
-        size += 1
-        val newList = request.id :: list
-        list = newList
-      }
-
-      // Create a table from `In`s to `RelationRequest`s for fast lookup
-      val requestMapBuilder =
-        mutable.HashMap.newBuilder[In, Option[RelationRequest[Rel, In, Out]]]
-      requestMapBuilder.sizeHint(size)
-      requestsList.foreach(request => requestMapBuilder.addOne(request.id -> Some(request)))
-      val requestMap = requestMapBuilder.result().withDefaultValue(None)
-
-      // Create a builder that will ultimately be returned
-      val returnsMap = HashMap.newBuilder[RelationRequest[Rel, In, Out], Out]
-      returnsMap.sizeHint(size)
-
-      batchExecute(list).flatMap { results =>
-        // to compare against the request size
-        var resultSize = 0
-
-        CF.catchOnly[DataSourceImplementationException] {
-          results.foreach { pair =>
-            // Blindly avoiding pattern matching
-            val in  = pair._1
-            val out = pair._2
-
-            val request = requestMap(in).getOrElse(throw NotRequestedOrDoubleReturns)
-
-            resultSize += 1
-            requestMap.update(in, None)
-            returnsMap.addOne(request -> out)
-          }
-        }.flatMap { _ =>
-          if (resultSize != size)
-            CF.raiseError(NotEnoughReturns)
-          else
-            CF.pure(returnsMap.result())
-        }
+      val requestMap = requests.toList.map(request => request.id -> request).toMap
+      batchExecute(requestMap.keys.toList).flatMap { results =>
+        val returnedIds = results.map(_._1)
+        if (
+          returnedIds.distinct.size != returnedIds.size || returnedIds
+            .exists(id => !requestMap.contains(id))
+        )
+          CF.raiseError(NotRequestedOrDoubleReturns)
+        else if (returnedIds.size != requestMap.size)
+          CF.raiseError(NotEnoughReturns)
+        else
+          CF.pure(results.map { case (id, out) => requestMap(id) -> out }.toMap)
       }
     }
 
@@ -159,7 +121,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
       override val reify: ReifiedRelation[In, Out] =
         new ReifiedRelation.Custom[In, Out] {
           override def apply(in: In): Fetch[F, Out] =
-            applyMultiple(List(in)).map(_.head) // TODO add tests for this
+            Fetch(RelationRequest[Rel, In, Out](relation, in), ds)
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             ins: Coll[In]
@@ -187,7 +149,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
       override val reify: ReifiedRelation[In, Option[Out]] =
         new ReifiedRelation.Custom[In, Option[Out]] {
           override def apply(in: In): Fetch[F, Option[Out]] =
-            applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
+            Fetch(RelationRequest[Rel, In, Option[Out]](relation, in), ds)
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             ins: Coll[In]
@@ -222,7 +184,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
       override val reify: ReifiedRelation[In, CC[Out]] =
         new ReifiedRelation.Custom[In, CC[Out]] {
           override def apply(in: In): Fetch[F, CC[Out]] =
-            applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
+            Fetch(RelationRequest[Rel, In, CC[Out]](relation, in), ds)
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             ins: Coll[In]
@@ -257,7 +219,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
       override val reify: ReifiedRelation[In, Out] =
         new ReifiedRelation.Custom[In, Out] {
           override def apply(in: In): Fetch[F, Out] =
-            applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
+            Fetch(RelationRequest[Rel, In, Out](relation, in), ds)
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             ins: Coll[In]
