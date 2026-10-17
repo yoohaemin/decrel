@@ -61,7 +61,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     rel: Rel,
     batchExecute: List[In] => F[List[(In, Out)]]
   ) extends DataSource[F, RelationRequest[Rel, In, Out], Out] {
-    override def data: Data[RelationRequest[Rel, In, Out], Out] =
+    override val data: Data[RelationRequest[Rel, In, Out], Out] =
       new RelationRequestData[Rel, In, Out](rel, Tag[Rel])
 
     override implicit def CF: Concurrent[F] = self.CF
