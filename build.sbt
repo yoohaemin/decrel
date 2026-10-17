@@ -135,7 +135,9 @@ lazy val fetch = (projectMatrix in file("fetch"))
   )
   .settings(
     libraryDependencies ++= Seq(
-      "com.47deg" %%% "fetch" % V.fetch
+      "com.47deg" %%% "fetch"        % V.fetch,
+      "dev.zio"   %%% "zio-test"     % V.zio % Test,
+      "dev.zio"   %%% "zio-test-sbt" % V.zio % Test
     )
   )
   .dependsOn(cats)
