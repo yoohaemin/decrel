@@ -13,7 +13,7 @@ import izumi.reflect.Tag
 import zio.*
 import zio.query.{ CompletedRequestMap, DataSource, ZQuery }
 
-import scala.collection.{ mutable, BuildFrom, IterableOps }
+import scala.collection.{ BuildFrom, IterableOps }
 
 trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R] {
 
@@ -62,21 +62,34 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
         val deduplicated = requests.distinctBy(_.id)
 
         batchExecute(deduplicated.map(_.id)).flatMap { results =>
-          val mapBuilder = mutable.Map.newBuilder[In, Exit[E, Out]]
-          mapBuilder.sizeHint(results)
-          val resultsMap = mapBuilder
-            .addAll(results.view.map(pair => pair._1 -> Exit.succeed(pair._2)))
-            .result()
-            .withDefault(in =>
-              Exit.die(new NoSuchElementException(s"Response for request not found: $in"))
-            )
+          val keys       = results.map(_._1)
+          val requested  = deduplicated.map(_.id).toSet
+          val supplied   = keys.toSet
+          val duplicates = keys
+            .groupBy(identity)
+            .collect {
+              case (key, occurrences) if occurrences.size > 1 => key
+            }
+            .toSet
+          val missing                      = requested -- supplied
+          val unexpected                   = supplied -- requested
+          val exits: Map[In, Exit[E, Out]] =
+            if (missing.nonEmpty || duplicates.nonEmpty || unexpected.nonEmpty) {
+              val violation = ZQueryDatasourceContractException(
+                identifier,
+                missing.map(key => key: Any),
+                duplicates.map(key => key: Any),
+                unexpected.map(key => key: Any)
+              )
+              requested.iterator.map(key => key -> Exit.die(violation)).toMap
+            } else results.iterator.map { case (key, value) => key -> Exit.succeed(value) }.toMap
 
           ZIO.succeed(
             CompletedRequestMap.fromIterableWith[E, RelationRequest[Rel, In, E, Out], Out](
               requests
             )(
               (a: zio.query.Request[E, Out]) => a,
-              request => resultsMap(request.id)
+              request => exits(request.id)
             )
           )
         }.catchAll { e =>
@@ -88,9 +101,12 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
       }
     }
 
-  // batchExecute should return a list of results that contains all of the identifiers of the provided list
-  // Failing to do so will result in fiber death
-  // order does not matter
+  /**
+   * Batch callbacks must return exactly one entry for each requested key, in any order.
+   * Missing, duplicate, or unrequested keys cause a ZQueryDatasourceContractException defect.
+   * An Optional result must include the requested key with None when no entity exists.
+   * Domain failures belong in E; a malformed response is an implementation contract violation.
+   */
   def implementSingleDatasource[Rel: Tag, In, E, Out](
     relation: Rel & Relation.Single[In, Out]
   )(
