@@ -106,7 +106,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
       override val reify: ReifiedRelation[In, E, Out] =
         new ReifiedRelation.Custom[In, E, Out] {
           override def apply(in: In): ZQuery[R, E, Out] =
-            applyMultiple(List(in)).map(_.head) // TODO add tests for this
+            applyMultiple(List(in)).map(_.head)
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             ins: Coll[In]
@@ -134,7 +134,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
       override val reify: ReifiedRelation[In, E, Option[Out]] =
         new ReifiedRelation.Custom[In, E, Option[Out]] {
           override def apply(in: In): ZQuery[R, E, Option[Out]] =
-            applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
+            applyMultiple(List(in)).map(_.head)
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             ins: Coll[In]
@@ -168,7 +168,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
       override val reify: ReifiedRelation[In, E, CC[Out]] =
         new ReifiedRelation.Custom[In, E, CC[Out]] {
           override def apply(in: In): ZQuery[R, E, CC[Out]] =
-            applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
+            applyMultiple(List(in)).map(_.head)
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             ins: Coll[In]
@@ -200,7 +200,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
       override val reify: ReifiedRelation[In, E, Out] =
         new ReifiedRelation.Custom[In, E, Out] {
           override def apply(in: In): ZQuery[R, E, Out] =
-            applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
+            applyMultiple(List(in)).map(_.head)
 
           override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
             ins: Coll[In]

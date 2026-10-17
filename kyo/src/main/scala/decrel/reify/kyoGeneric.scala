@@ -10,16 +10,10 @@ package decrel.reify
 
 import kyo.*
 
-import decrel.Relation
-
-import scala.collection.immutable.HashMap
-import scala.collection.{ mutable, BuildFrom, IterableOps }
-import scala.util.control.NoStackTrace
-
 /**
  * Instantiate this trait in one place in your app pass around the object, importing it where you want to use it.
  *
- * @tparam Eff Underlying effect type, usually `cats.effect.IO` or similar.
+ * @tparam Eff Kyo effect requirements remaining after relation interpretation, for example `Any` for pure computations.
  */
 trait kyoGeneric[Eff] extends monofunctor.module[[A] =>> A < Eff] { self =>
 
