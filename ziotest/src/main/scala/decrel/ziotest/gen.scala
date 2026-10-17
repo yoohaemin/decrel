@@ -13,7 +13,7 @@ import decrel.reify.monofunctor.*
 import zio.*
 import zio.test.{ Gen, Sized }
 
-import scala.collection.IterableOps
+import scala.collection.SeqOps
 
 trait gen[R] extends module[Gen[R, *]] {
 
@@ -50,7 +50,7 @@ trait gen[R] extends module[Gen[R, *]] {
         override val reify: ReifiedRelation[In, Option[Out]] = reifiedRelation(f)
       }
 
-    def relationMany[Rel, In, Out, CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]](
+    def relationMany[Rel, In, Out, CC[+A] <: Seq[A] & SeqOps[A, CC, CC[A]]](
       relation: Rel & Relation.Many[In, List, Out]
     )(
       f: In => Gen[R, CC[Out]]
@@ -65,12 +65,12 @@ trait gen[R] extends module[Gen[R, *]] {
       override def apply(in: In): Gen[R, Out] =
         applyMultiple(List(in)).map(_.head)
 
-      override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+      override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
         ins: Coll[In]
       ): Gen[R, Coll[Out]] =
         Gen
           .collectAll(ins.map(f))
-          .map(_.to((ins: IterableOps[In, Coll, Coll[In]]).iterableFactory))
+          .map(_.to((ins: SeqOps[In, Coll, Coll[In]]).iterableFactory))
     }
 
   //////// Syntax for using relations in tests

@@ -12,7 +12,7 @@ import decrel.Relation
 import izumi.reflect.Tag
 import kyo.*
 
-import scala.collection.{ BuildFrom, IterableOps }
+import scala.collection.{ BuildFrom, SeqOps }
 import scala.collection.IterableFactory
 
 trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
@@ -46,11 +46,11 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
           override def apply(in: In): Out < Eff =
             Batch.run(Batch.eval(List(in)).map(source)).map(_.head)
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
           ): Coll[Out] < Eff = {
             val f: IterableFactory[Coll] =
-              (ins: IterableOps[In, Coll, Coll[In]]).iterableFactory
+              (ins: SeqOps[In, Coll, Coll[In]]).iterableFactory
 
             Batch
               .run(Batch.eval(ins.toSeq).map(source))
@@ -78,11 +78,11 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
               .run(Batch.eval(List(in)).map(ds))
               .map(_.head)
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
           ): Coll[Option[Out]] < Eff = {
             val f: IterableFactory[Coll] =
-              (ins: IterableOps[In, Coll, Coll[In]]).iterableFactory
+              (ins: SeqOps[In, Coll, Coll[In]]).iterableFactory
 
             Batch.run(Batch.eval(ins.toSeq).map(ds)).map(a => succeed(a.to(f)))
           }
@@ -92,7 +92,7 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
   def implementManyDatasource[
     Rel: Tag,
     In,
-    CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]],
+    CC[+A] <: Seq[A] & SeqOps[A, CC, CC[A]],
     Out
   ](
     relation: Rel & Relation.Many[In, CC, Out]
@@ -112,11 +112,11 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
               .run(Batch.eval(List(in)).map(ds))
               .map(_.head)
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
           ): Coll[CC[Out]] < Eff = {
             val f: IterableFactory[Coll] =
-              (ins: IterableOps[In, Coll, Coll[In]]).iterableFactory
+              (ins: SeqOps[In, Coll, Coll[In]]).iterableFactory
 
             Batch.run(Batch.eval(ins.toSeq).map(ds)).map(a => succeed(a.to(f)))
           }
@@ -144,11 +144,11 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
               .run(Batch.eval(List(in)).map(ds))
               .map(_.head)
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
           ): Coll[Out] < Eff = {
             val f: IterableFactory[Coll] =
-              (ins: IterableOps[In, Coll, Coll[In]]).iterableFactory
+              (ins: SeqOps[In, Coll, Coll[In]]).iterableFactory
 
             Batch.run(Batch.eval(ins.toSeq).map(ds)).map(a => succeed(a.to(f)))
           }
@@ -166,7 +166,7 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
           override def apply(in: B): Out < Eff =
             proof.reify.apply(f(in))
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             in: Coll[B]
           ): Coll[Out] < Eff =
             proof.reify.applyMultiple[Coll](in.map(f))
@@ -190,10 +190,10 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
           override def apply(in: B): Option[Out] < Eff =
             proof.reify.applyMultiple(f(in).toList).map(_.headOption)
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             in: Coll[B]
           ): Coll[Option[Out]] < Eff = {
-            val f = (in: IterableOps[B, Coll, Coll[B]]).iterableFactory
+            val f = (in: SeqOps[B, Coll, Coll[B]]).iterableFactory
             Kyo.foreach(in)(b => apply(b)).flatMap { a =>
               succeed(a.to(f))
             }
@@ -208,7 +208,7 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
     In,
     Out,
     B,
-    CC[+T] <: Iterable[T] & IterableOps[T, CC, CC[T]]
+    CC[+T] <: Seq[T] & SeqOps[T, CC, CC[T]]
   ](
     proof: Proof[Rel, In, Out],
     rel: NewRel & Relation.Many[B, CC, Out],
@@ -221,10 +221,10 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
           override def apply(in: B): CC[Out] < Eff =
             proof.reify.applyMultiple(f(in))
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             in: Coll[B]
           ): Coll[CC[Out]] < Eff = {
-            val collFactory = (in: IterableOps[B, Coll, Coll[B]]).iterableFactory
+            val collFactory = (in: SeqOps[B, Coll, Coll[B]]).iterableFactory
 
             Kyo
               .foreach(in)(b => proof.reify.applyMultiple(f(b)))
@@ -253,7 +253,7 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
     ): Out < Eff =
       proof.reify.apply(in)
 
-    def startingFromMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def startingFromMany[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out]

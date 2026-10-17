@@ -10,7 +10,7 @@ package decrel.reify.monofunctor
 
 import decrel.Zippable
 
-import scala.collection.{ BuildFrom, IterableOps }
+import scala.collection.{ BuildFrom, SeqOps }
 
 trait reifiedRelation { this: access =>
 
@@ -27,8 +27,12 @@ trait reifiedRelation { this: access =>
 
     def apply(in: In): Access[Out]
 
+    /**
+     * Traverse a finite, ordered immutable sequence, preserving its shape and duplicates.
+     * Implementations must return exactly one result per input, in input order.
+     */
     def applyMultiple[
-      Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]
+      Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]
     ](
       in: Coll[In]
     ): Access[Coll[Out]]
@@ -50,7 +54,7 @@ trait reifiedRelation { this: access =>
         succeed(f(in))
 
       override def applyMultiple[
-        Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]
+        Coll[+T] <: Seq[T] & SeqOps[T, Coll, Coll[T]]
       ](
         in: Coll[In]
       ): Access[Coll[Out]] =
@@ -67,7 +71,7 @@ trait reifiedRelation { this: access =>
         reifiedRelation.apply(in).map(transform)
 
       override def applyMultiple[
-        Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]
+        Coll[+T] <: Seq[T] & SeqOps[T, Coll, Coll[T]]
       ](
         in: Coll[In]
       ): Access[Coll[DD[Out]]] =
@@ -91,7 +95,7 @@ trait reifiedRelation { this: access =>
           }
 
       override def applyMultiple[
-        Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]
+        Coll[+T] <: Seq[T] & SeqOps[T, Coll, Coll[T]]
       ](
         in: Coll[LeftIn]
       ): Access[Coll[RightOut]] =
@@ -126,7 +130,7 @@ trait reifiedRelation { this: access =>
           }
 
       override def applyMultiple[
-        Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]
+        Coll[+T] <: Seq[T] & SeqOps[T, Coll, Coll[T]]
       ](
         in: Coll[LeftIn]
       ): Access[Coll[Option[RightOut]]] =
@@ -134,9 +138,9 @@ trait reifiedRelation { this: access =>
           .applyMultiple(in)
           .flatMap { (leftOuts: Coll[Option[LeftOut]]) =>
             type X[+A] = Coll[Option[A]]
-            val inputs: Coll[Option[RightIn]]       = ev.liftCo[X](leftOuts)
-            val flat: Iterable[RightIn]             = inputs.flatten
-            val results: Access[Iterable[RightOut]] =
+            val inputs: Coll[Option[RightIn]]  = ev.liftCo[X](leftOuts)
+            val flat: Seq[RightIn]             = inputs.flatten
+            val results: Access[Seq[RightOut]] =
               right.applyMultiple(flat)
             results.map { resultsIterable =>
               val it = resultsIterable.iterator
@@ -152,7 +156,7 @@ trait reifiedRelation { this: access =>
       LeftIn,
       LeftOut,
       RightIn,
-      CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]],
+      CC[+A] <: Seq[A] & SeqOps[A, CC, CC[A]],
       RightOut
     ](
       left: ReifiedRelation[LeftIn, CC[LeftOut]],
@@ -172,7 +176,7 @@ trait reifiedRelation { this: access =>
               .map(_.to(bf.toFactory(rightIns)))
           }
 
-      override def applyMultiple[Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]](
+      override def applyMultiple[Coll[+T] <: Seq[T] & SeqOps[T, Coll, Coll[T]]](
         in: Coll[LeftIn]
       ): Access[Coll[CC[RightOut]]] =
         left
@@ -222,7 +226,7 @@ trait reifiedRelation { this: access =>
             )
         }
 
-      override def applyMultiple[Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]](
+      override def applyMultiple[Coll[+T] <: Seq[T] & SeqOps[T, Coll, Coll[T]]](
         in: Coll[LeftIn]
       ): Access[Coll[Zipped]] =
         foreach(
@@ -232,8 +236,8 @@ trait reifiedRelation { this: access =>
           )
         )(identity).map {
           case List(leftOuts, rightOuts) =>
-            val leftOutsIt  = leftOuts.asInstanceOf[Iterable[LeftOut]].iterator
-            val rightOutsIt = rightOuts.asInstanceOf[Iterable[RightOut]].iterator
+            val leftOutsIt  = leftOuts.asInstanceOf[Seq[LeftOut]].iterator
+            val rightOutsIt = rightOuts.asInstanceOf[Seq[RightOut]].iterator
             in.map(_ => zippable.zip(leftOutsIt.next(), rightOutsIt.next()))
           case _ =>
             throw new RuntimeException(

@@ -13,7 +13,7 @@ import izumi.reflect.Tag
 import zio.*
 import zio.query.{ CompletedRequestMap, DataSource, ZQuery }
 
-import scala.collection.{ mutable, BuildFrom, IterableOps }
+import scala.collection.{ mutable, BuildFrom, SeqOps }
 
 trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R] {
 
@@ -108,7 +108,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
           override def apply(in: In): ZQuery[R, E, Out] =
             applyMultiple(List(in)).map(_.head) // TODO add tests for this
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
           ): ZQuery[R, E, Coll[Out]] =
             ZQuery.foreachPar(ins) { in =>
@@ -136,7 +136,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
           override def apply(in: In): ZQuery[R, E, Option[Out]] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
           ): ZQuery[R, E, Coll[Option[Out]]] =
             ZQuery.foreachPar(ins) { in =>
@@ -151,7 +151,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
     Rel: Tag,
     In,
     E,
-    CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]],
+    CC[+A] <: Seq[A] & SeqOps[A, CC, CC[A]],
     Out
   ](
     relation: Rel & Relation.Many[In, CC, Out]
@@ -170,7 +170,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
           override def apply(in: In): ZQuery[R, E, CC[Out]] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
           ): ZQuery[R, E, Coll[CC[Out]]] =
             ZQuery.foreachPar(ins) { in =>
@@ -202,7 +202,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
           override def apply(in: In): ZQuery[R, E, Out] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
           ): ZQuery[R, E, Coll[Out]] =
             ZQuery.foreachPar(ins) { in =>
@@ -227,7 +227,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
           override def apply(in: B): ZQuery[R, E, Out] =
             proof.reify.apply(f(in))
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             in: Coll[B]
           ): Access[E, Coll[Out]] =
             proof.reify.applyMultiple[Coll](in.map(f))
@@ -253,7 +253,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
           override def apply(in: B): ZQuery[R, E, Option[Out]] =
             proof.reify.applyMultiple(f(in).toList).map(_.headOption)
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             in: Coll[B]
           ): Access[E, Coll[Option[Out]]] =
             // TODO how to optimize?
@@ -268,7 +268,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
     E,
     Out,
     B,
-    CC[+T] <: Iterable[T] & IterableOps[T, CC, CC[T]]
+    CC[+T] <: Seq[T] & SeqOps[T, CC, CC[T]]
   ](
     proof: Proof[Rel, In, E, Out],
     rel: NewRel & Relation.Many[B, CC, Out],
@@ -281,7 +281,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
           override def apply(in: B): ZQuery[R, E, CC[Out]] =
             proof.reify.applyMultiple(f(in))
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             in: Coll[B]
           ): Access[E, Coll[CC[Out]]] =
             // TODO how to optimize?

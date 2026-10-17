@@ -10,7 +10,7 @@ package decrel.reify
 
 import decrel.*
 import decrel.reify.either.*
-import scala.collection.IterableOps
+import scala.collection.SeqOps
 import zio.test.*
 
 object CommonErrorSpec extends ZIOSpecDefault {
@@ -32,12 +32,12 @@ object CommonErrorSpec extends ZIOSpecDefault {
     new ReifiedRelation.Custom[In, E, Out] {
       override def apply(in: In): Either[E, Out] = f(in)
 
-      override def applyMultiple[CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]](
+      override def applyMultiple[CC[+A] <: Seq[A] & SeqOps[A, CC, CC[A]]](
         in: CC[In]
       ): Either[E, CC[Out]] =
         in.foldLeft[Either[E, Vector[Out]]](Right(Vector.empty)) { (acc, value) =>
           acc.flatMap(values => f(value).map(values :+ _))
-        }.map(_.to((in: IterableOps[In, CC, CC[In]]).iterableFactory))
+        }.map(_.to((in: SeqOps[In, CC, CC[In]]).iterableFactory))
     }
 
   implicit val leftSingleProof: Proof.Single[LeftSingle.type, Input, LeftFailure.type, Middle] =
