@@ -373,7 +373,7 @@ lazy val ciSettings = List(
   githubWorkflowBuild          := Seq(
     WorkflowStep.Sbt(List("++${{ matrix.scala }} test")),
     WorkflowStep
-      .Run(List("python3 scripts/check-doc-examples.py"), cond = Some("matrix.scala == '2.13.18'")),
+      .Run(List("python3 scripts/test-doc-examples.py", "python3 scripts/check-doc-examples.py"), cond = Some("matrix.scala == '2.13.18'")),
     WorkflowStep.Sbt(List("docs/mdoc"), cond = Some("matrix.scala == '2.13.18'"))
   ),
   githubWorkflowPublishTargetBranches += RefPredicate.StartsWith(Ref.Tag("v")),
