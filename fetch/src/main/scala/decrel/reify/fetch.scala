@@ -30,7 +30,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   // ****** Implementations for Required Operations **************************
 
   protected implicit val CF: Concurrent[F]
-  override protected implicit val F: Monad[Fetch[F, *]] = fetch.fetchM[F]
+  override protected implicit lazy val F: Monad[Fetch[F, *]] = fetch.fetchM[F]
 
   override protected def foreach[Coll[+T] <: Iterable[T], A, B](
     collection: Coll[A]
