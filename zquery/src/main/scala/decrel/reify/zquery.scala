@@ -39,6 +39,10 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
   ): Access[E, Coll[B]] =
     ZQuery.foreachBatched(collection)(f)
 
+  override protected def zipWith[E, A, B, C](left: => Access[E, A], right: => Access[E, B])(
+    f: (A, B) => C
+  ): Access[E, C] = left.zipWithBatched(right)(f)
+
   // ****** Datasource Implementations ************************************
 
   private case class RelationRequest[Rel, Id, E, Result](
