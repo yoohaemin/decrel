@@ -8,7 +8,7 @@
 
 package decrel.reify.monofunctor
 
-import scala.collection.{ mutable, BuildFrom }
+import scala.collection.BuildFrom
 
 trait access { self =>
 
@@ -60,10 +60,10 @@ trait access { self =>
   ): Access[Coll[B]] =
     map(
       collection
-        .foldLeft[Access[mutable.Builder[B, Coll[B]]]](
-          succeed(bf.newBuilder(collection))
-        )((builder, a) => zipWith(builder, f(a))(_ += _))
-    )(_.result())
+        .foldLeft[Access[List[B]]](
+          succeed(List.empty[B])
+        )((values, a) => zipWith(values, f(a))((bs, b) => b :: bs))
+    )(values => bf.fromSpecific(collection)(values.reverse))
 
   private def zipWith[A, B, C](left: => Access[A], right: => Access[B])(
     f: (A, B) => C

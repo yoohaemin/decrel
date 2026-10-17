@@ -8,7 +8,7 @@
 
 package decrel.reify.bifunctor
 
-import scala.collection.{ mutable, BuildFrom }
+import scala.collection.BuildFrom
 
 trait access { self =>
 
@@ -64,10 +64,10 @@ trait access { self =>
   ): Access[E, Coll[B]] =
     map(
       collection
-        .foldLeft[Access[E, mutable.Builder[B, Coll[B]]]](
-          succeed(bf.newBuilder(collection))
-        )((builder, a) => zipWith(builder, f(a))(_ += _))
-    )(_.result())
+        .foldLeft[Access[E, List[B]]](
+          succeed(List.empty[B])
+        )((values, a) => zipWith(values, f(a))((bs, b) => b :: bs))
+    )(values => bf.fromSpecific(collection)(values.reverse))
 
   private def zipWith[E, A, B, C](left: => Access[E, A], right: => Access[E, B])(
     f: (A, B) => C
