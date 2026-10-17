@@ -59,3 +59,5 @@ allowfullscreen></iframe>
 Everything I said is still relevant, except for two details:
 - `decrel-core` now also depends on `izumi-reflect,` apart from Scala stdlib
 - `:>:` was renamed to `<>:` ([Reason](https://github.com/yoohaemin/decrel/pull/37))
+
+See the [bulk collection contract](./bulk-collections.md) when implementing or migrating an interpreter.

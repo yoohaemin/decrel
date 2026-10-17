@@ -17,7 +17,7 @@ import fetch.*
 import izumi.reflect.Tag
 
 import scala.collection.immutable.HashMap
-import scala.collection.{ mutable, BuildFrom, IterableOps }
+import scala.collection.{ mutable, BuildFrom, SeqOps }
 import scala.util.control.NoStackTrace
 
 /**
@@ -161,7 +161,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
           override def apply(in: In): Fetch[F, Out] =
             applyMultiple(List(in)).map(_.head) // TODO add tests for this
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
           ): Fetch[F, Coll[Out]] = {
             val fetches = List.newBuilder[Fetch[F, Out]]
@@ -169,7 +169,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
             Fetch
               .batchAll(fetches.result()*)
-              .map(_.to((ins: IterableOps[In, Coll, Coll[In]]).iterableFactory))
+              .map(_.to((ins: SeqOps[In, Coll, Coll[In]]).iterableFactory))
           }
         }
     }
@@ -189,7 +189,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
           override def apply(in: In): Fetch[F, Option[Out]] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
           ): Fetch[F, Coll[Option[Out]]] = {
             val fetches = List.newBuilder[Fetch[F, Option[Out]]]
@@ -199,7 +199,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
             Fetch
               .batchAll(fetches.result()*)
-              .map(_.to((ins: IterableOps[In, Coll, Coll[In]]).iterableFactory))
+              .map(_.to((ins: SeqOps[In, Coll, Coll[In]]).iterableFactory))
           }
         }
     }
@@ -207,7 +207,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   def implementManyDatasource[
     Rel: Tag,
     In,
-    CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]],
+    CC[+A] <: Seq[A] & SeqOps[A, CC, CC[A]],
     Out
   ](
     relation: Rel & Relation.Many[In, CC, Out]
@@ -224,7 +224,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
           override def apply(in: In): Fetch[F, CC[Out]] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
           ): Fetch[F, Coll[CC[Out]]] = {
             val fetches = List.newBuilder[Fetch[F, CC[Out]]]
@@ -232,7 +232,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
             Fetch
               .batchAll(fetches.result()*)
-              .map(_.to((ins: IterableOps[In, Coll, Coll[In]]).iterableFactory))
+              .map(_.to((ins: SeqOps[In, Coll, Coll[In]]).iterableFactory))
           }
         }
     }
@@ -259,7 +259,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
           override def apply(in: In): Fetch[F, Out] =
             applyMultiple(List(in)).map(_.head) // TODO This should be safe... let's test this
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
           ): Fetch[F, Coll[Out]] = {
             val fetches = List.newBuilder[Fetch[F, Out]]
@@ -267,7 +267,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
 
             Fetch
               .batchAll(fetches.result()*)
-              .map(_.to((ins: IterableOps[In, Coll, Coll[In]]).iterableFactory))
+              .map(_.to((ins: SeqOps[In, Coll, Coll[In]]).iterableFactory))
           }
         }
     }
@@ -283,7 +283,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
           override def apply(in: B): Fetch[F, Out] =
             proof.reify.apply(f(in))
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             in: Coll[B]
           ): Access[Coll[Out]] =
             proof.reify.applyMultiple[Coll](in.map(f))
@@ -308,13 +308,13 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
           override def apply(in: B): Fetch[F, Option[Out]] =
             proof.reify.applyMultiple(f(in).toList).map(_.headOption)
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[B]
           ): Access[Coll[Option[Out]]] =
             // TODO test if batching support is proper
             Fetch
               .batchAll(ins.toList.map(in => apply(in))*)
-              .map(_.to((ins: IterableOps[B, Coll, Coll[B]]).iterableFactory))
+              .map(_.to((ins: SeqOps[B, Coll, Coll[B]]).iterableFactory))
         }
     }
 
@@ -324,7 +324,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     In,
     Out,
     B,
-    CC[+T] <: Iterable[T] & IterableOps[T, CC, CC[T]]
+    CC[+T] <: Seq[T] & SeqOps[T, CC, CC[T]]
   ](
     proof: Proof[Rel, In, Out],
     rel: NewRel & Relation.Many[B, CC, Out],
@@ -337,13 +337,13 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
           override def apply(in: B): Fetch[F, CC[Out]] =
             proof.reify.applyMultiple(f(in))
 
-          override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+          override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[B]
           ): Access[Coll[CC[Out]]] =
             // TODO test if batching support is proper
             Fetch
               .batchAll(ins.toList.map(in => apply(in))*)
-              .map(_.to((ins: IterableOps[B, Coll, Coll[B]]).iterableFactory))
+              .map(_.to((ins: SeqOps[B, Coll, Coll[B]]).iterableFactory))
         }
     }
 
@@ -391,7 +391,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
         Fetch.run(toFetch(in), cache)
       }
 
-    def toFMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def toFMany[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out],
@@ -399,7 +399,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     ): F[Coll[Out]] =
       Fetch.run(toFetchMany(in))
 
-    def toFMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def toFMany[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
       in: Coll[In],
       cache: Cache
     )(implicit
@@ -422,7 +422,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     ): F[Out] =
       toF(in, cache)
 
-    def startingFrom[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def startingFrom[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out],
@@ -430,7 +430,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     ): F[Coll[Out]] =
       toFMany(in)
 
-    def startingFrom[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def startingFrom[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
       in: Coll[In],
       cache: Cache
     )(implicit
@@ -444,7 +444,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     ): Fetch[F, Out] =
       proof.reify(in)
 
-    def toFetchMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def toFetchMany[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out]
@@ -456,7 +456,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     ): Fetch[F, Out] =
       toFetch(in)
 
-    def startingFromFetch[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def startingFromFetch[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out]
@@ -482,14 +482,14 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
         Fetch.run(toFetch(in), cache)
       }
 
-    def toFMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def toFMany[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       clock: Clock[F]
     ): F[Coll[Out]] =
       Fetch.run(toFetchMany(in))
 
-    def toFMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def toFMany[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
       in: Coll[In],
       cache: Cache
     )(implicit
@@ -509,14 +509,14 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     ): F[Out] =
       toF(in, cache)
 
-    def startingFrom[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def startingFrom[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       clock: Clock[F]
     ): F[Coll[Out]] =
       toFMany(in)
 
-    def startingFrom[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def startingFrom[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
       in: Coll[In],
       cache: Cache
     )(implicit
@@ -527,7 +527,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     def toFetch(in: In): Fetch[F, Out] =
       rel(in)
 
-    def toFetchMany[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def toFetchMany[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
       in: Coll[In]
     ): Fetch[F, Coll[Out]] =
       rel.applyMultiple(in)
@@ -535,7 +535,7 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     def startingFromFetch(in: In): Fetch[F, Out] =
       toFetch(in)
 
-    def startingFromFetch[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+    def startingFromFetch[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
       in: Coll[In]
     ): Fetch[F, Coll[Out]] =
       toFetchMany(in)
