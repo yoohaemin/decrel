@@ -51,7 +51,7 @@ trait gen[R] extends module[Gen[R, *]] {
       }
 
     def relationMany[Rel, In, Out, CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]](
-      relation: Rel & Relation.Many[In, List, Out]
+      relation: Rel & Relation.Many[In, CC, Out]
     )(
       f: In => Gen[R, CC[Out]]
     ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] =
