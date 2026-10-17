@@ -13,7 +13,7 @@ Let's consider a simple blog system with posts, authors, and comments. We'll def
 
 First, our domain model:
 
-```scala
+```scala mdoc
 case class Author(id: String, name: String)
 case class Post(id: String, title: String, authorId: String, content: String)
 case class Comment(id: String, postId: String, authorId: String, content: String)
@@ -21,7 +21,7 @@ case class Comment(id: String, postId: String, authorId: String, content: String
 
 ### Defining Relations
 
-```scala
+```scala mdoc
 import decrel.Relation
 
 object Author {
@@ -41,7 +41,7 @@ object Comment {
 
 ### Implementing Data Access with ZQuery
 
-```scala
+```scala mdoc
 import decrel.reify.zquery
 import zio._
 
@@ -81,18 +81,22 @@ object BlogDataAccess extends zquery[Any] {
       )
     }
     
-  // Other implementations...
+  implicit val commentAuthorProof: Proof.Single[Comment.author.type, Comment, Nothing, Author] =
+    implementSingleDatasource(Comment.author) { comments =>
+      ZIO.succeed(comments.map(comment => comment -> authors(comment.authorId)))
+    }
 }
 ```
 
 ### Using the Relations
 
-```scala
-import decrel.syntax.relation._
+```scala mdoc
+import decrel.syntax._
+import BlogDataAccess._
 import zio._
 
 object BlogApp extends ZIOAppDefault {
-  def run = {
+  def run: ZIO[Any, java.io.IOException, Unit] = {
     // Get a post with its author and all comments
     val postWithDetails = for {
       post <- ZIO.succeed(BlogDataAccess.posts.head)
@@ -108,89 +112,46 @@ object BlogApp extends ZIOAppDefault {
       }
     } yield ()
     
-    // The magic happens here - all data fetches are batched and run in parallel!
+    // Each composed query can batch independent branches. Separate toZIO calls run separately.
     postWithDetails
   }
 }
 ```
 
-## Advanced Example: E-commerce System
+## Generating related test data
 
-For a more complex example, let's consider an e-commerce system with products, orders, and customers.
+Supply a generator for the starting value, then use `expand` with relation proofs.
 
-### Domain Model with Nested Relations
-
-```scala
-import decrel.Relation
-import decrel.syntax.relation._
-
-case class Product(id: String, name: String, price: BigDecimal)
-case class Customer(id: String, name: String, email: String)
-case class Order(id: String, customerId: String, date: java.time.LocalDate)
-case class OrderItem(orderId: String, productId: String, quantity: Int)
-
-object Product {
-  object orderItems extends Relation.Many[Product, List, OrderItem]
-  object orders = orderItems <>: OrderItem.order  // Composed relation
+```scala mdoc:reset
+import decrel._
+import decrel.scalacheck.gen._
+import org.scalacheck.Gen
+case class Book(id: Int)
+object Book {
+  object author extends Relation.Single[Book, String]
 }
-
-object Customer {
-  object orders extends Relation.Many[Customer, List, Order]
-  object orderItems = orders <>: Order.items  // Nested relation
-  object products = orderItems <>: OrderItem.product  // Deep nested relation
-}
-
-object Order {
-  object customer extends Relation.Single[Order, Customer]
-  object items extends Relation.Many[Order, List, OrderItem]
-  object products = items <>: OrderItem.product  // Composed relation
-}
-
-object OrderItem {
-  object order extends Relation.Single[OrderItem, Order]
-  object product extends Relation.Single[OrderItem, Product]
-}
+implicit val authorProof: Proof.Single[Book.author.type, Book, String] =
+  Gen.relationSingle(Book.author)(book => Gen.const("author-" + book.id))
+val bookGen: Gen[Book] = Gen.choose(1, 100).map(Book.apply)
+val withAuthor = Relation.Self[Book] & Book.author
+val bookWithAuthorGen: Gen[(Book, String)] = bookGen.expand(withAuthor)
 ```
 
-### Complex Query Example
+ZIO Test uses the same `expand` operation with its own generator and proof imports:
 
-```scala
-// Get a customer with all their orders, including all items and product details for each order
-val customerOrdersQuery = Customer.orders <>: (Order.items & (Order.items <>: OrderItem.product))
-
-// Using this query
-for {
-  customer <- getCustomer("c1")
-  (orders, orderItemsWithProducts) <- customerOrdersQuery.toZIO(customer)
-  // Process the results...
-} yield ()
+```scala mdoc:reset
+import decrel._
+import decrel.ziotest.gen._
+import zio.test.Gen
+case class Book(id: Int)
+object Book {
+  object author extends Relation.Single[Book, String]
+}
+implicit val authorProof: Proof.Single[Book.author.type, Book, String] =
+  Gen.relationSingle(Book.author)(book => Gen.const("author-" + book.id))
+val bookGen: Gen[Any, Book] = Gen.int(1, 100).map(Book.apply)
+val withAuthor = Relation.Self[Book] & Book.author
+val bookWithAuthorGen: Gen[Any, (Book, String)] = bookGen.expand(withAuthor)
 ```
 
-## Performance Benefits
-
-In traditional imperative code, fetching all the data in these examples would likely result in N+1 query problems. With Decrel:
-
-1. All queries for the same entity type are automatically batched
-2. Independent queries run in parallel
-3. Results are automatically joined in memory
-
-For example, if you need to fetch details for 100 posts, each with an author and comments, the traditional approach might make:
-- 1 query for posts
-- 100 queries for authors (N+1 problem)
-- 100 queries for comments (another N+1 problem)
-
-With Decrel, you'd make just:
-- 1 query for posts
-- 1 batched query for authors
-- 1 batched query for comments
-
-## Real-world Applications
-
-Decrel is particularly well-suited for:
-
-1. **GraphQL API implementations** - The declarative nature maps well to GraphQL's hierarchical queries
-2. **Microservice architectures** - Efficiently fetch data from multiple services
-3. **Legacy system integrations** - Create a clean domain model on top of complex data sources
-4. **Testing environments** - Use the same relations with mock generators
-
-These examples demonstrate how Decrel helps you write more declarative, efficient, and maintainable code for data access patterns.
+Generators establish the relationships implemented by these proofs. They do not maintain a shared database of generated entities across arbitrary deeper traversals.

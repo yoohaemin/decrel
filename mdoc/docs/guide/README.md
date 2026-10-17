@@ -32,7 +32,20 @@ You will be able to create a value that represents something like:
 
 For this imaginary example, the expression would look something like this:
 
-```scala
+```scala mdoc
+import decrel._
+
+case class Employee(id: String)
+object Employee {
+  object department extends Relation.Single[Employee, Department]
+  object manager extends Relation.Optional[Employee, Employee]
+}
+case class Department(id: String)
+object Department {
+  object manager extends Relation.Single[Department, Employee]
+  object employees extends Relation.Many[Department, List, Employee]
+}
+
 val query = Employee.department <>: (Department.manager & Department.employees)
 ```
 
