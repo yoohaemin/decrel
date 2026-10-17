@@ -12,13 +12,17 @@ object FetchInitializationSpec extends ZIOSpecDefault {
     implicit val valueProof: Proof.Single[value.type, Int, Int]  =
       implementSingleDatasource(value)(ids => IO.pure(ids.map(n => n -> (n * 10))))
   }
+  private def runIO[A](io: IO[A]): zio.Task[A] =
+    zio.ZIO.fromFuture(_ => io.unsafeToFuture())
+
   def spec: Spec[Environment, Any] = suite("Fetch initialization")(
     test("ordinary val Concurrent initializes before the Fetch Monad") {
       val interpreter = new Interpreter
       import interpreter.*
-      val one  = value.toF(1).unsafeRunSync()
-      val many = value.toFMany(List(1, 2)).unsafeRunSync()
-      assertTrue(one == 10, many == List(10, 20))
+      for {
+        one  <- runIO(value.toF(1))
+        many <- runIO(value.toFMany(List(1, 2)))
+      } yield assertTrue(one == 10, many == List(10, 20))
     }
   )
 }
