@@ -49,7 +49,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
   private def buildDatasource[Rel: Tag, In, E, Out](
     rel: Rel
   )(
-    batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, Out)]]
+    batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, Either[E, Out])]]
   ): DataSource[R, RelationRequest[Rel, In, E, Out]] =
     new DataSource.Batched[R, RelationRequest[Rel, In, E, Out]] {
       override val identifier: String = "RelationDatasource:" + Tag[Rel].tag.longNameInternalSymbol
@@ -82,7 +82,7 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
                 unexpected.map(key => key: Any)
               )
               requested.iterator.map(key => key -> Exit.die(violation)).toMap
-            } else results.iterator.map { case (key, value) => key -> Exit.succeed(value) }.toMap
+            } else results.iterator.map { case (key, value) => key -> Exit.fromEither(value) }.toMap
 
           ZIO.succeed(
             CompletedRequestMap.fromIterableWith[E, RelationRequest[Rel, In, E, Out], Out](
@@ -110,8 +110,19 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
   def implementSingleDatasource[Rel: Tag, In, E, Out](
     relation: Rel & Relation.Single[In, Out]
   )(
-    // Also should allow exception per request, so when failing we can give back what we fetched so far
     batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, Out)]]
+  )(implicit
+    tag: Tag[Out]
+  ): Proof.Single[Rel & Relation.Single[In, Out], In, E, Out] =
+    implementSingleDatasourceEither[Rel, In, E, Out](relation) { inputs =>
+      batchExecute(inputs).map(_.map { case (key, value) => key -> Right(value) })
+    }
+
+  /** Like implementSingleDatasource, but each requested key can independently succeed or fail with E. */
+  def implementSingleDatasourceEither[Rel: Tag, In, E, Out](
+    relation: Rel & Relation.Single[In, Out]
+  )(
+    batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, Either[E, Out])]]
   )(implicit
     tag: Tag[Out]
   ): Proof.Single[Rel & Relation.Single[In, Out], In, E, Out] =
@@ -138,8 +149,19 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
   def implementOptionalDatasource[Rel: Tag, In, E, Out](
     relation: Rel & Relation.Optional[In, Out]
   )(
-    // Also should allow exception per request, so when failing we can give back what we fetched so far
     batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, Option[Out])]]
+  )(implicit
+    tag: Tag[Out]
+  ): Proof.Optional[Rel & Relation.Optional[In, Out], In, E, Out] =
+    implementOptionalDatasourceEither[Rel, In, E, Out](relation) { inputs =>
+      batchExecute(inputs).map(_.map { case (key, value) => key -> Right(value) })
+    }
+
+  /** Like implementOptionalDatasource, but each requested key can independently succeed or fail with E. */
+  def implementOptionalDatasourceEither[Rel: Tag, In, E, Out](
+    relation: Rel & Relation.Optional[In, Out]
+  )(
+    batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, Either[E, Option[Out]])]]
   )(implicit
     tag: Tag[Out]
   ): Proof.Optional[Rel & Relation.Optional[In, Out], In, E, Out] =
@@ -172,8 +194,25 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
   ](
     relation: Rel & Relation.Many[In, CC, Out]
   )(
-    // Also should allow exception per request, so when failing we can give back what we fetched so far
     batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, CC[Out])]]
+  )(implicit
+    tag: Tag[CC[Out]]
+  ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, E, CC, Out] =
+    implementManyDatasourceEither[Rel, In, E, CC, Out](relation) { inputs =>
+      batchExecute(inputs).map(_.map { case (key, value) => key -> Right(value) })
+    }
+
+  /** Like implementManyDatasource, but each requested key can independently succeed or fail with E. */
+  def implementManyDatasourceEither[
+    Rel: Tag,
+    In,
+    E,
+    CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]],
+    Out
+  ](
+    relation: Rel & Relation.Many[In, CC, Out]
+  )(
+    batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, Either[E, CC[Out]])]]
   )(implicit
     tag: Tag[CC[Out]]
   ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, E, CC, Out] =
@@ -205,8 +244,24 @@ trait zquery[R] extends bifunctor.module[ZQuery[R, +*, +*]] with zquerySyntax[R]
   ](
     relation: Relation.Custom[Tree, In, Out]
   )(
-    // Also should allow exception per request, so when failing we can give back what we fetched so far
     batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, Out)]]
+  )(implicit
+    tag: Tag[Relation.Custom[Tree, In, Out]]
+  ): Proof[Relation.Custom[Tree, In, Out], In, E, Out] =
+    implementCustomDatasourceEither[Tree, In, E, Out](relation) { inputs =>
+      batchExecute(inputs).map(_.map { case (key, value) => key -> Right(value) })
+    }
+
+  /** Like implementCustomDatasource, but each requested key can independently succeed or fail with E. */
+  def implementCustomDatasourceEither[
+    Tree,
+    In,
+    E,
+    Out
+  ](
+    relation: Relation.Custom[Tree, In, Out]
+  )(
+    batchExecute: Chunk[In] => ZIO[R, E, Chunk[(In, Either[E, Out])]]
   )(implicit
     tag: Tag[Relation.Custom[Tree, In, Out]]
   ): Proof[Relation.Custom[Tree, In, Out], In, E, Out] =
