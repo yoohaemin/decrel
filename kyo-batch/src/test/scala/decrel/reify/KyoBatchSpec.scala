@@ -54,9 +54,33 @@ object KyoBatchSpec extends ZIOSpecDefault {
 
   // An asynchronous boundary lets the Scala.js test runner observe completion events.
   private def asyncTest(label: String)(assertion: => TestResult) =
-    test(label)(zio.ZIO.fromFuture(ec => scala.concurrent.Future(assertion)(using ec)))
+    test(label)(
+      Live.live(zio.ZIO.sleep(zio.Duration.fromMillis(1))) *> zio.ZIO.fromFuture(ec =>
+        scala.concurrent.Future(assertion)(using ec)
+      )
+    )
 
   def spec = suite("Kyo composed batching")(
+    asyncTest("long map and flatMap chains are stack safe before and after requests") {
+      val size   = 100000
+      val mapped = (0 until size).foldLeft(KyoBatchQuery.pure[Any, Int](0))((q, _) => q.map(_ + 1))
+      val bound  = (0 until size).foldLeft(KyoBatchQuery.pure[Any, Int](0))((q, _) =>
+        q.flatMap(n => KyoBatchQuery.pure[Any, Int](n + 1))
+      )
+      var calls   = 0
+      val pending = (0 until size).foldLeft(KyoBatchQuery.lift[Any, Int] { calls += 1; 0 })(
+        (q, _) => q.map(_ + 1)
+      )
+      val first  = pending.run.eval
+      val second = pending.run.eval
+      assertTrue(
+        mapped.run.eval == size,
+        bound.run.eval == size,
+        first == size,
+        second == size,
+        calls == 2
+      )
+    },
     asyncTest("bulk deduplicates and preserves positions and collection shape") {
       val module = new Interpreter
       import module.*
