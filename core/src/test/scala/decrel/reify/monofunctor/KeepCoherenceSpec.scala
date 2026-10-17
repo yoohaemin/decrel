@@ -1,7 +1,6 @@
 package decrel.reify.monofunctor
 
 import decrel.*
-import scala.collection.IterableOps
 import zio.test.*
 
 object KeepCoherenceSpec extends ZIOSpecDefault {
@@ -14,15 +13,13 @@ object KeepCoherenceSpec extends ZIOSpecDefault {
     protected def flatMap[A, B](a: Access[A])(f: A => Access[B]): Access[B] = () => f(a())()
     protected def map[A, B](a: Access[A])(f: A => B): Access[B]             = () => f(a())
 
-    var calls                                              = 0
+    var calls = 0
+    type Id[A] = A
     def relation(f: Int => Int): ReifiedRelation[Int, Int] =
-      new ReifiedRelation.Custom[Int, Int] {
-        def apply(in: Int): Access[Int] = () => f(in)
-        def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-          in: Coll[Int]
-        ): Access[Coll[Int]] =
-          () => in.map(f)
-      }
+      new ReifiedRelation.Transformed[Int, Id, Id, Int](
+        new ReifiedRelation.FromFunction[Int, Int](identity),
+        f
+      )
     implicit val nextProof: Proof.Single[next.type, Int, Int] =
       new Proof.Single[next.type, Int, Int] {
         val reify = relation { _ => calls += 1; calls }
