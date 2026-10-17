@@ -1,74 +1,48 @@
 ---
 lang: en-US
-title: Introduction
+title: Introduction & Motivation
 ---
 
-# Hey there :)
+# Introduction & Motivation
 
-Welcome to the documentation of **decrel**!
+**decrel** stands for **dec**larative programming using **rel**ations. It is a typed relation algebra with effect-specific interpreters.
 
-I appreciate your interest in the library, and I hope you will learn what you want to know on these pages.
+## The cost of imperative fetching
 
-If something is unclear, or if you have a suggestion, please don't hesitate to point it out in the
-[discussions section](https://github.com/yoohaemin/decrel/discussions) in Github, or [email me](mailto:haemin2142@zzz.pe.kr).
+A typical service loads a book, then its author, then its price. The last two calls are independent, but sequential `flatMap` composition waits for one before starting the other. Repeating that program for 50 books can issue 150 calls if the repositories do not batch or cache them.
 
-## Objective
+Manually introducing batch APIs requires collecting keys, fetching maps, and joining results back to inputs. Tests often repeat that relationship knowledge in separate generators.
 
-The implicit knowledge of **relation**s, usually present in the domain of an application,
-are rarely directly used when building applications in Scala.
+| Concern | Decrel representation |
+| --- | --- |
+| Domain edge | `Single`, `Optional`, or `Many` declaration |
+| Graph traversal | `>>:`, `<>:`, and `&` expressions |
+| Executable behavior | `Proof` and `ReifiedRelation` |
+| Execution strategy | ZQuery, Fetch, a generator, or another effect |
 
-In fact, in my experience, they are rarely even documented.
+## One relation graph, different interpreters
 
-decrel aims to change the status quo; it is a library that allows the definition and utilization of relations between data.
-
-## What is it suitable for?
-
-You will be able to create a value that represents something like:
-
-- I have an Employee object
-- Give me the *Department* object of that employee
-    - Also give me the *Employee* object of the *manager* of that department
-    - Also give me the *list of Employees* of that department
-
-For this imaginary example, the expression would look something like this:
-
-```scala mdoc
-import decrel._
-
+```scala mdoc:silent
+import decrel.*
 case class Employee(id: String)
-object Employee {
-  object department extends Relation.Single[Employee, Department]
-  object manager extends Relation.Optional[Employee, Employee]
-}
 case class Department(id: String)
-object Department {
-  object manager extends Relation.Single[Department, Employee]
-  object employees extends Relation.Many[Department, List, Employee]
+object Employee {
+  case object department extends Relation.Single[Employee, Department]
 }
-
+object Department {
+  case object manager extends Relation.Single[Department, Employee]
+  case object employees extends Relation.Many[Department, List, Employee]
+}
 val query = Employee.department <>: (Department.manager & Department.employees)
+val shape: Relation[Employee, (Department, Employee, List[Employee])] = query
 ```
 
-Now, this query can exist in two completely different contexts, namely:
-- Fetching data from a datasource
-- Generating mock data
+The expression contains no database calls. With runtime proofs it can fetch data; with generator proofs it can generate values. Batching, caching, and concurrency depend on the interpreter and datasource implementations, rather than following from the relation type alone.
 
-The above query can be used in both contexts, unmodified!
+## Conference talk
 
-## Anything else?
+Haemin Yoo discussed the motivation at Functional Scala 2022:
 
-I gave a talk at the Functional Scala 2022 conference.
+<iframe width="560" height="315" src="https://www.youtube.com/embed/kcYgrYIbHM0" title="Decrel at Functional Scala 2022" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
-Due to time constraints, the talk is mostly focused on the motivation, and is rather light on the specific details.
-
-You can watch it here:
-
-<iframe width="560" height="315"
-src="https://www.youtube.com/embed/kcYgrYIbHM0"
-frameborder="0"
-allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-allowfullscreen></iframe>
-
-Everything I said is still relevant, except for two details:
-- `decrel-core` now also depends on `izumi-reflect,` apart from Scala stdlib
-- `:>:` was renamed to `<>:` ([Reason](https://github.com/yoohaemin/decrel/pull/37))
+Since the talk, the core gained its izumi-reflect dependency and `:>:` was renamed to `<>:`. Continue with [Getting started](./getting-started.md).

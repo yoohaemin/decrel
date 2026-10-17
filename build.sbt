@@ -284,20 +284,21 @@ lazy val docs = project
     mdocOut    := (ThisBuild / baseDirectory).value / "vuepress" / "docs",
     run / fork := false,
     scalacOptions -= "-Xfatal-warnings",
-    mdocJS             := Some(jsdocs),
-    scalaVersion       := V.scala213,
-    crossScalaVersions := List(V.scala213),
+    scalaVersion       := V.scala39,
+    crossScalaVersions := List(V.scala39),
     mdocVariables      := Map(
       "SNAPSHOTVERSION" -> version.value,
       "RELEASEVERSION"  -> version.value.takeWhile(_ != '+')
     )
   )
   .dependsOn(
-    core.jvm(V.scala213),
-    zquery.jvm(V.scala213),
-    fetch.jvm(V.scala213),
-    ziotest.jvm(V.scala213),
-    scalacheck.jvm(V.scala213)
+    core.jvm(V.scala33),
+    zquery.jvm(V.scala33),
+    fetch.jvm(V.scala33),
+    ziotest.jvm(V.scala33),
+    scalacheck.jvm(V.scala33),
+    zqueryNext.jvm(V.scala39),
+    kyoBatch.jvm(V.scala39)
   )
   .enablePlugins(NoPublishPlugin)
 
