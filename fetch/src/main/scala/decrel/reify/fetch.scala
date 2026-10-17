@@ -41,6 +41,10 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
   ): Fetch[F, Coll[B]] =
     map(Fetch.batchAll(collection.map(f).toSeq*))(_.to(bf.toFactory(collection)))
 
+  override protected def zipWith[A, B, C](left: => Access[A], right: => Access[B])(
+    f: (A, B) => C
+  ): Access[C] = (left, right).mapN(f)
+
   // ****** Datasource Implementations ************************************
 
   private case class RelationRequest[Rel, Id, Result](

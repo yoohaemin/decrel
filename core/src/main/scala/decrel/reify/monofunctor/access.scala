@@ -65,7 +65,8 @@ trait access { self =>
         )((values, a) => zipWith(values, f(a))((bs, b) => b :: bs))
     )(values => bf.fromSpecific(collection)(values.reverse))
 
-  private def zipWith[A, B, C](left: => Access[A], right: => Access[B])(
+  /** Combine independent effects. Override to preserve batching or parallelism. */
+  protected def zipWith[A, B, C](left: => Access[A], right: => Access[B])(
     f: (A, B) => C
   ): Access[C] =
     flatMap(left)(a => map(right)(b => f(a, b)))

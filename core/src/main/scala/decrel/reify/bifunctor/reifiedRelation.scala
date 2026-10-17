@@ -229,40 +229,16 @@ trait reifiedRelation { this: access =>
     ) extends ReifiedRelation[LeftIn, RightE, Zipped] {
 
       override def apply(in: LeftIn): Access[RightE, Zipped] =
-        foreach(
-          List[Access[RightE, Any]](
-            left.apply(in),
-            right.apply(ev(in))
-          )
-        )(identity).map {
-          case List(leftOut, rightOut) =>
-            zippable.zip(
-              leftOut.asInstanceOf[LeftOut],
-              rightOut.asInstanceOf[RightOut]
-            )
-          case _ =>
-            throw new RuntimeException(
-              "foreach has returned more or less elements than 2 during composedZippedProof.apply"
-            )
-        }
+        zipWith(left.apply(in), right.apply(ev(in)))(zippable.zip)
 
       override def applyMultiple[Coll[+T] <: Seq[T] & SeqOps[T, Coll, Coll[T]]](
         in: Coll[LeftIn]
       ): Access[RightE, Coll[Zipped]] =
-        foreach(
-          List[Access[RightE, Seq[Any]]](
-            left.applyMultiple(in),
-            right.applyMultiple(ev.liftCo(in))
-          )
-        )(identity).map {
-          case List(leftOuts, rightOuts) =>
-            val leftOutsIt  = leftOuts.asInstanceOf[Seq[LeftOut]].iterator
-            val rightOutsIt = rightOuts.asInstanceOf[Seq[RightOut]].iterator
+        zipWith(left.applyMultiple(in), right.applyMultiple(ev.liftCo(in))) {
+          (leftOuts, rightOuts) =>
+            val leftOutsIt  = leftOuts.iterator
+            val rightOutsIt = rightOuts.iterator
             in.map(_ => zippable.zip(leftOutsIt.next(), rightOutsIt.next()))
-          case _ =>
-            throw new RuntimeException(
-              "foreach has returned more or less elements than 2 during composedZippedProof.applyMultiple"
-            )
         }
 
     }
