@@ -2,13 +2,9 @@ package decrel.reify
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import decrel.*
 import zio.test.*
-import scala.collection.IterableOps
 
 object FetchZipSpec extends ZIOSpecDefault {
-  object value extends Relation.Single[Int, Int]
-  object next  extends Relation.Single[Int, Int]
   class Interpreter(protected implicit val CF: _root_.cats.effect.Concurrent[IO])
       extends decrel.reify.fetch[IO] {
     var batches        = List.empty[List[Int]]
@@ -21,34 +17,23 @@ object FetchZipSpec extends ZIOSpecDefault {
       override def batch(ids: _root_.cats.data.NonEmptyList[Int]): IO[Map[Int, Int]] =
         IO { batches = ids.toList :: batches; ids.toList.map(n => n -> (n * 10)).toMap }
     }
-    implicit val valueProof: Proof.Single[value.type, Int, Int] =
-      new Proof.Single[value.type, Int, Int] {
-        val reify: ReifiedRelation[Int, Int] = new ReifiedRelation.Custom[Int, Int] {
-          def apply(in: Int): Access[Int] = _root_.fetch.Fetch(in, source)
-          def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-            in: Coll[Int]
-          ): Access[Coll[Int]] =
-            foreach(in)(apply)
-        }
-      }
-    implicit val nextProof: Proof.Single[next.type, Int, Int] =
-      new Proof.Single[next.type, Int, Int] {
-        val reify: ReifiedRelation[Int, Int] = new ReifiedRelation.Custom[Int, Int] {
-          def apply(in: Int): Access[Int] = valueProof.reify.apply(in + 1)
-          def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
-            in: Coll[Int]
-          ): Access[Coll[Int]] =
-            valueProof.reify.applyMultiple(in.map(_ + 1))
-        }
-      }
+    def pair(left: Int, right: Int): Access[(Int, Int)] =
+      zipWith(_root_.fetch.Fetch(left, source), _root_.fetch.Fetch(right, source))((_, _))
   }
+
+  private def runIO[A](io: IO[A]): zio.Task[A] =
+    zio.ZIO.fromFuture(_ => io.unsafeToFuture())
+
   def spec: Spec[Environment, Any] = suite("typed Fetch zip")(
     test("independent requests to one datasource share a batch") {
       val interpreter = new Interpreter
-      import interpreter.*
-      val query  = value & next
-      val result = query.toF(1).unsafeRunSync()
-      assertTrue(result == (10, 20), batches.size == 1, batches.head.toSet == Set(1, 2))
+      runIO(_root_.fetch.Fetch.run(interpreter.pair(1, 2))).map { result =>
+        assertTrue(
+          result == (10, 20),
+          interpreter.batches.size == 1,
+          interpreter.batches.head.toSet == Set(1, 2)
+        )
+      }
     }
   )
 }
