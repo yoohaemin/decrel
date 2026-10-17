@@ -390,7 +390,7 @@ trait proof { this: access & reifiedRelation =>
       LeftOut,
       LeftOutRefined <: LeftOut,
       RightTree,
-      RightIn <: LeftIn,
+      RightIn,
       RightOut,
       ZippedOut,
       ZOR <: ZippedOut

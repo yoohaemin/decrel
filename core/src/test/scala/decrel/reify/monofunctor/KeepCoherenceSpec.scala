@@ -7,11 +7,19 @@ object KeepCoherenceSpec extends ZIOSpecDefault {
   object next    extends Relation.Single[Int, Int]
   object doubled extends Relation.Single[Int, Int]
 
+  object described extends Relation.Single[AnyVal, String]
+
   class Interpreter extends access with proof with reifiedRelation {
     type Access[A] = () => A
     protected def succeed[A](a: A): Access[A]                               = () => a
     protected def flatMap[A, B](a: Access[A])(f: A => Access[B]): Access[B] = () => f(a())()
     protected def map[A, B](a: Access[A])(f: A => B): Access[B]             = () => f(a())
+
+    implicit val describedProof: Proof.Single[described.type, AnyVal, String] =
+      new Proof.Single[described.type, AnyVal, String] {
+        val reify: ReifiedRelation[AnyVal, String] =
+          new ReifiedRelation.FromFunction[AnyVal, String](_.toString)
+      }
 
     var calls = 0
     type Id[A] = A
@@ -30,8 +38,20 @@ object KeepCoherenceSpec extends ZIOSpecDefault {
       }
   }
 
+  private def checked(label: String)(assertion: => TestResult) =
+    test(label)(Live.live(zio.ZIO.sleep(zio.Duration.fromMillis(10))) *> zio.ZIO.attempt(assertion))
+
   def spec: Spec[Environment, Any] = suite("retained single coherence")(
-    test("retain exactly the value consumed downstream, once per execution") {
+    checked("retained values can feed a strict supertype input") {
+      val interpreter = new Interpreter
+      import interpreter.*
+      val composed = next <>: described
+      val reified  = composed.reify
+      val single   = reified.apply(0)()
+      val bulk     = reified.applyMultiple(Vector(0, 0))()
+      assertTrue(single == (1, "1"), bulk == Vector((2, "2"), (3, "3")), calls == 3)
+    },
+    checked("retain exactly the value consumed downstream, once per execution") {
       val interpreter = new Interpreter
       import interpreter.*
       val composed                                  = next <>: doubled
@@ -41,7 +61,7 @@ object KeepCoherenceSpec extends ZIOSpecDefault {
       val second                                    = run()
       assertTrue(first == (1, 2), second == (2, 4), calls == 2)
     },
-    test("bulk execution retains each corresponding downstream input") {
+    checked("bulk execution retains each corresponding downstream input") {
       val interpreter = new Interpreter
       import interpreter.*
       val composed                                  = next <>: doubled
