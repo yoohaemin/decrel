@@ -25,23 +25,21 @@ footer: MPL-2.0 Licensed | Copyright © 2022-2025 Haemin Yoo
 
 **decrel** allows you to model relationships between your domain entities and efficiently fetch interconnected data with automatic batching and parallelism.
 
-```scala
-// Define your domain model relations
+```scala mdoc
+import decrel._
+case class Author(name: String)
+case class Comment(content: String)
+case class Post(id: String)
 object Post {
   object author extends Relation.Single[Post, Author]
   object comments extends Relation.Many[Post, List, Comment]
 }
-
-// Create a complex query
 val postWithDetails = Post.author & Post.comments
-
-// Execute the query efficiently
-for {
-  post <- getPost(postId)
-  (author, comments) <- postWithDetails.toZIO(post)
-  // Use author and comments...
-} yield ()
+val shape: Relation[Post, (Author, List[Comment])] = postWithDetails
 ```
+
+See [Getting started](./guide/getting-started.md) for executable interpreter implementations.
+
 
 ## Why decrel?
 
@@ -52,10 +50,10 @@ for {
 
 ## Quick Links
 
-- [Introduction](/guide/)
-- [Getting Started](/guide/getting-started)
-- [Defining Relations](/guide/defining-relations)
-- [Example Showcase](/showcase/)
+- [Introduction](./guide/README.md)
+- [Getting Started](./guide/getting-started.md)
+- [Defining Relations](./guide/defining-relations.md)
+- [Example Showcase](./showcase/README.md)
 
 ## Community
 

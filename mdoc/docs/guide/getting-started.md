@@ -11,7 +11,7 @@ decrel is published for Scala 2.13 and 3, and for JVM and JS platforms.
 
 ### sbt
 
-```scala
+```sbt
 "com.yoohaemin" %% "decrel-core"       % "@RELEASEVERSION@" // Defines Relation and derivations
 "com.yoohaemin" %% "decrel-zquery"     % "@RELEASEVERSION@" // Integration with ZQuery
 "com.yoohaemin" %% "decrel-fetch"      % "@RELEASEVERSION@" // Integration with Fetch
@@ -22,7 +22,7 @@ decrel is published for Scala 2.13 and 3, and for JVM and JS platforms.
 
 ### mill
 
-```scala
+```text
 ivy"com.yoohaemin::decrel-core:@RELEASEVERSION@"       // Defines Relation and derivations
 ivy"com.yoohaemin::decrel-zquery:@RELEASEVERSION@"     // Integration with ZQuery
 ivy"com.yoohaemin::decrel-fetch:@RELEASEVERSION@"      // Integration with Fetch
@@ -35,7 +35,7 @@ ivy"com.yoohaemin::decrel-cats:@RELEASEVERSION@"       // Integration with F[_]:
 
 ### sbt
 
-```scala
+```sbt
 "com.yoohaemin" %% "decrel-core"       % "@SNAPSHOTVERSION@" // Defines Relation and derivations
 "com.yoohaemin" %% "decrel-zquery"     % "@SNAPSHOTVERSION@" // Integration with ZQuery
 "com.yoohaemin" %% "decrel-fetch"      % "@SNAPSHOTVERSION@" // Integration with Fetch
@@ -46,7 +46,7 @@ ivy"com.yoohaemin::decrel-cats:@RELEASEVERSION@"       // Integration with F[_]:
 
 ### mill
 
-```scala
+```text
 ivy"com.yoohaemin::decrel-core:@SNAPSHOTVERSION@"       // Defines Relation and derivations
 ivy"com.yoohaemin::decrel-zquery:@SNAPSHOTVERSION@"     // Integration with ZQuery
 ivy"com.yoohaemin::decrel-fetch:@SNAPSHOTVERSION@"      // Integration with Fetch
@@ -59,7 +59,7 @@ ivy"com.yoohaemin::decrel-cats:@SNAPSHOTVERSION@"       // Integration with F[_]
 
 If you are using an older (< 1.7.0) version of sbt, you might also need to add a resolver.
 
-```scala
+```sbt
 resolvers += 
   "Sonatype S01 OSS Snapshots" at "https://s01.oss.sonatype.org/content/repositories/snapshots"
 ```
@@ -106,10 +106,10 @@ decrel, and if that datatype has `cats.Monad` implemented.
 
 Here's a minimal example to get you started with decrel and ZIO:
 
-```scala
+```scala mdoc:reset
 import decrel.Relation
 import decrel.reify.zquery
-import decrel.syntax.relation._
+import decrel.syntax._
 import zio._
 
 // 1. Define your domain models
@@ -159,8 +159,10 @@ object DataAccess extends zquery[Any] {
 }
 
 // 4. Use in your application
+import DataAccess._
+
 object MyApp extends ZIOAppDefault {
-  def run = {
+  def run: ZIO[Any, java.io.IOException, Unit] = {
     val program = for {
       post <- ZIO.succeed(DataAccess.posts.head)
       user <- Post.user.toZIO(post)
@@ -181,11 +183,11 @@ object MyApp extends ZIOAppDefault {
 
 Here's a minimal example using decrel with cats-effect and Fetch:
 
-```scala
+```scala mdoc:reset
 import cats.effect._
 import decrel.Relation
 import decrel.reify.fetch
-import decrel.syntax.relation._
+import decrel.syntax._
 
 // 1. Define your domain models
 case class Product(id: String, name: String, price: Double)
@@ -202,8 +204,9 @@ object OrderItem {
 }
 
 // 3. Create your implementation
-object DataAccess extends fetch[IO] {
-  override protected implicit val CF = IO.asyncForIO
+class FetchInterpreter(protected implicit val CF: Concurrent[IO]) extends fetch[IO]
+
+object DataAccess extends FetchInterpreter {
   
   // Simulated data
   val products = Map(
@@ -241,18 +244,17 @@ object DataAccess extends fetch[IO] {
 }
 
 // 4. Use in your application
+import DataAccess._
+
 object MyApp extends IOApp.Simple {
   def run: IO[Unit] = {
     val program = for {
       order <- IO.pure(DataAccess.orders.head)
-      items <- Order.items.toF(order)(DataAccess.orderItemsProof, IO.asyncForIO.clock)
+      items <- Order.items.toF(order)
       _ <- IO.println(s"Order ${order.id} has ${items.size} items")
       
       // Compose relations - get all products in an order
-      productsInOrder <- (Order.items <>: OrderItem.product).toF(order)(
-        // Implicits are derived automatically
-        implicitly, IO.asyncForIO.clock
-      )
+      productsInOrder <- (Order.items >>: OrderItem.product).toF(order)
       _ <- IO.println(s"Products in order: ${productsInOrder.map(_.name).mkString(", ")}")
     } yield ()
     
@@ -265,6 +267,12 @@ object MyApp extends IOApp.Simple {
 
 Now that you've set up decrel and seen basic examples, you can:
 
-1. Read [Defining Relations](/guide/defining-relations) to learn how to create a comprehensive domain model
-2. Check the [Showcase](/showcase/) for more complex examples
+1. Read [Defining Relations](./defining-relations.md) to learn how to create a comprehensive domain model
+2. Check the [Showcase](../showcase/README.md) for more complex examples
 3. Explore advanced topics like caching and optimizing batch fetching
+
+## Interpreter support
+
+ZQuery is the primary integration and has the broadest batching, caching, and deduplication test coverage. Fetch is a secondary integration. Generic Cats effects execute according to their Monad; they do not automatically gain caching or parallelism.
+
+The ScalaCheck and ZIO Test integrations generate local relation results using `Gen.expand`; they do not maintain a globally consistent generated graph across deeper traversals. Kyo integrations are experimental, and the Kyo cache integration is unfinished.
