@@ -27,7 +27,10 @@ object FetchZipSpec extends ZIOSpecDefault {
   def spec: Spec[Environment, Any] = suite("typed Fetch zip")(
     test("independent requests to one datasource share a batch") {
       val interpreter = new Interpreter
-      runIO(_root_.fetch.Fetch.run(interpreter.pair(1, 2))).map { result =>
+      // Let the Scala.js test runner attach its completion listener before executing the query.
+      Live.live(zio.ZIO.sleep(zio.Duration.fromMillis(1))) *> runIO(
+        _root_.fetch.Fetch.run(interpreter.pair(1, 2))
+      ).map { result =>
         assertTrue(
           result == (10, 20),
           interpreter.batches.size == 1,
