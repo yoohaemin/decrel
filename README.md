@@ -180,7 +180,7 @@ Add Decrel to your build:
 ```scala
 // For ZIO users
 "com.yoohaemin" %% "decrel-zquery" % "x.y.z"
-"com.yoohaemin" %% "decrel-zquery-next" % "x.y.z" // Scala 3.8.2+ overlay for .expand
+"com.yoohaemin" %% "decrel-zquery-next" % "x.y.z" // Scala 3.9 overlay for .expand
 
 // For Cats Effect users
 "com.yoohaemin" %% "decrel-fetch" % "x.y.z"
@@ -190,7 +190,7 @@ Add Decrel to your build:
 "com.yoohaemin" %% "decrel-ziotest" % "x.y.z" % Test
 ```
 
-For Scala 3.8.2 users who want `expand`, mix `zqueryNextSyntax` into your `zquery` object:
+For Scala 3.9 users who want `expand`, mix `zqueryNextSyntax` into your `zquery` object:
 
 ```scala
 import decrel.reify.{ zquery, zqueryNextSyntax }
@@ -226,5 +226,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 decrel is copyright Haemin Yoo, and is licensed under Mozilla Public License v2.0
 
-`modules/core/src/main/scala/decrel/Zippable.scala` is based on https://github.com/zio/zio/blob/v2.0.2/core/shared/src/main/scala/zio/Zippable.scala , 
+[core/src/main/scala/decrel/Zippable.scala](core/src/main/scala/decrel/Zippable.scala) is based on https://github.com/zio/zio/blob/v2.0.2/core/shared/src/main/scala/zio/Zippable.scala,
 licensed under the Apache License v2.0
