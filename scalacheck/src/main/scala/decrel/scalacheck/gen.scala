@@ -13,7 +13,7 @@ import decrel.reify.monofunctor.*
 import org.scalacheck.Gen
 import org.scalacheck.util.Buildable
 
-import scala.collection.IterableOps
+import scala.collection.SeqOps
 
 trait gen extends module[Gen] {
 
@@ -50,7 +50,7 @@ trait gen extends module[Gen] {
         override val reify: ReifiedRelation[In, Option[Out]] = reifiedRelation(f)
       }
 
-    def relationMany[Rel, In, Out, CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]](
+    def relationMany[Rel, In, Out, CC[+A] <: Seq[A] & SeqOps[A, CC, CC[A]]](
       relation: Rel & Relation.Many[In, List, Out]
     )(
       f: In => Gen[CC[Out]]
@@ -65,12 +65,12 @@ trait gen extends module[Gen] {
       override def apply(in: In): Gen[Out] =
         applyMultiple(List(in)).map(_.head)
 
-      override def applyMultiple[Coll[+A] <: Iterable[A] & IterableOps[A, Coll, Coll[A]]](
+      override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
         ins: Coll[In]
       ): Gen[Coll[Out]] =
         Gen
           .sequence(ins.map(f))(Buildable.buildableSeq)
-          .map(_.to((ins: IterableOps[In, Coll, Coll[In]]).iterableFactory))
+          .map(_.to((ins: SeqOps[In, Coll, Coll[In]]).iterableFactory))
     }
 
   //////// Syntax for using relations in tests
