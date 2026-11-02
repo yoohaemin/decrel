@@ -55,15 +55,18 @@ trait kyoZquery[E] extends kyoBatch[Async & Abort[E]] {
       )
     }
 
-  private def translate[A](query: KyoBatchQuery[Eff, A]): ZQuery[Any, E, A] = ZQuery.suspend {
+  private[reify] def translate[A](query: KyoBatchQuery[Eff, A]): ZQuery[Any, E, A] = ZQuery.suspend {
     query.step.result match {
       case KyoBatchQuery.Done(value)              => ZQuery.succeed(value)
       case pending: KyoBatchQuery.Pending[Eff, A] =>
         ZQuery
-          .foreachBatched(pending.requests) { request =>
-            ZQuery
-              .fromRequest(Fetch(request.source, request.key))(datasource(request.source))
-              .map(request.transform)
+          .foreachBatched(pending.requests) {
+            case request: KyoBatchRequest.Fetch[Eff, pending.State => pending.State] =>
+              ZQuery
+                .fromRequest(Fetch(request.source, request.key))(datasource(request.source))
+                .map(request.transform)
+            case request: KyoBatchRequest.Lift[Eff, pending.State => pending.State] =>
+              ZQuery.fromZIO(ZIOs.run(request.effect()))
           }
           .flatMap { updates =>
             translate(

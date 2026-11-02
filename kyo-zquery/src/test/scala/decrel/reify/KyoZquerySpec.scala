@@ -30,6 +30,31 @@ object KyoZquerySpec extends ZIOSpecDefault {
   }
 
   def spec = suite("Kyo callbacks in ZQuery")(
+    test("distinct registrations do not share datasource identities") {
+      val first                      = new Interpreter
+      val second                     = new Interpreter
+      def query(module: Interpreter) = {
+        import module.*
+        Lookup.toZQuery(1)
+      }
+      query(first)
+        .zipWithBatched(query(second))((_, _))
+        .run
+        .map(result =>
+          assertTrue(result == (("v1", "v1")), first.calls.size == 1, second.calls.size == 1)
+        )
+    },
+    test("ordinary lifted effects are not cached or deduplicated") {
+      val module = new Interpreter
+      type Eff = _root_.kyo.Async & Abort[String]
+      var calls  = 0
+      val lifted = KyoBatchQuery.lift[Eff, Int](Sync.defer { calls += 1; calls })
+      val plan   = KyoBatchQuery.zipWith(lifted, lifted)((_, _))
+      module
+        .translate(plan)
+        .run
+        .map(result => assertTrue(calls == 2, Set(result._1, result._2) == Set(1, 2)))
+    },
     test("one registration supports handled Kyo, exposed Batch, and ZQuery") {
       val module = new Interpreter
       import module.*
