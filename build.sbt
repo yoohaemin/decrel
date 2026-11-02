@@ -155,7 +155,9 @@ lazy val kyoBatch = (projectMatrix in file("kyo-batch"))
   )
   .settings(
     libraryDependencies ++= Seq(
-      "io.getkyo" %%% "kyo-prelude" % V.kyo
+      "io.getkyo" %%% "kyo-prelude"  % V.kyo,
+      "dev.zio"   %%% "zio-test"     % V.zio % Test,
+      "dev.zio"   %%% "zio-test-sbt" % V.zio % Test
     )
   )
   .dependsOn(kyo)
@@ -240,7 +242,9 @@ lazy val kyo = (projectMatrix in file("kyo"))
   )
   .settings(
     libraryDependencies ++= Seq(
-      "io.getkyo" %%% "kyo-prelude" % V.kyo
+      "io.getkyo" %%% "kyo-prelude"  % V.kyo,
+      "dev.zio"   %%% "zio-test"     % V.zio % Test,
+      "dev.zio"   %%% "zio-test-sbt" % V.zio % Test
     )
   )
   .jvmPlatform(
@@ -355,7 +359,7 @@ lazy val V = new {
   val scalaAll = scala213 :: scala33 :: scala39 :: Nil
 
   val cats         = "2.13.0"
-  val kyo          = "1.0.0-RC6"
+  val kyo          = "1.0.0-RC7"
   val zio          = "2.1.27"
   val zioQuery     = "0.7.8"
   val fetch        = "3.2.1"
