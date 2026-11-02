@@ -22,11 +22,6 @@ trait kyoBatch[Eff] extends monofunctor.module[[A] =>> KyoBatchQuery[Eff, A]] {
   override protected def flatMap[A, B](value: Access[A])(f: A => Access[B]): Access[B] =
     value.flatMap(f)
 
-  override protected def zipWith[A, B, C](left: => Access[A], right: => Access[B])(
-    f: (A, B) => C
-  ): Access[C] =
-    KyoBatchQuery.zipWith(left, right)(f)
-
   override protected def foreach[Coll[+T] <: Iterable[T], A, B](collection: Coll[A])(
     f: A => Access[B]
   )(implicit bf: BuildFrom[Coll[A], B, Coll[B]]): Access[Coll[B]] =
