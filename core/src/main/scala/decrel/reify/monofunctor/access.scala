@@ -40,7 +40,7 @@ trait access { self =>
   protected def succeed[A](a: A): Access[A]
 
   /**
-   * aka `traverse`.
+   * aka `traverse`. Preserve the collection's shape, order, and one result per input.
    *
    * If you are implementing `Access` with your own datatype, and if you want batching/parallel behavior,
    * please override this default behavior with a more efficient version that comes with your datatype.
@@ -62,14 +62,17 @@ trait access { self =>
       collection
         .foldLeft[Access[List[B]]](
           succeed(List.empty[B])
-        )((values, a) => zipWith(values, f(a))((bs, b) => b :: bs))
+        )((values, a) => flatMap(values)(bs => map(f(a))(b => b :: bs)))
     )(values => bf.fromSpecific(collection)(values.reverse))
 
-  /** Combine independent effects. Override to preserve batching or parallelism. */
-  protected def zipWith[A, B, C](left: => Access[A], right: => Access[B])(
+  // foreach preserves positions, so these casts recover the original branch types.
+  private[monofunctor] final def zipWith[A, B, C](left: => Access[A], right: => Access[B])(
     f: (A, B) => C
   ): Access[C] =
-    flatMap(left)(a => map(right)(b => f(a, b)))
+    map(foreach(List(left.asInstanceOf[Access[Any]], right.asInstanceOf[Access[Any]]))(identity)) {
+      case List(a, b) => f(a.asInstanceOf[A], b.asInstanceOf[B])
+      case _ => throw new IllegalStateException("foreach must preserve the number of results")
+    }
 
   /*
    * TODO Additional allocation imposed to the users because of this syntax is not worth it IMO, but I want
