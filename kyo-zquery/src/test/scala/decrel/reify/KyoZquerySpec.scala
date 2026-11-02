@@ -18,22 +18,33 @@ object KyoZquerySpec extends ZIOSpecDefault {
   object Many     extends Relation.Many[Int, Vector, String]
   object Next     extends Relation.Single[String, Long]
 
-  class Interpreter extends kyoZquery {
-    var calls                                                           = List.empty[List[Int]]
-    implicit val lookup: Proof.Single[Lookup.type, Int, String, String] =
-      implementSingleKyoDatasource(Lookup) { ids =>
+  class Interpreter extends kyoZquery[String] {
+    var calls                                                   = List.empty[List[Int]]
+    implicit val lookup: Proof.Single[Lookup.type, Int, String] =
+      implementSingleDatasource(Lookup) { ids =>
         Sync.defer {
           calls = calls :+ ids.toList
-          ids.map(id => id -> s"v$id")
+          ids.map(id => id -> s"v$id").toMap
         }
       }
   }
 
   def spec = suite("Kyo callbacks in ZQuery")(
+    test("one registration supports handled Kyo, exposed Batch, and ZQuery") {
+      val module = new Interpreter
+      import module.*
+      for {
+        handled <- ZIOs.run(Lookup.startingFromMany(Vector(2, 1, 2)))
+        batched <- ZIOs.run(_root_.kyo.Batch.run(Lookup.toBatchMany(Vector(2, 1, 2))))
+        queried <- Lookup.toZQueryMany(Vector(2, 1, 2)).run
+      } yield assertTrue(handled == queried, batched.toVector == Vector(queried), calls.size == 3)
+    },
     test("separately constructed queries share a batch when combined") {
       val module = new Interpreter
-      val left   = module.lookup.reify.applyMultiple(Vector(2, 1, 2))
-      val right  = module.lookup.reify.applyMultiple(List(1, 3))
+      import module.KyoZqueryRelationOps
+      import module.*
+      val left   = Lookup.toZQueryMany(Vector(2, 1, 2))
+      val right  = Lookup.toZQueryMany(List(1, 3))
       val before = module.calls
       left.zipWithBatched(right)((_, _)).run.map { result =>
         assertTrue(
@@ -46,17 +57,18 @@ object KyoZquerySpec extends ZIOSpecDefault {
     },
     test("relation composition batches independent branches and dependent stages") {
       val module = new Interpreter
+      import module.KyoZqueryRelationOps
       import module.*
-      var nextCalls                                                    = List.empty[List[String]]
-      implicit val next: Proof.Single[Next.type, String, String, Long] =
-        implementSingleKyoDatasource(Next) { ids =>
+      var nextCalls                                            = List.empty[List[String]]
+      implicit val next: Proof.Single[Next.type, String, Long] =
+        implementSingleDatasource(Next) { ids =>
           Sync.defer {
             nextCalls = nextCalls :+ ids.toList
-            ids.map(id => id -> id.drop(1).toLong)
+            ids.map(id => id -> id.drop(1).toLong).toMap
           }
         }
       val path = Lookup >>: Next
-      (path & path).toQueryMany(Vector(2, 1, 2)).run.map { result =>
+      (path & path).toZQueryMany(Vector(2, 1, 2)).run.map { result =>
         assertTrue(
           result == Vector((2L, 2L), (1L, 1L), (2L, 2L)),
           calls.size == 1,
@@ -66,48 +78,58 @@ object KyoZquerySpec extends ZIOSpecDefault {
       }
     },
     test("optional and many callbacks preserve absent positions and group boundaries") {
-      val module   = new Interpreter
-      val optional =
-        module.implementOptionalKyoDatasource[Optional.type, Int, Nothing, String](Optional) { ids =>
-          ids.map(id => id -> Option.when(id > 0)(s"v$id"))
+      val module = new Interpreter
+      import module.KyoZqueryRelationOps
+      implicit val optional: module.Proof.Optional[Optional.type, Int, String] =
+        module.implementOptionalDatasource[Optional.type, Int, String](Optional) { ids =>
+          ids.map(id => id -> Option.when(id > 0)(s"v$id")).toMap
         }
-      val many = module.implementManyKyoDatasource[Many.type, Int, Nothing, String, Vector](Many) {
-        ids => ids.map(id => id -> Vector.fill(id)(s"v$id"))
-      }
+      implicit val many: module.Proof.Many[Many.type, Int, Vector, String] =
+        module.implementManyDatasource[Many.type, Int, Vector, String](Many) { ids =>
+          ids.map(id => id -> Vector.fill(id)(s"v$id")).toMap
+        }
       for {
-        a <- optional.reify.applyMultiple(Vector(1, 0, 1)).run
-        b <- many.reify.applyMultiple(List(2, 0, 1)).run
+        a <- Optional.toZQueryMany(Vector(1, 0, 1)).run
+        b <- Many.toZQueryMany(List(2, 0, 1)).run
       } yield assertTrue(
         a == Vector(Some("v1"), None, Some("v1")),
         b == List(Vector("v2", "v2"), Vector.empty, Vector("v1"))
       )
     },
     test("custom relation callbacks support asynchronous Kyo effects") {
-      val module   = new Interpreter
-      val relation = (Lookup >>: Next).customImpl
-      var calls    = 0
-      val proof    = module.implementCustomKyoDatasource(relation) { ids =>
-        ZIOs.get(zio.ZIO.yieldNow *> zio.ZIO.succeed {
-          calls += 1
-          ids.map(id => id -> id.toLong)
-        })
+      val module = new Interpreter
+      import module.KyoZqueryRelationOps
+      var calls                                                                        = 0
+      def execute[Tree: izumi.reflect.Tag](relation: Relation.Custom[Tree, Int, Long]) = {
+        implicit val proof: module.Proof[Relation.Custom[Tree, Int, Long], Int, Long] =
+          module.implementCustomDatasource(relation) { ids =>
+            ZIOs.get(zio.ZIO.yieldNow *> zio.ZIO.succeed {
+              calls += 1
+              ids.map(id => id -> id.toLong).toMap
+            })
+          }
+        relation.toZQueryMany(Vector(2, 1, 2)).run
       }
-      proof.reify.applyMultiple(Vector(2, 1, 2)).run.map { result =>
+      execute((Lookup >>: Next).customImpl).map(result =>
         assertTrue(result == Vector(2L, 1L, 2L), calls == 1, module.calls.isEmpty)
-      }
+      )
     },
     test("typed Kyo failures become ZQuery failures") {
-      val module  = new Interpreter
-      val failing = module.implementSingleKyoDatasource[Lookup.type, Int, String, String](Lookup) {
-        _ => Abort.fail("missing")
-      }
-      failing.reify.apply(1).run.either.map(result => assertTrue(result == Left("missing")))
+      val module = new Interpreter
+      import module.KyoZqueryRelationOps
+      implicit val failing: module.Proof.Single[Lookup.type, Int, String] =
+        module.implementSingleDatasource[Lookup.type, Int, String](Lookup) { _ =>
+          Abort.fail("missing")
+        }
+      Lookup.toZQuery(1).run.either.map(result => assertTrue(result == Left("missing")))
     },
     test("empty inputs do not fetch and rerunning a query fetches again") {
       val module = new Interpreter
-      val query  = module.lookup.reify.apply(1)
+      import module.KyoZqueryRelationOps
+      import module.lookup
+      val query = Lookup.toZQuery(1)
       for {
-        empty <- module.lookup.reify.applyMultiple(List.empty[Int]).run
+        empty <- Lookup.toZQueryMany(List.empty[Int]).run
         before = module.calls
         first  <- query.run
         second <- query.run

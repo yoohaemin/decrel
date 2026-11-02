@@ -180,12 +180,12 @@ lazy val kyoZquery = (projectMatrix in file("kyo-zquery"))
   .jvmPlatform(
     scalaVersions = nextScalaVersions,
     axisValues = Nil,
-    configure = _.dependsOn(zquery.jvm(V.scala33))
+    configure = _.dependsOn(zquery.jvm(V.scala33), kyoBatch.jvm(V.scala39))
   )
   .jsPlatform(
     scalaVersions = nextScalaVersions,
     axisValues = Nil,
-    configure = _.dependsOn(zquery.js(V.scala33))
+    configure = _.dependsOn(zquery.js(V.scala33), kyoBatch.js(V.scala39))
   )
 
 ///////////////////////// Generator datatypes

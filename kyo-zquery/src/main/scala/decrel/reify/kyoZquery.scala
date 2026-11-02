@@ -9,43 +9,81 @@
 package decrel.reify
 
 import decrel.Relation
-import izumi.reflect.Tag
-import _root_.kyo.{ <, Abort, Async, ZIOs }
-import zio.Chunk
-import scala.collection.SeqOps
+import _root_.kyo.{ Abort, Async, ZIOs }
+import zio.*
+import zio.query.{ CompletedRequestMap, DataSource, Request, ZQuery }
+import scala.collection.{ mutable, SeqOps }
 
-/**
- * ZQuery-backed relations with batch callbacks implemented using Kyo effects.
- * Handle additional Kyo effects inside the callback before returning it.
- */
-trait kyoZquery extends zquery[Any] {
-  def implementSingleKyoDatasource[Rel: Tag, In, E, Out](
-    relation: Rel & Relation.Single[In, Out]
-  )(
-    batchExecute: Chunk[In] => Chunk[(In, Out)] < (Abort[E] & Async)
-  )(implicit tag: Tag[Out]): Proof.Single[Rel & Relation.Single[In, Out], In, E, Out] =
-    implementSingleDatasource[Rel, In, E, Out](relation)(ids => ZIOs.run(batchExecute(ids)))
+/** Optional ZQuery execution for the same Kyo proofs and callbacks. */
+trait kyoZquery[E] extends kyoBatch[Async & Abort[E]] {
+  private type Eff = Async & Abort[E]
+  private case class Fetch(source: KyoBatchSource[Eff, Any, Any], key: Any) extends Request[E, Any]
+  private val sources = mutable.Map.empty[KyoBatchSource[Eff, Any, Any], DataSource[Any, Fetch]]
 
-  def implementOptionalKyoDatasource[Rel: Tag, In, E, Out](
-    relation: Rel & Relation.Optional[In, Out]
-  )(
-    batchExecute: Chunk[In] => Chunk[(In, Option[Out])] < (Abort[E] & Async)
-  )(implicit tag: Tag[Out]): Proof.Optional[Rel & Relation.Optional[In, Out], In, E, Out] =
-    implementOptionalDatasource[Rel, In, E, Out](relation)(ids => ZIOs.run(batchExecute(ids)))
+  private def datasource(source: KyoBatchSource[Eff, Any, Any]): DataSource[Any, Fetch] =
+    sources.synchronized {
+      sources.getOrElseUpdate(
+        source,
+        new DataSource.Batched[Any, Fetch] {
+          val identifier = "decrel-kyo-source:" + kyoZquery.nextId.incrementAndGet()
+          def run(requests: Chunk[Fetch])(implicit
+            trace: Trace
+          ): ZIO[Any, Nothing, CompletedRequestMap] =
+            ZIOs
+              .run(source.batchExecute(requests.map(_.key).distinct.toVector))
+              .map { values =>
+                CompletedRequestMap.fromIterableWith(requests)(
+                  identity,
+                  request =>
+                    values.get(request.key) match {
+                      case Some(value) => Exit.succeed(value)
+                      case None        =>
+                        Exit.die(
+                          new NoSuchElementException(
+                            s"Response for request not found: ${request.key}"
+                          )
+                        )
+                    }
+                )
+              }
+              .catchAll(error =>
+                ZIO.succeed(
+                  CompletedRequestMap.fromIterableWith(requests)(identity, _ => Exit.fail(error))
+                )
+              )
+        }
+      )
+    }
 
-  def implementManyKyoDatasource[Rel: Tag, In, E, Out, CC[+A] <: Seq[A] & SeqOps[A, CC, CC[A]]](
-    relation: Rel & Relation.Many[In, CC, Out]
-  )(
-    batchExecute: Chunk[In] => Chunk[(In, CC[Out])] < (Abort[E] & Async)
-  )(implicit tag: Tag[CC[Out]]): Proof.Many[Rel & Relation.Many[In, CC, Out], In, E, CC, Out] =
-    implementManyDatasource[Rel, In, E, CC, Out](relation)(ids => ZIOs.run(batchExecute(ids)))
+  private def translate[A](query: KyoBatchQuery[Eff, A]): ZQuery[Any, E, A] = ZQuery.suspend {
+    query.step.result match {
+      case KyoBatchQuery.Done(value)              => ZQuery.succeed(value)
+      case pending: KyoBatchQuery.Pending[Eff, A] =>
+        ZQuery
+          .foreachBatched(pending.requests) { request =>
+            ZQuery
+              .fromRequest(Fetch(request.source, request.key))(datasource(request.source))
+              .map(request.transform)
+          }
+          .flatMap { updates =>
+            translate(
+              pending.resume(updates.foldLeft(pending.initial)((state, update) => update(state)))
+            )
+          }
+    }
+  }
 
-  def implementCustomKyoDatasource[Tree, In, E, Out](
-    relation: Relation.Custom[Tree, In, Out]
-  )(
-    batchExecute: Chunk[In] => Chunk[(In, Out)] < (Abort[E] & Async)
-  )(implicit
-    tag: Tag[Relation.Custom[Tree, In, Out]]
-  ): Proof[Relation.Custom[Tree, In, Out], In, E, Out] =
-    implementCustomDatasource(relation)(ids => ZIOs.run(batchExecute(ids)))
+  implicit class KyoZqueryRelationOps[Rel, In, Out](private val rel: Rel & Relation[In, Out]) {
+    def toZQuery(in: In)(implicit
+      proof: Proof[Rel & Relation[In, Out], In, Out]
+    ): ZQuery[Any, E, Out] =
+      translate(proof.reify.apply(in))
+
+    def toZQueryMany[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](in: Coll[In])(implicit
+      proof: Proof[Rel & Relation[In, Out], In, Out]
+    ): ZQuery[Any, E, Coll[Out]] = translate(proof.reify.applyMultiple(in))
+  }
+}
+object kyoZquery {
+  private val nextId = new java.util.concurrent.atomic.AtomicLong()
 }

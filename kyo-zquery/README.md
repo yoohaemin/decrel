@@ -1,35 +1,34 @@
-# Kyo callbacks with ZQuery batching
+# One Kyo implementation, three execution paths
 
-`decrel-kyo-zquery` lets you implement datasource batch callbacks in Kyo while ZQuery organizes requests. It depends on `decrel-zquery` and Kyo's `kyo-zio` bridge, independently of `decrel-kyo-batch`.
-
-Add `"com.yoohaemin" %% "decrel-kyo-zquery" % "<version>"` to your dependencies.
+`decrel-kyo-zquery` adds ZQuery execution to `decrel-kyo-batch`. Register each datasource once using the existing Kyo constructors; the mixin supplies `toZQuery` and `toZQueryMany` using those same proofs.
 
 ```scala
 import decrel.*
-import decrel.reify.kyoZquery
-import _root_.kyo.Sync
+import decrel.reify.{kyoZquery, KyoBatchSource}
+import _root_.kyo.{Abort, Async, Sync}
 
 object Lookup extends Relation.Single[Int, String]
-object Interpreter extends kyoZquery {
-  implicit val lookup: Proof.Single[Lookup.type, Int, String, String] =
-    implementSingleKyoDatasource(Lookup) { ids =>
-      Sync.defer(ids.map(id => id -> s"value$id"))
-    }
+object Relations extends kyoZquery[Throwable] {
+  val source = KyoBatchSource[Async & Abort[Throwable], Int, String] { ids =>
+    Sync.defer(ids.map(id => id -> s"value$id").toMap)
+  }
+  implicit val lookup: Proof.Single[Lookup.type, Int, String] =
+    implementSingleDatasource(Lookup)(source)
 }
 
-import Interpreter.*
-val first = Lookup.toQueryMany(Vector(1, 2, 1))
-val second = Lookup.toQuery(2)
-val combined = first.zipWithBatched(second)((_, _))
-// Execute combined.run at the outer ZIO boundary, or return the queries to Caliban.
+import Relations.*
+val handled = Lookup.startingFrom(1) // String < (Async & Abort[Throwable])
+val pending = Lookup.toBatch(1)     // String < (Batch & Async & Abort[Throwable])
+val query = Lookup.toZQuery(1)       // ZQuery[Any, Throwable, String]
+val native = source.toBatch(1)      // Shares the native batching identity with pending
 ```
 
-The Kyo constructors are `implementSingleKyoDatasource`, `implementOptionalKyoDatasource`, `implementManyKyoDatasource`, and `implementCustomKyoDatasource`. They accept ZIO `Chunk` inputs and return a `Chunk` of keyed results in `Abort[E] & Async`. `Sync` and pure computations are also accepted. Handle additional effects such as `Env` inside your callback. Callback expressions are evaluated only when ZQuery executes a batch, including on each fresh execution.
+A callback may also be passed directly to `implementSingleDatasource`, `implementOptionalDatasource`, `implementManyDatasource`, or `implementCustomDatasource`. Use an explicit `KyoBatchSource` when native Kyo code should share that source. Callbacks accept immutable `Seq` keys and return keyed `Map` results. Optional results use `Option`; many results use the declared sequence type.
 
-Callbacks must return one keyed result for every requested key. Optional callbacks return `Option[Out]`; many callbacks return the declared immutable sequence type. Result order inside the callback is irrelevant. ZQuery restores input positions, duplicates, and nested collection boundaries. Missing keys follow the existing ZQuery interpreter contract and cause a defect.
+`startingFrom` and `startingFromMany` handle Batch. `toBatch` and `toBatchMany` let the caller combine independent computations under a native `Batch.run`, using `Batch.eval` to expose independent branches. Shared-source grouping deduplicates keys and reconstructs each traversal's order, duplicates, and collection boundaries. Sources from separate registrations remain distinct. Arbitrary pre-existing native Batch functions are not imported.
 
-All existing ZQuery operations remain available, including `toQuery`, `toQueryMany`, and the ZIO execution helpers. Return unexecuted queries when a caller such as Caliban should combine requests across fields. Share the same interpreter/proof instances across those fields. Calling `.run` separately creates separate batching scopes.
+`toZQuery` and `toZQueryMany` return unexecuted queries. Combine them with batched ZQuery combinators, or return them to Caliban, before execution. The adapter translates source/key requests directly, rather than wrapping an already-executed Kyo plan. Callback effects run through `ZIOs.run`; `Abort[E]` becomes a typed ZQuery failure. The mixin supports `Async & Abort[E]`; handle additional effects inside callbacks.
 
-This module does not interpret native Kyo `Batch` computations. It bridges datasource callback effects; ZQuery handles batching, deduplication, dependency stages, and query caching. Kyo `Abort[E]` failures become typed ZQuery failures through `ZIOs.run`; interruption and defects use that bridge's semantics.
+Reuse the same interpreter/proofs across fields. Fresh query execution fetches again; no persistent result cache is added. Missing response keys cause defects. Callback expressions remain deferred until execution. Shared source descriptors retain native source identity, and each mixin caches ZQuery datasource adapters by descriptor identity.
 
-The module is built for Scala 3.9 on JVM and Scala.js, using the Scala 3.3 ZQuery module.
+Native-only applications can use `kyoBatch[Eff]` without this module or ZQuery dependencies. This module builds for Scala 3.9 on JVM and Scala.js, with the Scala 3.3 ZQuery dependency. No Caliban dependency is required.
