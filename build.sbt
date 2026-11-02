@@ -309,6 +309,12 @@ lazy val docs = project
 
 lazy val commonSettings = Def.settings(
   headerSettings,
+  scalacOptions ++= {
+    if (scalaVersion.value == V.scala33 && virtualAxes.?.value.exists(_.contains(VirtualAxis.jvm)))
+      Seq("-Yfuture-lazy-vals", "-release:9")
+    else
+      Nil
+  },
   scalacOptions ++= Seq(
     "-deprecation",
     "-encoding",
