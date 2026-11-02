@@ -171,8 +171,6 @@ object BookRelations extends zquery[Any] {
 
 Your domain logic remains clean and unaware of these optimizations.
 
-Scala 3.3 JVM artifacts require JDK 9 or newer and use the future lazy-val implementation.
-
 ## Getting Started
 
 Add Decrel to your build:
