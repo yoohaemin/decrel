@@ -15,18 +15,17 @@ import kyo.*
 import scala.collection.{ BuildFrom, SeqOps }
 import scala.collection.IterableFactory
 
-trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
+trait kyoBatch[Eff] extends monofunctor.module[[A] =>> KyoBatchQuery[Eff, A]] {
 
-  override final protected def foreach[Coll[+T] <: Iterable[T], A, B](
-    collection: Coll[A]
-  )(
-    f: A => B < Eff
-  )(implicit
-    bf: BuildFrom[Coll[A], B, Coll[B]]
-  ): Coll[B] < Eff =
-    Kyo.foreach(collection)(f).flatMap { a =>
-      succeed(a.to(bf.toFactory(collection)))
-    }
+  override protected def succeed[A](value: A): Access[A] = KyoBatchQuery.pure(value)
+  override protected def map[A, B](value: Access[A])(f: A => B): Access[B] = value.map(f)
+  override protected def flatMap[A, B](value: Access[A])(f: A => Access[B]): Access[B] =
+    value.flatMap(f)
+
+  override protected def foreach[Coll[+T] <: Iterable[T], A, B](collection: Coll[A])(
+    f: A => Access[B]
+  )(implicit bf: BuildFrom[Coll[A], B, Coll[B]]): Access[Coll[B]] =
+    KyoBatchQuery.traverse(collection.toVector)(f).map(_.to(bf.toFactory(collection)))
 
   // ****** Datasource Implementations ************************************
 
@@ -37,24 +36,31 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
   )(implicit
     tag: Tag[Out]
   ): Proof.Single[Rel & Relation.Single[In, Out], In, Out] =
-    new Proof.Single[Rel & Relation.Single[In, Out], In, Out] {
+    implementSingleDatasource[Rel, In, Out](relation)(KyoBatchSource(batchExecute))
 
-      private val source = Batch.sourceMap[In, Out, Eff](batchExecute)
+  def implementSingleDatasource[Rel: Tag, In, Out](
+    relation: Rel & Relation.Single[In, Out]
+  )(
+    source: KyoBatchSource[Eff, In, Out]
+  )(implicit
+    tag: Tag[Out]
+  ): Proof.Single[Rel & Relation.Single[In, Out], In, Out] =
+    new Proof.Single[Rel & Relation.Single[In, Out], In, Out] {
 
       override val reify: ReifiedRelation[In, Out] =
         new ReifiedRelation.Custom[In, Out] {
-          override def apply(in: In): Out < Eff =
-            Batch.run(Batch.eval(List(in)).map(source)).map(_.head)
+          override def apply(in: In): Access[Out] =
+            KyoBatchQuery.request(source, in)
 
           override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
-          ): Coll[Out] < Eff = {
+          ): Access[Coll[Out]] = {
             val f: IterableFactory[Coll] =
               (ins: SeqOps[In, Coll, Coll[In]]).iterableFactory
 
-            Batch
-              .run(Batch.eval(ins.toSeq).map(source))
-              .map(a => succeed(a.to(f)))
+            KyoBatchQuery
+              .traverse(ins.toVector)(in => KyoBatchQuery.request(source, in))
+              .map(_.to(f))
           }
 
         }
@@ -67,24 +73,31 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
   )(implicit
     tag: Tag[Out]
   ): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out] =
-    new Proof.Optional[Rel & Relation.Optional[In, Out], In, Out] {
+    implementOptionalDatasource[Rel, In, Out](relation)(KyoBatchSource(batchExecute))
 
-      private val ds = Batch.sourceMap[In, Option[Out], Eff](batchExecute)
+  def implementOptionalDatasource[Rel: Tag, In, Out](
+    relation: Rel & Relation.Optional[In, Out]
+  )(
+    source: KyoBatchSource[Eff, In, Option[Out]]
+  )(implicit
+    tag: Tag[Out]
+  ): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out] =
+    new Proof.Optional[Rel & Relation.Optional[In, Out], In, Out] {
 
       override val reify: ReifiedRelation[In, Option[Out]] =
         new ReifiedRelation.Custom[In, Option[Out]] {
-          override def apply(in: In): Option[Out] < Eff =
-            Batch
-              .run(Batch.eval(List(in)).map(ds))
-              .map(_.head)
+          override def apply(in: In): Access[Option[Out]] =
+            KyoBatchQuery.request(source, in)
 
           override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
-          ): Coll[Option[Out]] < Eff = {
+          ): Access[Coll[Option[Out]]] = {
             val f: IterableFactory[Coll] =
               (ins: SeqOps[In, Coll, Coll[In]]).iterableFactory
 
-            Batch.run(Batch.eval(ins.toSeq).map(ds)).map(a => succeed(a.to(f)))
+            KyoBatchQuery
+              .traverse(ins.toVector)(in => KyoBatchQuery.request(source, in))
+              .map(_.to(f))
           }
         }
     }
@@ -101,24 +114,36 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
   )(implicit
     tag: Tag[CC[Out]]
   ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] =
-    new Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] {
+    implementManyDatasource[Rel, In, CC, Out](relation)(KyoBatchSource(batchExecute))
 
-      private val ds = Batch.sourceMap[In, CC[Out], Eff](batchExecute)
+  def implementManyDatasource[
+    Rel: Tag,
+    In,
+    CC[+A] <: Seq[A] & SeqOps[A, CC, CC[A]],
+    Out
+  ](
+    relation: Rel & Relation.Many[In, CC, Out]
+  )(
+    source: KyoBatchSource[Eff, In, CC[Out]]
+  )(implicit
+    tag: Tag[CC[Out]]
+  ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] =
+    new Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] {
 
       override val reify: ReifiedRelation[In, CC[Out]] =
         new ReifiedRelation.Custom[In, CC[Out]] {
-          override def apply(in: In): CC[Out] < Eff =
-            Batch
-              .run(Batch.eval(List(in)).map(ds))
-              .map(_.head)
+          override def apply(in: In): Access[CC[Out]] =
+            KyoBatchQuery.request(source, in)
 
           override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
-          ): Coll[CC[Out]] < Eff = {
+          ): Access[Coll[CC[Out]]] = {
             val f: IterableFactory[Coll] =
               (ins: SeqOps[In, Coll, Coll[In]]).iterableFactory
 
-            Batch.run(Batch.eval(ins.toSeq).map(ds)).map(a => succeed(a.to(f)))
+            KyoBatchQuery
+              .traverse(ins.toVector)(in => KyoBatchQuery.request(source, in))
+              .map(_.to(f))
           }
         }
     }
@@ -134,23 +159,35 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
   )(implicit
     tag: Tag[Relation.Custom[Tree, In, Out]]
   ): Proof[Relation.Custom[Tree, In, Out], In, Out] =
+    implementCustomDatasource[Tree, In, Out](relation)(KyoBatchSource(batchExecute))
+
+  def implementCustomDatasource[
+    Tree,
+    In,
+    Out
+  ](
+    relation: Relation.Custom[Tree, In, Out]
+  )(
+    source: KyoBatchSource[Eff, In, Out]
+  )(implicit
+    tag: Tag[Relation.Custom[Tree, In, Out]]
+  ): Proof[Relation.Custom[Tree, In, Out], In, Out] =
     new Proof[Relation.Custom[Tree, In, Out], In, Out] {
-      private val ds = Batch.sourceMap[In, Out, Eff](batchExecute)
 
       override val reify: ReifiedRelation[In, Out] =
         new ReifiedRelation.Custom[In, Out] {
-          override def apply(in: In): Out < Eff =
-            Batch
-              .run(Batch.eval(List(in)).map(ds))
-              .map(_.head)
+          override def apply(in: In): Access[Out] =
+            KyoBatchQuery.request(source, in)
 
           override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
-          ): Coll[Out] < Eff = {
+          ): Access[Coll[Out]] = {
             val f: IterableFactory[Coll] =
               (ins: SeqOps[In, Coll, Coll[In]]).iterableFactory
 
-            Batch.run(Batch.eval(ins.toSeq).map(ds)).map(a => succeed(a.to(f)))
+            KyoBatchQuery
+              .traverse(ins.toVector)(in => KyoBatchQuery.request(source, in))
+              .map(_.to(f))
           }
         }
     }
@@ -163,12 +200,12 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
     new Proof.Single[NewRel & Relation.Single[B, Out], B, Out] {
       override val reify: ReifiedRelation[B, Out] =
         new ReifiedRelation.Custom[B, Out] {
-          override def apply(in: B): Out < Eff =
+          override def apply(in: B): Access[Out] =
             proof.reify.apply(f(in))
 
           override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             in: Coll[B]
-          ): Coll[Out] < Eff =
+          ): Access[Coll[Out]] =
             proof.reify.applyMultiple[Coll](in.map(f))
         }
     }
@@ -187,16 +224,14 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
     new Proof.Optional[NewRel & Relation.Optional[B, Out], B, Out] {
       override val reify: ReifiedRelation[B, Option[Out]] =
         new ReifiedRelation.Custom[B, Option[Out]] {
-          override def apply(in: B): Option[Out] < Eff =
+          override def apply(in: B): Access[Option[Out]] =
             proof.reify.applyMultiple(f(in).toList).map(_.headOption)
 
           override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             in: Coll[B]
-          ): Coll[Option[Out]] < Eff = {
+          ): Access[Coll[Option[Out]]] = {
             val f = (in: SeqOps[B, Coll, Coll[B]]).iterableFactory
-            Kyo.foreach(in)(b => apply(b)).flatMap { a =>
-              succeed(a.to(f))
-            }
+            KyoBatchQuery.traverse(in.toVector)(b => apply(b)).map(_.to(f))
           }
 
         }
@@ -218,17 +253,17 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
       override val reify: ReifiedRelation[B, CC[Out]] =
         new ReifiedRelation.Custom[B, CC[Out]] {
 
-          override def apply(in: B): CC[Out] < Eff =
+          override def apply(in: B): Access[CC[Out]] =
             proof.reify.applyMultiple(f(in))
 
           override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             in: Coll[B]
-          ): Coll[CC[Out]] < Eff = {
+          ): Access[Coll[CC[Out]]] = {
             val collFactory = (in: SeqOps[B, Coll, Coll[B]]).iterableFactory
 
-            Kyo
-              .foreach(in)(b => proof.reify.applyMultiple(f(b)))
-              .map(a => succeed(a.to(collFactory)))
+            KyoBatchQuery
+              .traverse(in.toVector)(b => proof.reify.applyMultiple(f(b)))
+              .map(_.to(collFactory))
           }
         }
     }
@@ -248,17 +283,26 @@ trait kyoBatch[Eff] extends decrel.reify.kyoGeneric[Eff] {
    */
   implicit class KyoRelationOps[Rel, In, Out](private val rel: Rel & Relation[In, Out]) { // TODO add AnyVal
 
+    def toBatch(in: In)(implicit
+      proof: Proof[Rel & Relation[In, Out], In, Out]
+    ): Out < (Batch & Eff) =
+      proof.reify.apply(in).toBatch
+
+    def toBatchMany[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](in: Coll[In])(implicit
+      proof: Proof[Rel & Relation[In, Out], In, Out]
+    ): Coll[Out] < (Batch & Eff) = proof.reify.applyMultiple(in).toBatch
+
     def startingFrom(in: In)(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out]
     ): Out < Eff =
-      proof.reify.apply(in)
+      proof.reify.apply(in).run
 
     def startingFromMany[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
       in: Coll[In]
     )(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out]
     ): Coll[Out] < Eff =
-      proof.reify.applyMultiple(in)
+      proof.reify.applyMultiple(in).run
 
   }
 
