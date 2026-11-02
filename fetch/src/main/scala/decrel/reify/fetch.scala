@@ -71,12 +71,12 @@ trait fetch[F[_]] extends catsMonad[Fetch[F, *]] { self =>
     override def batch(
       requests: NonEmptyList[RelationRequest[Rel, In, Out]]
     ): F[Map[RelationRequest[Rel, In, Out], Out]] = {
-      val requestMap = requests.toList.map(request => request.id -> request).toMap
+      val requestMap = requests.toList.iterator.map(request => request.id -> request).toMap
       batchExecute(requestMap.keys.toList).flatMap { results =>
         val returnedIds = results.map(_._1)
         if (
-          returnedIds.distinct.size != returnedIds.size || returnedIds
-            .exists(id => !requestMap.contains(id))
+          (returnedIds.distinct.size != returnedIds.size) ||
+            returnedIds.exists(id => !requestMap.contains(id))
         )
           CF.raiseError(NotRequestedOrDoubleReturns)
         else if (returnedIds.size != requestMap.size)
