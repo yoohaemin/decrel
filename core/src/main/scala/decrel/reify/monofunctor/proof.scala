@@ -19,21 +19,22 @@ trait proof { this: access & reifiedRelation =>
    * A `Proof` shows that a relation is reifiable as `In => Access[Out]`.
    *
    * In practice, this data structure is the outer shell of `ReifiedRelation`
-   * that guides the implicit derivation mechanism.
+   * that guides the implicit derivation mechanism. Rel is invariant: covariance would let
+   * an identity proof for an inferred bottom relation stand in for an unrelated relation.
    */
-  abstract class Proof[+Rel, -In, Out] {
+  abstract class Proof[Rel, -In, Out] {
 
     def reify: ReifiedRelation[In, Out]
   }
 
   object Proof {
 
-    sealed trait Declared[+Rel, -In, Out] extends Proof[Rel, In, Out]
+    sealed trait Declared[Rel, -In, Out] extends Proof[Rel, In, Out]
 
     /**
      * Includes both Single and Self.
      */
-    sealed trait GenericSingle[+Rel <: Relation[In, Out], -In, Out] extends Proof[Rel, In, Out]
+    sealed trait GenericSingle[Rel <: Relation[In, Out], -In, Out] extends Proof[Rel, In, Out]
 
     final class SelfProof[Rel <: Relation.Self[A], A] extends Proof.GenericSingle[Rel, A, A] {
 
@@ -58,7 +59,7 @@ trait proof { this: access & reifiedRelation =>
     implicit def selfProof[Rel <: Relation.Self[A], A]: Proof.GenericSingle[Rel, A, A] =
       _selfProof.asInstanceOf[Proof.GenericSingle[Rel, A, A]]
 
-    abstract class Single[+Rel <: Relation[In, Out], -In, Out]
+    abstract class Single[Rel <: Relation[In, Out], -In, Out]
         extends Proof.Declared[Rel, In, Out]
         with GenericSingle[Rel, In, Out] { outer =>
 
@@ -118,7 +119,7 @@ trait proof { this: access & reifiedRelation =>
         }
     }
 
-    abstract class Optional[+Rel <: Relation.Optional[In, Out], -In, Out]
+    abstract class Optional[Rel <: Relation.Optional[In, Out], -In, Out]
         extends Proof.Declared[Rel, In, Option[Out]] { outer =>
 
       final def contramap[
