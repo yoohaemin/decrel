@@ -38,7 +38,13 @@ sealed abstract class KyoBatchQuery[S, A] {
   final def toBatch: A < (Batch & S) = step.result match {
     case Done(value)            => value
     case pending: Pending[S, A] =>
-      val groups = pending.requests.groupBy(_.source).toVector
+      val fetches = pending.requests.collect {
+        case f: KyoBatchRequest.Fetch[S, pending.State => pending.State] => f
+      }
+      val lifts = pending.requests.collect {
+        case l: KyoBatchRequest.Lift[S, pending.State => pending.State] => l
+      }
+      val groups = fetches.groupBy(_.source).toVector
       Kyo
         .foreach(groups) { case (source, requests) =>
           source.toBatchMany(requests.map(_.key)).map { values =>
@@ -46,9 +52,14 @@ sealed abstract class KyoBatchQuery[S, A] {
           }
         }
         .map { updates =>
-          pending
-            .resume(updates.flatten.foldLeft(pending.initial)((state, update) => update(state)))
-            .toBatch
+          Kyo.foreach(lifts)(_.effect()).map { lifted =>
+            pending
+              .resume(
+                (updates.flatten ++ lifted)
+                  .foldLeft(pending.initial)((state, update) => update(state))
+              )
+              .toBatch
+          }
         }
   }
 
@@ -79,7 +90,18 @@ object KyoBatchQuery {
 
   /** Lift a custom Kyo effect without running it while constructing a relation graph. */
   def lift[S, A](effect: => A < S): KyoBatchQuery[S, A] =
-    request(KyoBatchSource[S, Unit, A](_ => effect.map(a => Map(() -> a))), ())
+    new KyoBatchQuery[S, A] { query =>
+      def step: TailRec[Step[S, A]] = done(new Pending[S, A] {
+        type State = KyoBatchQuery[S, A]
+        val initial: State = query
+        val requests       = Vector(
+          KyoBatchRequest.Lift[S, State => State](() =>
+            effect.map(value => (_: State) => pure[S, A](value))
+          )
+        )
+        def resume(state: State): KyoBatchQuery[S, A] = state
+      })
+    }
 
   private[reify] def request[S, I, A](
     source: KyoBatchSource[S, I, A],
@@ -90,7 +112,7 @@ object KyoBatchQuery {
         type State = KyoBatchQuery[S, A]
         val initial: State = query
         val requests       = Vector(
-          KyoBatchRequest[S, State => State](
+          KyoBatchRequest.Fetch[S, State => State](
             source.asInstanceOf[KyoBatchSource[S, Any, Any]],
             key,
             value => (_: State) => pure[S, A](value.asInstanceOf[A])

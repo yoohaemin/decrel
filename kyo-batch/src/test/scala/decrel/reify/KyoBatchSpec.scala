@@ -83,6 +83,12 @@ object KyoBatchSpec extends ZIOSpecDefault {
         batches.head.toSet == Set(1, 2, 3)
       )
     },
+    asyncTest("ordinary lifted effects execute for each occurrence") {
+      var calls  = 0
+      val query  = KyoBatchQuery.lift[Any, Int] { calls += 1; calls }
+      val result = KyoBatchQuery.zipWith(query, query)((_, _)).run.eval
+      assertTrue(calls == 2, Set(result._1, result._2) == Set(1, 2))
+    },
     asyncTest("long map and flatMap chains are stack safe before and after requests") {
       val size   = 100000
       val mapped = (0 until size).foldLeft(KyoBatchQuery.pure[Any, Int](0))((q, _) => q.map(_ + 1))

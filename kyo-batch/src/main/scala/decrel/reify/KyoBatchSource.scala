@@ -25,11 +25,16 @@ object KyoBatchSource {
   def apply[S, I, A](f: Seq[I] => Map[I, A] < S): KyoBatchSource[S, I, A] = new KyoBatchSource(f)
 }
 
-// The erased source/key pair is constructed together in KyoBatchQuery.request.
-private[reify] final case class KyoBatchRequest[S, A](
-  source: KyoBatchSource[S, Any, Any],
-  key: Any,
-  transform: Any => A
-) {
-  def map[B](f: A => B): KyoBatchRequest[S, B] = copy(transform = transform.andThen(f))
+// Fetch keeps its erased source/key pair together; Lift never participates in key deduplication.
+private[reify] sealed trait KyoBatchRequest[S, A] {
+  def map[B](f: A => B): KyoBatchRequest[S, B]
+}
+private[reify] object KyoBatchRequest {
+  final case class Fetch[S, A](source: KyoBatchSource[S, Any, Any], key: Any, transform: Any => A)
+      extends KyoBatchRequest[S, A] {
+    def map[B](f: A => B): KyoBatchRequest[S, B] = Fetch(source, key, transform.andThen(f))
+  }
+  final case class Lift[S, A](effect: () => A < S) extends KyoBatchRequest[S, A] {
+    def map[B](f: A => B): KyoBatchRequest[S, B] = Lift(() => effect().map(f))
+  }
 }
