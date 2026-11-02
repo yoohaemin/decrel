@@ -47,6 +47,7 @@ lazy val rootAggregates: Seq[ProjectReference] =
   core.projectRefs ++
     kyo.projectRefs ++
     kyoBatch.projectRefs ++
+    kyoZquery.projectRefs ++
     zquery.projectRefs ++
     zqueryNext.projectRefs ++
     fetch.projectRefs ++
@@ -165,6 +166,27 @@ lazy val kyoBatch = (projectMatrix in file("kyo-batch"))
   .dependsOn(kyo)
   .jvmPlatform(scalaVersions = nextScalaVersions)
   .jsPlatform(scalaVersions = nextScalaVersions)
+
+lazy val kyoZquery = (projectMatrix in file("kyo-zquery"))
+  .settings(name := "decrel-kyo-zquery")
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "io.getkyo" %%% "kyo-zio"      % V.kyo,
+      "dev.zio"   %%% "zio-test"     % V.zio % Test,
+      "dev.zio"   %%% "zio-test-sbt" % V.zio % Test
+    )
+  )
+  .jvmPlatform(
+    scalaVersions = nextScalaVersions,
+    axisValues = Nil,
+    configure = _.dependsOn(zquery.jvm(V.scala33))
+  )
+  .jsPlatform(
+    scalaVersions = nextScalaVersions,
+    axisValues = Nil,
+    configure = _.dependsOn(zquery.js(V.scala33))
+  )
 
 ///////////////////////// Generator datatypes
 

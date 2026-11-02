@@ -190,6 +190,9 @@ Add Decrel to your build:
 "com.yoohaemin" %% "decrel-ziotest" % "x.y.z" % Test
 ```
 
+For Kyo datasource callbacks with ZQuery batching, see
+[`decrel-kyo-zquery`](kyo-zquery/README.md) (Scala 3.9, JVM and Scala.js).
+
 For Scala 3.9 users who want `expand`, mix `zqueryNextSyntax` into your `zquery` object:
 
 ```scala
