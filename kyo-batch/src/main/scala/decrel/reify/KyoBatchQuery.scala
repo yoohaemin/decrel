@@ -34,14 +34,28 @@ sealed abstract class KyoBatchQuery[S, A] {
       }
     }
 
-  /** Execute with fresh, immutable bookkeeping on every invocation. */
-  final def run: A < S = step.result match {
+  /** Leave batching to the caller while preserving one result for this plan. */
+  final def toBatch: A < (Batch & S) = step.result match {
     case Done(value)            => value
     case pending: Pending[S, A] =>
-      Batch.run(Batch.eval(pending.requests).map(identity)).map { updates =>
-        pending.resume(updates.foldLeft(pending.initial)((state, update) => update(state))).run
-      }
+      val groups = pending.requests.groupBy(_.source).toVector
+      Kyo
+        .foreach(groups) { case (source, requests) =>
+          source.toBatchMany(requests.map(_.key)).map { values =>
+            requests.zip(values).map { case (request, value) => request.transform(value) }
+          }
+        }
+        .map { updates =>
+          pending
+            .resume(updates.flatten.foldLeft(pending.initial)((state, update) => update(state)))
+            .toBatch
+        }
   }
+
+  private[reify] final def execute: A < S = Batch.run(toBatch).map(_.head)
+  // Compatibility for low-level callers; relation startingFrom is the public shortcut.
+  private[reify] final def run: A < S = execute
+
 }
 
 object KyoBatchQuery {
@@ -50,7 +64,7 @@ object KyoBatchQuery {
   private[reify] abstract class Pending[S, A]          extends Step[S, A] {
     type State
     val initial: State
-    val requests: Vector[(State => State) < (Batch & S)]
+    val requests: Vector[KyoBatchRequest[S, State => State]]
     def resume(state: State): KyoBatchQuery[S, A]
   }
 
@@ -64,14 +78,24 @@ object KyoBatchQuery {
   }
 
   /** Lift a custom Kyo effect without running it while constructing a relation graph. */
-  def lift[S, A](effect: => A < S): KyoBatchQuery[S, A] = request(effect)
+  def lift[S, A](effect: => A < S): KyoBatchQuery[S, A] =
+    request(KyoBatchSource[S, Unit, A](_ => effect.map(a => Map(() -> a))), ())
 
-  private[reify] def request[S, A](effect: => A < (Batch & S)): KyoBatchQuery[S, A] =
+  private[reify] def request[S, I, A](
+    source: KyoBatchSource[S, I, A],
+    key: I
+  ): KyoBatchQuery[S, A] =
     new KyoBatchQuery[S, A] { query =>
       def step: TailRec[Step[S, A]] = done(new Pending[S, A] {
         type State = KyoBatchQuery[S, A]
         val initial: State = query
-        val requests       = Vector(effect.map(value => (_: State) => pure[S, A](value)))
+        val requests       = Vector(
+          KyoBatchRequest[S, State => State](
+            source.asInstanceOf[KyoBatchSource[S, Any, Any]],
+            key,
+            value => (_: State) => pure[S, A](value.asInstanceOf[A])
+          )
+        )
         def resume(state: State): KyoBatchQuery[S, A] = state
       })
     }
@@ -81,8 +105,8 @@ object KyoBatchQuery {
     case Done(value)          =>
       new Pending[S, A] {
         type State = Unit
-        val initial                                   = ()
-        val requests                                  = Vector.empty[(State => State) < (Batch & S)]
+        val initial  = ()
+        val requests = Vector.empty[KyoBatchRequest[S, State => State]]
         def resume(state: State): KyoBatchQuery[S, A] = pure(value)
       }
   }
@@ -101,7 +125,7 @@ object KyoBatchQuery {
               type State = (l.State, r.State)
               val initial: State = (l.initial, r.initial)
               // Each update changes only its own subtree. Updates commute even if Batch reorders sources.
-              val requests: Vector[(State => State) < (Batch & S)] =
+              val requests: Vector[KyoBatchRequest[S, State => State]] =
                 l.requests.map(_.map(update => (state: State) => (update(state._1), state._2))) ++
                   r.requests.map(_.map(update => (state: State) => (state._1, update(state._2))))
               def resume(state: State): KyoBatchQuery[S, C] =

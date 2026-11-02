@@ -55,12 +55,34 @@ object KyoBatchSpec extends ZIOSpecDefault {
   // An asynchronous boundary lets the Scala.js test runner observe completion events.
   private def asyncTest(label: String)(assertion: => TestResult) =
     test(label)(
-      Live.live(zio.ZIO.sleep(zio.Duration.fromMillis(1))) *> zio.ZIO.fromFuture(ec =>
+      Live.live(zio.ZIO.sleep(zio.Duration.fromMillis(50))) *> zio.ZIO.fromFuture(ec =>
         scala.concurrent.Future(assertion)(using ec)
       )
     )
 
   def spec = suite("Kyo composed batching")(
+    asyncTest("native and separately prepared decrel calls share a registered source") {
+      val module = new kyoBatch[Any] {}
+      import module.*
+      var batches = Vector.empty[Vector[Int]]
+      val source  = KyoBatchSource[Any, Int, String] { ids =>
+        batches = batches :+ ids.toVector
+        ids.map(i => i -> s"v$i").toMap
+      }
+      implicit val proof: Proof.Single[Lookup.type, Int, String] =
+        implementSingleDatasource(Lookup)(source)
+      val bulk    = Lookup.toBatchMany(Vector(2, 1, 2))
+      val other   = Lookup.toBatchMany(Vector(1, 3))
+      val native  = source.toBatch(3).map(Vector(_))
+      val before  = batches
+      val results = Batch.run(Batch.eval(Vector(bulk, other, native)).map(identity)).eval
+      assertTrue(
+        before.isEmpty,
+        results.toSet == Set(Vector("v2", "v1", "v2"), Vector("v1", "v3"), Vector("v3")),
+        batches.size == 1,
+        batches.head.toSet == Set(1, 2, 3)
+      )
+    },
     asyncTest("long map and flatMap chains are stack safe before and after requests") {
       val size   = 100000
       val mapped = (0 until size).foldLeft(KyoBatchQuery.pure[Any, Int](0))((q, _) => q.map(_ + 1))

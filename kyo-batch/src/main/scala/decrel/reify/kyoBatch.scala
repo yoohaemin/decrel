@@ -36,14 +36,21 @@ trait kyoBatch[Eff] extends monofunctor.module[[A] =>> KyoBatchQuery[Eff, A]] {
   )(implicit
     tag: Tag[Out]
   ): Proof.Single[Rel & Relation.Single[In, Out], In, Out] =
-    new Proof.Single[Rel & Relation.Single[In, Out], In, Out] {
+    implementSingleDatasource[Rel, In, Out](relation)(KyoBatchSource(batchExecute))
 
-      private val source = Batch.sourceMap[In, Out, Eff](batchExecute)
+  def implementSingleDatasource[Rel: Tag, In, Out](
+    relation: Rel & Relation.Single[In, Out]
+  )(
+    source: KyoBatchSource[Eff, In, Out]
+  )(implicit
+    tag: Tag[Out]
+  ): Proof.Single[Rel & Relation.Single[In, Out], In, Out] =
+    new Proof.Single[Rel & Relation.Single[In, Out], In, Out] {
 
       override val reify: ReifiedRelation[In, Out] =
         new ReifiedRelation.Custom[In, Out] {
           override def apply(in: In): Access[Out] =
-            KyoBatchQuery.request(source(in))
+            KyoBatchQuery.request(source, in)
 
           override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
@@ -52,7 +59,7 @@ trait kyoBatch[Eff] extends monofunctor.module[[A] =>> KyoBatchQuery[Eff, A]] {
               (ins: SeqOps[In, Coll, Coll[In]]).iterableFactory
 
             KyoBatchQuery
-              .traverse(ins.toVector)(in => KyoBatchQuery.request(source(in)))
+              .traverse(ins.toVector)(in => KyoBatchQuery.request(source, in))
               .map(_.to(f))
           }
 
@@ -66,14 +73,21 @@ trait kyoBatch[Eff] extends monofunctor.module[[A] =>> KyoBatchQuery[Eff, A]] {
   )(implicit
     tag: Tag[Out]
   ): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out] =
-    new Proof.Optional[Rel & Relation.Optional[In, Out], In, Out] {
+    implementOptionalDatasource[Rel, In, Out](relation)(KyoBatchSource(batchExecute))
 
-      private val ds = Batch.sourceMap[In, Option[Out], Eff](batchExecute)
+  def implementOptionalDatasource[Rel: Tag, In, Out](
+    relation: Rel & Relation.Optional[In, Out]
+  )(
+    source: KyoBatchSource[Eff, In, Option[Out]]
+  )(implicit
+    tag: Tag[Out]
+  ): Proof.Optional[Rel & Relation.Optional[In, Out], In, Out] =
+    new Proof.Optional[Rel & Relation.Optional[In, Out], In, Out] {
 
       override val reify: ReifiedRelation[In, Option[Out]] =
         new ReifiedRelation.Custom[In, Option[Out]] {
           override def apply(in: In): Access[Option[Out]] =
-            KyoBatchQuery.request(ds(in))
+            KyoBatchQuery.request(source, in)
 
           override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
@@ -81,7 +95,9 @@ trait kyoBatch[Eff] extends monofunctor.module[[A] =>> KyoBatchQuery[Eff, A]] {
             val f: IterableFactory[Coll] =
               (ins: SeqOps[In, Coll, Coll[In]]).iterableFactory
 
-            KyoBatchQuery.traverse(ins.toVector)(in => KyoBatchQuery.request(ds(in))).map(_.to(f))
+            KyoBatchQuery
+              .traverse(ins.toVector)(in => KyoBatchQuery.request(source, in))
+              .map(_.to(f))
           }
         }
     }
@@ -98,14 +114,26 @@ trait kyoBatch[Eff] extends monofunctor.module[[A] =>> KyoBatchQuery[Eff, A]] {
   )(implicit
     tag: Tag[CC[Out]]
   ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] =
-    new Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] {
+    implementManyDatasource[Rel, In, CC, Out](relation)(KyoBatchSource(batchExecute))
 
-      private val ds = Batch.sourceMap[In, CC[Out], Eff](batchExecute)
+  def implementManyDatasource[
+    Rel: Tag,
+    In,
+    CC[+A] <: Seq[A] & SeqOps[A, CC, CC[A]],
+    Out
+  ](
+    relation: Rel & Relation.Many[In, CC, Out]
+  )(
+    source: KyoBatchSource[Eff, In, CC[Out]]
+  )(implicit
+    tag: Tag[CC[Out]]
+  ): Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] =
+    new Proof.Many[Rel & Relation.Many[In, CC, Out], In, CC, Out] {
 
       override val reify: ReifiedRelation[In, CC[Out]] =
         new ReifiedRelation.Custom[In, CC[Out]] {
           override def apply(in: In): Access[CC[Out]] =
-            KyoBatchQuery.request(ds(in))
+            KyoBatchQuery.request(source, in)
 
           override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
@@ -113,7 +141,9 @@ trait kyoBatch[Eff] extends monofunctor.module[[A] =>> KyoBatchQuery[Eff, A]] {
             val f: IterableFactory[Coll] =
               (ins: SeqOps[In, Coll, Coll[In]]).iterableFactory
 
-            KyoBatchQuery.traverse(ins.toVector)(in => KyoBatchQuery.request(ds(in))).map(_.to(f))
+            KyoBatchQuery
+              .traverse(ins.toVector)(in => KyoBatchQuery.request(source, in))
+              .map(_.to(f))
           }
         }
     }
@@ -129,13 +159,25 @@ trait kyoBatch[Eff] extends monofunctor.module[[A] =>> KyoBatchQuery[Eff, A]] {
   )(implicit
     tag: Tag[Relation.Custom[Tree, In, Out]]
   ): Proof[Relation.Custom[Tree, In, Out], In, Out] =
+    implementCustomDatasource[Tree, In, Out](relation)(KyoBatchSource(batchExecute))
+
+  def implementCustomDatasource[
+    Tree,
+    In,
+    Out
+  ](
+    relation: Relation.Custom[Tree, In, Out]
+  )(
+    source: KyoBatchSource[Eff, In, Out]
+  )(implicit
+    tag: Tag[Relation.Custom[Tree, In, Out]]
+  ): Proof[Relation.Custom[Tree, In, Out], In, Out] =
     new Proof[Relation.Custom[Tree, In, Out], In, Out] {
-      private val ds = Batch.sourceMap[In, Out, Eff](batchExecute)
 
       override val reify: ReifiedRelation[In, Out] =
         new ReifiedRelation.Custom[In, Out] {
           override def apply(in: In): Access[Out] =
-            KyoBatchQuery.request(ds(in))
+            KyoBatchQuery.request(source, in)
 
           override def applyMultiple[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](
             ins: Coll[In]
@@ -143,7 +185,9 @@ trait kyoBatch[Eff] extends monofunctor.module[[A] =>> KyoBatchQuery[Eff, A]] {
             val f: IterableFactory[Coll] =
               (ins: SeqOps[In, Coll, Coll[In]]).iterableFactory
 
-            KyoBatchQuery.traverse(ins.toVector)(in => KyoBatchQuery.request(ds(in))).map(_.to(f))
+            KyoBatchQuery
+              .traverse(ins.toVector)(in => KyoBatchQuery.request(source, in))
+              .map(_.to(f))
           }
         }
     }
@@ -238,6 +282,15 @@ trait kyoBatch[Eff] extends monofunctor.module[[A] =>> KyoBatchQuery[Eff, A]] {
    * Syntax for Relation values
    */
   implicit class KyoRelationOps[Rel, In, Out](private val rel: Rel & Relation[In, Out]) { // TODO add AnyVal
+
+    def toBatch(in: In)(implicit
+      proof: Proof[Rel & Relation[In, Out], In, Out]
+    ): Out < (Batch & Eff) =
+      proof.reify.apply(in).toBatch
+
+    def toBatchMany[Coll[+A] <: Seq[A] & SeqOps[A, Coll, Coll[A]]](in: Coll[In])(implicit
+      proof: Proof[Rel & Relation[In, Out], In, Out]
+    ): Coll[Out] < (Batch & Eff) = proof.reify.applyMultiple(in).toBatch
 
     def startingFrom(in: In)(implicit
       proof: Proof[Rel & Relation[In, Out], In, Out]
