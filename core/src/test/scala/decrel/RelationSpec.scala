@@ -60,23 +60,7 @@ object RelationSpec extends ZIOSpecDefault {
           assertCompletes
         },
         test("one to one, zipped") {
-          val composed: Composed.Zipped[
-            Foo.bar.type & Relation.Single[Foo, Bar],
-            Foo, // Input
-            Bar,
-            Composed.Single[
-              Foo.bar.type & Relation.Single[Foo, Bar],
-              Foo,
-              Bar,
-              Bar.baz.type & Relation.Single[Bar, Baz],
-              Bar,
-              Baz
-            ],
-            Foo,
-            Baz,
-            (Bar, Baz) // Output
-          ] =
-            Foo.bar <>: Bar.baz
+          val composed = Foo.bar <>: Bar.baz
 
           val _: Relation[Foo, (Bar, Baz)] = composed
 
@@ -223,30 +207,7 @@ object RelationSpec extends ZIOSpecDefault {
           assertCompletes
         },
         test("compose one zipped & a zipped relation") {
-          val composed: Composed.Zipped[
-            Foo.baz.type & Relation.Single[Foo, Baz],
-            Foo,
-            Baz,
-            Composed.Single[
-              Foo.baz.type & Relation.Single[Foo, Baz],
-              Foo,
-              Baz,
-              Composed.Zipped[
-                Baz.foo.type & Relation[Baz, Option[Foo]],
-                Baz,
-                Option[Foo],
-                Baz.bar.type & Relation[Baz, Option[Bar]],
-                Baz,
-                Option[Bar],
-                (Option[Foo], Option[Bar])
-              ] & Relation[Baz, (Option[Foo], Option[Bar])],
-              Baz,
-              (Option[Foo], Option[Bar])
-            ],
-            Foo,
-            (Option[Foo], Option[Bar]),
-            (Baz, Option[Foo], Option[Bar])
-          ] =
+          val composed =
             Foo.baz <>: (Baz.foo & Baz.bar)
 
           val _: Relation[Foo, (Baz, Option[Foo], Option[Bar])] = composed
@@ -254,38 +215,7 @@ object RelationSpec extends ZIOSpecDefault {
           assertCompletes
         },
         test("compose one compose one zipped & a zipped relation") {
-          val composed: Composed.Zipped[
-            Foo.self.type & Relation[Foo, Foo],
-            Foo,
-            Foo,
-            Composed.Zipped[
-              Foo.baz.type & Relation.Single[Foo, Baz],
-              Foo,
-              Baz,
-              Composed.Single[
-                Foo.baz.type & Relation.Single[Foo, Baz],
-                Foo,
-                Baz,
-                Composed.Zipped[
-                  Baz.foo.type & Relation[Baz, Option[Foo]],
-                  Baz,
-                  Option[Foo],
-                  Baz.bar.type & Relation[Baz, Option[Bar]],
-                  Baz,
-                  Option[Bar],
-                  (Option[Foo], Option[Bar])
-                ] & Relation[Baz, (Option[Foo], Option[Bar])],
-                Baz,
-                (Option[Foo], Option[Bar])
-              ],
-              Foo,
-              (Option[Foo], Option[Bar]),
-              (Baz, Option[Foo], Option[Bar])
-            ] & Relation[Foo, (Baz, Option[Foo], Option[Bar])],
-            Foo,
-            (Baz, Option[Foo], Option[Bar]),
-            (Foo, Baz, Option[Foo], Option[Bar])
-          ] =
+          val composed =
             Foo.self & (Foo.baz <>: (Baz.foo & Baz.bar))
 
           val _: Relation[Foo, (Foo, Baz, Option[Foo], Option[Bar])] = composed
@@ -484,29 +414,7 @@ object RelationSpec extends ZIOSpecDefault {
           assertCompletes
         },
         test("<>: and >>: has same operator precedence") {
-          val composed: Composed.Zipped[
-            Foo.bar.type & Relation.Single[Foo, Bar],
-            Foo,
-            Bar,
-            Composed.Single[
-              Foo.bar.type & Relation.Single[Foo, Bar],
-              Foo,
-              Bar,
-              Composed.Single[
-                Bar.baz.type & Relation.Single[Bar, Baz],
-                Bar,
-                Baz,
-                Baz.foo.type & Relation[Baz, Option[Foo]],
-                Baz,
-                Option[Foo]
-              ] & Relation[Bar, Option[Foo]],
-              Bar,
-              Option[Foo]
-            ],
-            Foo,
-            Option[Foo],
-            (Bar, Option[Foo])
-          ] =
+          val composed =
             Foo.bar <>: Bar.baz >>: Baz.foo
 
           val _: Relation[Foo, (Bar, Option[Foo])] = composed

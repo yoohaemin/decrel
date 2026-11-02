@@ -34,23 +34,23 @@ trait syntax {
     )(implicit
       ev: LeftOut <:< RightIn,
       zippable: Zippable.Out[LeftOut, RightOut, ZippedOut]
-    ): Relation.Composed.Zipped[
+    ): Composed.Single[
       LeftTree & Relation.Single[LeftIn, LeftOut],
       LeftIn,
       LeftOut,
-      Relation.Composed.Single[
-        LeftTree & Relation.Single[LeftIn, LeftOut],
-        LeftIn,
+      Composed.Zipped[
+        Relation.Self[LeftOut],
+        LeftOut,
         LeftOut,
         RightTree & Relation[RightIn, RightOut],
         RightIn,
-        RightOut
+        RightOut,
+        ZippedOut
       ],
-      LeftIn,
-      RightOut,
+      LeftOut,
       ZippedOut
     ] =
-      Relation.Composed.Zipped(left, Relation.Composed.Single(left, right))
+      Relation.Composed.Single(left, Relation.Composed.Zipped(Relation.Self[LeftOut], right))
 
     def >>:[LeftTree, LeftIn, LeftOut](
       left: LeftTree & Relation.Optional[LeftIn, LeftOut]
