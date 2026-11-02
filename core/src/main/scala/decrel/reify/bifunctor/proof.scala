@@ -12,7 +12,7 @@ import decrel.*
 import decrel.reify.CommonError
 import izumi.reflect.TagK
 
-import scala.collection.{ BuildFrom, IterableOps }
+import scala.collection.{ BuildFrom, SeqOps }
 
 trait proof { this: access & reifiedRelation =>
 
@@ -48,7 +48,7 @@ trait proof { this: access & reifiedRelation =>
           override def apply(in: A): Access[Nothing, A] = succeed(in)
 
           override def applyMultiple[
-            Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]]
+            Coll[+T] <: Seq[T] & SeqOps[T, Coll, Coll[T]]
           ](
             in: Coll[A]
           ): Access[Nothing, Coll[A]] = succeed(in)
@@ -105,7 +105,7 @@ trait proof { this: access & reifiedRelation =>
       final def contramapMany[
         Rel2 <: Relation.Many[In2, CC, Out],
         In2,
-        CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]
+        CC[+A] <: Seq[A] & SeqOps[A, CC, CC[A]]
       ](
         rel: Rel2
       )(
@@ -165,7 +165,7 @@ trait proof { this: access & reifiedRelation =>
       final def contramapMany[
         Rel2 <: Relation.Many[In2, CC, Out],
         In2,
-        CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]
+        CC[+A] <: Seq[A] & SeqOps[A, CC, CC[A]]
       ](
         rel: Rel2
       )(
@@ -190,13 +190,13 @@ trait proof { this: access & reifiedRelation =>
       Rel <: Relation.Many[In, Coll, Out],
       -In,
       +E,
-      Coll[+T] <: Iterable[T] & IterableOps[T, Coll, Coll[T]],
+      Coll[+T] <: Seq[T] & SeqOps[T, Coll, Coll[T]],
       Out
     ] extends Proof.Declared[Rel, In, E, Coll[Out]] { outer =>
 
       final def contramap[
         Rel2 <: Relation.Many[In2, Coll2, Out],
-        Coll2[+T] <: Iterable[T] & IterableOps[T, Coll2, Coll2[T]],
+        Coll2[+T] <: Seq[T] & SeqOps[T, Coll2, Coll2[T]],
         In2
       ](
         rel: Rel2
@@ -225,7 +225,7 @@ trait proof { this: access & reifiedRelation =>
 
       final def contramapOptional[
         Rel2 <: Relation.Many[In2, Coll2, Out],
-        Coll2[+T] <: Iterable[T] & IterableOps[T, Coll2, Coll2[T]],
+        Coll2[+T] <: Seq[T] & SeqOps[T, Coll2, Coll2[T]],
         In2
       ](
         rel: Rel2
@@ -234,7 +234,7 @@ trait proof { this: access & reifiedRelation =>
       )(implicit
         tagkColl: TagK[Coll],
         tagkColl2: TagK[Coll2],
-        bf: BuildFrom[Iterable[Out], Out, Coll2[Out]]
+        bf: BuildFrom[Seq[Out], Out, Coll2[Out]]
       ): Proof.Many[Rel2, In2, E, Coll2, Out] =
         new Proof.Many[Rel2, In2, E, Coll2, Out] {
 
@@ -253,14 +253,14 @@ trait proof { this: access & reifiedRelation =>
                   else
                     bf.fromSpecific(c)(c)
                 case None =>
-                  bf.fromSpecific(Iterable.empty)(Iterable.empty)
+                  bf.fromSpecific(Seq.empty)(Seq.empty)
               }
             )
         }
 
       final def contramapMany[
         Rel2 <: Relation.Many[In2, Coll2, Out],
-        Coll2[+A] <: Iterable[A] & IterableOps[A, Coll2, Coll2[A]],
+        Coll2[+A] <: Seq[A] & SeqOps[A, Coll2, Coll2[A]],
         In2
       ](
         rel: Rel2
@@ -390,7 +390,7 @@ trait proof { this: access & reifiedRelation =>
       RightE,
       RightOut,
       E,
-      CC[+A] <: Iterable[A] & IterableOps[A, CC, CC[A]]
+      CC[+A] <: Seq[A] & SeqOps[A, CC, CC[A]]
     ](implicit
       leftProof: Proof.Many[LeftTree, LeftIn, LeftE, CC, LeftOut],
       rightProof: Proof[RightTree, RightIn, RightE, RightOut],
